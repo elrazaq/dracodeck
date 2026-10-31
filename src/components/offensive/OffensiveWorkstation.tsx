@@ -76,24 +76,65 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
   ]);
   const [newWatchdogUrl, setNewWatchdogUrl] = useState("");
 
-  // Handler: Run Baseline Vulnerability Audit (M4)
+  // Handler: Run Deep Multi-Vector Audit + 10-Vector PoV + Shadow AST Miner in parallel
   const handleRunAudit = async () => {
     if (!targetUrl.trim() || isAuditing) return;
+    const cleanTarget = targetUrl.trim();
     setIsAuditing(true);
+    setIsTestingPoV(true);
     setSelectedFinding(null);
 
     try {
-      if (window.dracoAPI?.vulnScan) {
-        const result = await window.dracoAPI.vulnScan(targetUrl.trim());
-        setScanResult(result);
-        if (result.findings && result.findings.length > 0) {
-          setSelectedFinding(result.findings[0]);
+      const [auditRes, povRes] = await Promise.all([
+        window.dracoAPI?.vulnScan ? window.dracoAPI.vulnScan(cleanTarget) : Promise.resolve(null),
+        window.dracoAPI?.sentinelRunPoV ? window.dracoAPI.sentinelRunPoV(cleanTarget) : Promise.resolve(null),
+      ]);
+
+      if (povRes) {
+        setPovResult(povRes);
+      }
+
+      if (auditRes) {
+        // Merge any verified PoV findings directly into the primary audit findings list
+        const mergedFindings: VulnFinding[] = [...(auditRes.findings || [])];
+        if (povRes?.verifiedFindings && povRes.verifiedFindings.length > 0) {
+          for (const pf of povRes.verifiedFindings) {
+            mergedFindings.unshift({
+              id: `POV_${pf.type}_${mergedFindings.length}`,
+              category: "POV_VERIFIED",
+              severity: pf.severity,
+              cwe: pf.type,
+              title: `[VERIFIED PoV] ${pf.title}`,
+              evidence: `${pf.evidenceExcerpt}\n\nReproducible Command:\n${pf.reproducibleCurl}`,
+              description: `Mathematically verified vulnerability (${pf.certaintyScore}% certainty) on ${pf.testedUrl || cleanTarget}${pf.targetParam ? ` via parameter [${pf.targetParam}]` : ""}.`,
+              remediation: pf.remediation,
+            });
+          }
+        }
+
+        const updatedSummary = {
+          critical: mergedFindings.filter((f) => f.severity === "CRITICAL").length,
+          high: mergedFindings.filter((f) => f.severity === "HIGH").length,
+          medium: mergedFindings.filter((f) => f.severity === "MEDIUM").length,
+          low: mergedFindings.filter((f) => f.severity === "LOW").length,
+          pass: mergedFindings.filter((f) => f.severity === "PASS").length,
+        };
+
+        const mergedScan = {
+          ...auditRes,
+          findings: mergedFindings,
+          summary: updatedSummary,
+        };
+        setScanResult(mergedScan);
+        if (mergedFindings.length > 0) {
+          setSelectedFinding(mergedFindings[0]);
         }
       }
     } catch (err: any) {
       console.error("Audit error:", err);
     } finally {
       setIsAuditing(false);
+      setIsTestingPoV(false);
     }
   };
 
@@ -541,17 +582,17 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
           </>
         )}
 
-        {/* Tab 2: Verified Proof-of-Verification (PoV) Suite (M4.1) */}
+        {/* Tab 2: Verified Proof-of-Verification (PoV) Suite (Deep 10-Vector Engine) */}
         {activeTab === "pov" && (
           <div className="flex-1 p-5 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[#261d38]">
               <div>
                 <h3 className="text-sm font-bold text-[#00e676] flex items-center gap-2">
                   <Zap className="w-4 h-4 text-[#00e676]" />
-                  <span>NON-DESTRUCTIVE PROOF-OF-VERIFICATION (PoV) SUITE</span>
+                  <span>10-VECTOR DEEP SURFACE HARVESTER & MATHEMATICAL PoV ENGINE</span>
                 </h3>
                 <p className="text-xs text-[#7a7194] mt-0.5">
-                  Proves vulnerability existence via inert canary reflection and boolean differential arithmetic without brutal exploitation.
+                  Crawls DOM forms, JS AST bundles, OpenAPI & GraphQL routes, then executes 10 modern verification vectors (Source Maps, Hydration Secrets, 4-Way CORS Regex, SSTI, SQL Quote Parity, NoSQL Type-Juggling, Host Poisoning).
                 </p>
               </div>
 
@@ -565,20 +606,26 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
                 }`}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isTestingPoV ? "animate-spin" : ""}`} />
-                <span>{isTestingPoV ? "VERIFYING PROOFS..." : "EXECUTE VERIFIED PoV"}</span>
+                <span>{isTestingPoV ? "EXECUTING 10 VECTORS..." : "EXECUTE 10-VECTOR PoV"}</span>
               </button>
             </div>
 
             {/* Metrics Ribbon */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="bg-[#120c1f] p-3 border border-[#261d38]">
                 <span className="text-[10px] text-[#7a7194] uppercase font-bold">Total Proven PoVs</span>
                 <p className="text-xl font-bold text-[#00e676]">{povResult?.totalVerified ?? 0}</p>
               </div>
               <div className="bg-[#120c1f] p-3 border border-[#261d38]">
-                <span className="text-[10px] text-[#7a7194] uppercase font-bold">Verification Certainty</span>
-                <p className="text-xl font-bold text-[#00e5ff]">
-                  {povResult && povResult.totalVerified > 0 ? "100% Mathematical" : "Ready"}
+                <span className="text-[10px] text-[#7a7194] uppercase font-bold">HTTP Probes Dispatched</span>
+                <p className="text-xl font-bold text-[#00e5ff]">{povResult?.totalProbesDispatched ?? 0}</p>
+              </div>
+              <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                <span className="text-[10px] text-[#7a7194] uppercase font-bold">Harvested Endpoints / Params</span>
+                <p className="text-xl font-bold text-[#ff007f]">
+                  {povResult?.surfaceSummary
+                    ? `${povResult.surfaceSummary.harvestedEndpoints.length} EP / ${povResult.surfaceSummary.harvestedParams.length} PRM`
+                    : "0 / 0"}
                 </p>
               </div>
               <div className="bg-[#120c1f] p-3 border border-[#261d38]">
@@ -589,6 +636,85 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               </div>
             </div>
 
+            {/* Harvested Attack Surface Telemetry & 10-Vector Matrix */}
+            {povResult && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {/* Harvested Surface Box */}
+                <div className="bg-[#120c1f] border border-[#261d38] p-3 space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                    <span className="text-[11px] font-bold text-[#00e5ff]">
+                      AUTO-HARVESTED ATTACK SURFACE (PHASE 0)
+                    </span>
+                    <span className="text-[10px] text-[#7a7194]">
+                      {povResult.surfaceSummary?.scannedScripts ?? 0} JS Bundles | {povResult.surfaceSummary?.harvestedForms ?? 0} HTML Forms
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#7a7194] uppercase font-bold mb-1">
+                      Discovered & Tested Endpoints ({povResult.surfaceSummary?.harvestedEndpoints.length ?? 0}):
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {povResult.surfaceSummary?.harvestedEndpoints.map((ep) => (
+                        <span
+                          key={ep}
+                          className="px-1.5 py-0.5 bg-[#0b0813] border border-[#00e5ff]/30 text-[#00e5ff] text-[10px] font-mono"
+                        >
+                          {ep}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-[#7a7194] uppercase font-bold mb-1">
+                      Harvested Input & Query Vectors ({povResult.surfaceSummary?.harvestedParams.length ?? 0}):
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {povResult.surfaceSummary?.harvestedParams.map((prm) => (
+                        <span
+                          key={prm}
+                          className="px-1.5 py-0.5 bg-[#0b0813] border border-[#ff007f]/40 text-[#ff007f] text-[10px] font-mono"
+                        >
+                          {prm}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 10-Vector Execution Matrix */}
+                <div className="bg-[#120c1f] border border-[#261d38] p-3 space-y-1.5">
+                  <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                    <span className="text-[11px] font-bold text-[#00e676]">
+                      10-VECTOR DEEP VERIFICATION MATRIX
+                    </span>
+                    <span className="text-[10px] text-[#7a7194]">LIVE ENGINE TELEMETRY</span>
+                  </div>
+                  <div className="divide-y divide-[#261d38]/60 max-h-48 overflow-y-auto pr-1">
+                    {povResult.vectorMatrix?.map((vec) => (
+                      <div key={vec.id} className="py-1 flex items-center justify-between text-[10.5px]">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-[#00e5ff] font-bold">{vec.id}</span>
+                          <span className="text-[#cbd5e1] truncate">{vec.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[9.5px] text-[#7a7194]">{vec.probes} probes</span>
+                          {vec.findings > 0 ? (
+                            <span className="px-1.5 py-0.2 bg-[#ff1744]/20 border border-[#ff1744] text-[#ff1744] text-[9px] font-bold">
+                              {vec.findings} PROVEN
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 bg-[#00e676]/10 border border-[#00e676]/40 text-[#00e676] text-[9px] font-bold">
+                              HARDENED
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Findings List */}
             {povResult && povResult.verifiedFindings.length > 0 ? (
               <div className="space-y-3">
@@ -597,12 +723,14 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-12 text-center bg-[#120c1f] border border-[#261d38] text-[#7a7194] space-y-2">
-                <Shield className="w-10 h-10 text-[#261d38] mx-auto" />
-                <p className="text-xs">
+              <div className="p-8 text-center bg-[#120c1f] border border-[#261d38] text-[#7a7194] space-y-2">
+                <Shield className="w-8 h-8 text-[#261d38] mx-auto" />
+                <p className="text-xs text-[#e2e8f0] font-bold">
                   {isTestingPoV
-                    ? "Dispatching canary reflection & boolean differential requests..."
-                    : "Click 'EXECUTE VERIFIED PoV' to generate non-destructive mathematical verification cards."}
+                    ? "Harvesting attack surface & dispatching 10-vector mathematical probes..."
+                    : povResult
+                    ? `All ${povResult.totalProbesDispatched ?? 0} multi-vector probes completed across ${povResult.surfaceSummary?.harvestedEndpoints.length ?? 1} endpoints — 0 exploitable PoV conditions triggered.`
+                    : "Click 'EXECUTE 10-VECTOR PoV' to run deep surface discovery and mathematical verification."}
                 </p>
               </div>
             )}

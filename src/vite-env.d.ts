@@ -132,6 +132,19 @@ export interface PoVScanResult {
   durationMs: number;
   verifiedFindings: VerifiedFinding[];
   totalVerified: number;
+  totalProbesDispatched?: number;
+  surfaceSummary?: {
+    harvestedEndpoints: string[];
+    harvestedParams: string[];
+    harvestedForms: number;
+    scannedScripts: number;
+  };
+  vectorMatrix?: Array<{
+    id: string;
+    name: string;
+    probes: number;
+    findings: number;
+  }>;
   error?: string;
 }
 
