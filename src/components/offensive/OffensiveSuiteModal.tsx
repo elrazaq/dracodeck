@@ -16,9 +16,12 @@ import {
   Download,
   Bell,
   RefreshCw,
+  Activity,
+  Database,
 } from "lucide-react";
 import { DracoTooltip } from "../common/DracoTooltip";
 import { ActiveView } from "../../types";
+import { OffensiveEngine } from "../../services/offensiveEngine";
 
 interface OffensiveSuiteModalProps {
   isOpen: boolean;
@@ -108,6 +111,66 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
   const [hexDump, setHexDump] = useState<string[]>([]);
   const [extractedStrings, setExtractedStrings] = useState<string[]>([]);
   const [reverseMode, setReverseMode] = useState<"hex" | "strings">("hex");
+
+  // Real Kali Offensive Suite Runners State
+  const [nmapTarget, setNmapTarget] = useState("127.0.0.1");
+  const [nmapFlags, setNmapFlags] = useState("-sV -T4");
+  const [nmapOutput, setNmapOutput] = useState<string | null>(null);
+  const [isNmapScanning, setIsNmapScanning] = useState(false);
+
+  const [sploitQuery, setSploitQuery] = useState("apache");
+  const [sploitOutput, setSploitOutput] = useState<string | null>(null);
+
+  const [dirTarget, setDirTarget] = useState("http://localhost:5173");
+  const [dirOutput, setDirOutput] = useState<string | null>(null);
+  const [isDirFuzzing, setIsDirFuzzing] = useState(false);
+
+  const [sqlTarget, setSqlTarget] = useState("http://localhost:3000/api/users?id=1");
+  const [sqlOutput, setSqlOutput] = useState<string | null>(null);
+  const [isSqlScanning, setIsSqlScanning] = useState(false);
+
+  const [penLhost, setPenLhost] = useState("10.10.14.5");
+  const [penLport, setPenLport] = useState("4444");
+  const [penOutput, setPenOutput] = useState<string | null>(null);
+
+  const dispatchToConPTY = (cmd: string) => {
+    if (window.dracoAPI?.send) {
+      window.dracoAPI.send("terminal-input", cmd + "\r\n");
+    }
+    onSelectView?.("terminal");
+    onClose();
+  };
+
+  const handleRunNmap = async () => {
+    setIsNmapScanning(true);
+    const out = await OffensiveEngine.nmap(nmapTarget, nmapFlags);
+    setNmapOutput(out);
+    setIsNmapScanning(false);
+  };
+
+  const handleRunSearchsploit = () => {
+    const out = OffensiveEngine.searchsploit(sploitQuery);
+    setSploitOutput(out);
+  };
+
+  const handleRunDirsearch = async () => {
+    setIsDirFuzzing(true);
+    const out = await OffensiveEngine.dirsearch(dirTarget);
+    setDirOutput(out);
+    setIsDirFuzzing(false);
+  };
+
+  const handleRunSqlmap = async () => {
+    setIsSqlScanning(true);
+    const out = await OffensiveEngine.sqlmap(sqlTarget);
+    setSqlOutput(out);
+    setIsSqlScanning(false);
+  };
+
+  const handleGeneratePenelope = () => {
+    const out = OffensiveEngine.penelope(penLhost, penLport);
+    setPenOutput(out);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -721,6 +784,48 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Searchsploit Exploit-DB Archive Query */}
+              <div className="bg-[#120c1f] border border-[#261d38] p-3 rounded-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-[#ff007f]" />
+                    <span className="font-bold text-xs text-[#e2e8f0]">SEARCHSPLOIT // EXPLOIT-DB ARCHIVE QUERY</span>
+                  </div>
+                  <button
+                    onClick={() => dispatchToConPTY(`searchsploit ${sploitQuery}`)}
+                    className="text-[10px] text-[#00e5ff] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  >
+                    <span>RUN IN CONPTY</span>
+                    <Terminal className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={sploitQuery}
+                    onChange={(e) => setSploitQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRunSearchsploit();
+                    }}
+                    placeholder="Search software exploit (e.g. apache, nginx, openssl, cve-2021-41773)..."
+                    className="flex-1 bg-[#0b0813] border border-[#261d38] px-3 py-1.5 text-xs text-[#00e5ff] font-mono outline-none focus:border-[#ff007f]"
+                  />
+                  <button
+                    onClick={handleRunSearchsploit}
+                    className="px-4 py-1.5 bg-[#ff007f] hover:bg-[#e0007b] text-white font-bold text-xs cursor-pointer"
+                  >
+                    SEARCH
+                  </button>
+                </div>
+
+                {sploitOutput && (
+                  <pre className="p-2.5 bg-[#08060e] border border-[#261d38] text-[#a5b4fc] text-[10px] leading-relaxed overflow-x-auto max-h-48 whitespace-pre font-mono">
+                    {sploitOutput}
+                  </pre>
+                )}
+              </div>
             </div>
           )}
 
@@ -794,6 +899,55 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
           {/* TAB 3: INFO GATHERING (RECON) */}
           {activeTab === "recon" && (
             <div className="space-y-4">
+              {/* Nmap Network Port Scanner */}
+              <div className="bg-[#120c1f] border border-[#261d38] p-3 rounded-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-3.5 h-3.5 text-[#00e676]" />
+                    <span className="font-bold text-xs text-[#e2e8f0]">
+                      NMAP // NETWORK MAPPER & PORT DISCOVERY
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => dispatchToConPTY(`nmap ${nmapTarget} ${nmapFlags}`)}
+                    className="text-[10px] text-[#00e676] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  >
+                    <span>RUN IN CONPTY</span>
+                    <Terminal className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={nmapTarget}
+                    onChange={(e) => setNmapTarget(e.target.value)}
+                    placeholder="Target IP / Host (e.g. 127.0.0.1, 192.168.1.1)"
+                    className="flex-1 bg-[#0b0813] border border-[#261d38] px-3 py-1.5 text-xs text-[#00e5ff] font-mono outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={nmapFlags}
+                    onChange={(e) => setNmapFlags(e.target.value)}
+                    placeholder="Flags: -sV -T4"
+                    className="w-32 bg-[#0b0813] border border-[#261d38] px-2 py-1.5 text-xs text-[#ffb74d] font-mono outline-none"
+                  />
+                  <button
+                    onClick={handleRunNmap}
+                    disabled={isNmapScanning}
+                    className="px-4 py-1.5 bg-[#00e676] hover:bg-[#00e676]/80 text-[#0b0813] font-bold text-xs cursor-pointer"
+                  >
+                    {isNmapScanning ? "SCANNING..." : "SCAN NMAP"}
+                  </button>
+                </div>
+
+                {nmapOutput && (
+                  <pre className="p-2.5 bg-[#08060e] border border-[#261d38] text-[#00e676] text-[10px] leading-relaxed overflow-x-auto max-h-52 whitespace-pre font-mono">
+                    {nmapOutput}
+                  </pre>
+                )}
+              </div>
+
               <div className="flex items-center justify-between border-b border-[#261d38] pb-2">
                 <div>
                   <h3 className="font-bold text-[#00e5ff] text-sm flex items-center gap-2">
@@ -806,7 +960,7 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
                 </div>
                 <button
                   onClick={loadNetInterfaces}
-                  className="px-2.5 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] text-[10px] flex items-center gap-1.5"
+                  className="px-2.5 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] text-[10px] flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>REFRESH ADAPTERS</span>
                 </button>
@@ -927,6 +1081,86 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Dirsearch & FFUF Web Path Fuzzer */}
+              <div className="bg-[#120c1f] border border-[#261d38] p-3 rounded-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-3.5 h-3.5 text-[#ff8800]" />
+                    <span className="font-bold text-xs text-[#e2e8f0]">DIRSEARCH // WEB PATH FUZZER</span>
+                  </div>
+                  <button
+                    onClick={() => dispatchToConPTY(`dirsearch -u ${dirTarget}`)}
+                    className="text-[10px] text-[#ff8800] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  >
+                    <span>RUN IN CONPTY</span>
+                    <Terminal className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={dirTarget}
+                    onChange={(e) => setDirTarget(e.target.value)}
+                    placeholder="Target base URL (e.g. http://localhost:5173)"
+                    className="flex-1 bg-[#0b0813] border border-[#261d38] px-3 py-1.5 text-xs text-[#00e5ff] font-mono outline-none"
+                  />
+                  <button
+                    onClick={handleRunDirsearch}
+                    disabled={isDirFuzzing}
+                    className="px-4 py-1.5 bg-[#ff8800] hover:bg-[#ff8800]/80 text-[#0b0813] font-bold text-xs cursor-pointer"
+                  >
+                    {isDirFuzzing ? "FUZZING..." : "FUZZ PATHS"}
+                  </button>
+                </div>
+
+                {dirOutput && (
+                  <pre className="p-2.5 bg-[#08060e] border border-[#261d38] text-[#ffb74d] text-[10px] leading-relaxed overflow-x-auto max-h-48 whitespace-pre font-mono">
+                    {dirOutput}
+                  </pre>
+                )}
+              </div>
+
+              {/* SQLMap Parameter Auditor */}
+              <div className="bg-[#120c1f] border border-[#261d38] p-3 rounded-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-3.5 h-3.5 text-[#ff007f]" />
+                    <span className="font-bold text-xs text-[#e2e8f0]">SQLMAP // DATABASE INJECTION AUDITOR</span>
+                  </div>
+                  <button
+                    onClick={() => dispatchToConPTY(`sqlmap -u "${sqlTarget}"`)}
+                    className="text-[10px] text-[#ff007f] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  >
+                    <span>RUN IN CONPTY</span>
+                    <Terminal className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={sqlTarget}
+                    onChange={(e) => setSqlTarget(e.target.value)}
+                    placeholder="Target URL with parameters (e.g. http://site.com/api?id=1)"
+                    className="flex-1 bg-[#0b0813] border border-[#261d38] px-3 py-1.5 text-xs text-[#00e5ff] font-mono outline-none"
+                  />
+                  <button
+                    onClick={handleRunSqlmap}
+                    disabled={isSqlScanning}
+                    className="px-4 py-1.5 bg-[#ff007f] hover:bg-[#e0007b] text-white font-bold text-xs cursor-pointer"
+                  >
+                    {isSqlScanning ? "TESTING..." : "AUDIT SQL"}
+                  </button>
+                </div>
+
+                {sqlOutput && (
+                  <pre className="p-2.5 bg-[#08060e] border border-[#261d38] text-[#ff007f] text-[10px] leading-relaxed overflow-x-auto max-h-48 whitespace-pre font-mono">
+                    {sqlOutput}
+                  </pre>
+                )}
+              </div>
             </div>
           )}
 
@@ -1003,6 +1237,54 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Penelope Reverse Shell Payload Engine */}
+              <div className="bg-[#120c1f] border border-[#261d38] p-3 rounded-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-[#261d38] pb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Radio className="w-3.5 h-3.5 text-[#00e676]" />
+                    <span className="font-bold text-xs text-[#e2e8f0]">
+                      PENELOPE // SHELL HANDLER & PAYLOAD ENGINE
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => dispatchToConPTY(`penelope ${penLhost} ${penLport}`)}
+                    className="text-[10px] text-[#00e676] hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                  >
+                    <span>START LISTENER IN CONPTY</span>
+                    <Terminal className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={penLhost}
+                    onChange={(e) => setPenLhost(e.target.value)}
+                    placeholder="LHOST (e.g. 10.10.14.5)"
+                    className="w-40 bg-[#0b0813] border border-[#261d38] px-3 py-1.5 text-xs text-[#00e5ff] font-mono outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={penLport}
+                    onChange={(e) => setPenLport(e.target.value)}
+                    placeholder="LPORT (e.g. 4444)"
+                    className="w-24 bg-[#0b0813] border border-[#261d38] px-2 py-1.5 text-xs text-[#ffb74d] font-mono outline-none"
+                  />
+                  <button
+                    onClick={handleGeneratePenelope}
+                    className="px-4 py-1.5 bg-[#00e676] hover:bg-[#00e676]/80 text-[#0b0813] font-bold text-xs cursor-pointer"
+                  >
+                    GENERATE PAYLOADS
+                  </button>
+                </div>
+
+                {penOutput && (
+                  <pre className="p-2.5 bg-[#08060e] border border-[#261d38] text-[#a5b4fc] text-[10px] leading-relaxed overflow-x-auto max-h-52 whitespace-pre font-mono">
+                    {penOutput}
+                  </pre>
+                )}
+              </div>
             </div>
           )}
 
@@ -1060,6 +1342,20 @@ export const OffensiveSuiteModal: React.FC<OffensiveSuiteModalProps> = ({
                       onSelectView?.("editor");
                       onClose();
                     },
+                  },
+                  {
+                    id: "msfconsole",
+                    title: "Metasploit Framework (msfconsole)",
+                    desc: "Interactive offensive exploit database, auxiliary scanners, and encoders.",
+                    icon: <Shield className="w-5 h-5 text-[#ff007f]" />,
+                    action: () => dispatchToConPTY("msfconsole"),
+                  },
+                  {
+                    id: "top",
+                    title: "Linux Top / HTop Process Monitor",
+                    desc: "Real-time CPU and memory process load visualizer with kill signals.",
+                    icon: <Activity className="w-5 h-5 text-[#00e676]" />,
+                    action: () => dispatchToConPTY("top"),
                   },
                 ].map((item) => (
                   <div

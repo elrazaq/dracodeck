@@ -494,7 +494,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       )}
 
       {/* Editor Tab Bar */}
-      <div className="h-8 bg-[#120c1f] border-b border-[#261d38] flex items-center overflow-x-auto select-none">
+      <div className="h-8 min-h-[32px] flex-shrink-0 bg-[#120c1f] border-b border-[#261d38] flex items-center overflow-x-auto select-none relative z-20">
         {tabs.map((tab) => {
           const isActive = tab.path === activeTabPath;
           const isMarkdown = tab.name.endsWith(".md");

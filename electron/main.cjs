@@ -51,7 +51,14 @@ function initTerminal(cwd) {
   }
 }
 
+// Set explicit Windows App User Model ID so Windows Taskbar pins and icons are bound to Dracodeck
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.elrazaq.dracodeck');
+}
+
 function createWindow() {
+  const iconPath = path.join(__dirname, '../public/dracodeck-logo.png');
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -61,6 +68,7 @@ function createWindow() {
     fullscreen: true,
     fullscreenable: true,
     frame: false,
+    icon: iconPath,
     backgroundColor: '#0b0813',
     title: 'Dracodeck // Offensive Developer Cockpit',
     autoHideMenuBar: true,
@@ -71,6 +79,11 @@ function createWindow() {
       webviewTag: true,
     },
   });
+
+  // Enable WebRTC leak protection by default
+  try {
+    session.defaultSession.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+  } catch {}
 
   // Strip restrictive security headers (X-Frame-Options & CSP) to unblock all websites in DracoBrowser
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -332,6 +345,81 @@ ipcMain.handle('stat-file', async (event, targetPath) => {
     console.error('Error stating file:', err);
     return null;
   }
+});
+
+// Browser OpSec IPC Handlers: DNS, Proxy, UA, Egress IP, Live DevTools
+ipcMain.handle('browser-set-dns', async (event, dnsServer) => {
+  try {
+    if (!dnsServer || dnsServer === 'direct') {
+      app.configureHostResolver({ secureDnsMode: 'off' });
+      return { success: true, mode: 'direct' };
+    }
+    app.configureHostResolver({
+      secureDnsMode: 'secure',
+      secureDnsServers: [dnsServer],
+    });
+    return { success: true, mode: dnsServer };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('browser-set-proxy', async (event, proxyRules) => {
+  try {
+    await session.defaultSession.setProxy({
+      proxyRules: proxyRules || '',
+      proxyBypassRules: '<local>',
+    });
+    return { success: true, proxy: proxyRules || 'direct' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('browser-set-user-agent', async (event, userAgent) => {
+  try {
+    session.defaultSession.setUserAgent(userAgent);
+    return { success: true, userAgent };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('browser-check-ip', async () => {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json').then((r) => r.json());
+    return { ip: res.ip, status: 'online' };
+  } catch {
+    return { ip: 'Offline / Shielded', status: 'offline' };
+  }
+});
+
+ipcMain.handle('open-webview-devtools', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.openDevTools({ mode: 'right' });
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('wsl-check', async () => {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') {
+      resolve({ hasWSL: false, isKali: false });
+      return;
+    }
+    const proc = spawn('wsl', ['-l', '-q'], { shell: true });
+    let out = '';
+    proc.stdout.on('data', (d) => { out += d.toString(); });
+    proc.on('close', () => {
+      const clean = out.replace(/\0/g, '').toLowerCase();
+      resolve({
+        hasWSL: clean.trim().length > 0,
+        isKali: clean.includes('kali'),
+      });
+    });
+    proc.on('error', () => resolve({ hasWSL: false, isKali: false }));
+  });
 });
 
 app.whenReady().then(createWindow);

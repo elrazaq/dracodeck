@@ -129,6 +129,12 @@ declare global {
       attachTelemetry: (convId?: string, maxHistory?: number) => Promise<AttachTelemetryResult>;
       pauseTelemetry: (paused: boolean) => Promise<boolean>;
       getActiveTelemetrySession: () => Promise<ActiveTelemetrySession>;
+      setDNS: (dnsServer: string) => Promise<{ success: boolean; mode?: string; error?: string }>;
+      setProxy: (proxyRules: string) => Promise<{ success: boolean; proxy?: string; error?: string }>;
+      setUserAgent: (ua: string) => Promise<{ success: boolean; userAgent?: string; error?: string }>;
+      checkPublicIP: () => Promise<{ ip: string; status: string }>;
+      openWebviewDevTools: () => Promise<boolean>;
+      checkWSL: () => Promise<{ hasWSL: boolean; isKali: boolean }>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => (() => void) | void;
       off: (channel: string, func: (...args: any[]) => void) => void;

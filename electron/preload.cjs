@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   attachTelemetry: (convId, maxHistory) => ipcRenderer.invoke('telemetry:attach', { convId, maxHistory }),
   pauseTelemetry: (paused) => ipcRenderer.invoke('telemetry:pause', { paused }),
   getActiveTelemetrySession: () => ipcRenderer.invoke('telemetry:get-active'),
+  setDNS: (dnsServer) => ipcRenderer.invoke('browser-set-dns', dnsServer),
+  setProxy: (proxyRules) => ipcRenderer.invoke('browser-set-proxy', proxyRules),
+  setUserAgent: (ua) => ipcRenderer.invoke('browser-set-user-agent', ua),
+  checkPublicIP: () => ipcRenderer.invoke('browser-check-ip'),
+  openWebviewDevTools: () => ipcRenderer.invoke('open-webview-devtools'),
+  checkWSL: () => ipcRenderer.invoke('wsl-check'),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {

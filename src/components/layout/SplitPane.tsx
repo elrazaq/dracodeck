@@ -64,7 +64,7 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
       {/* Pane 1 */}
       <div
         style={{ [isHoriz ? "width" : "height"]: `${split}%` }}
-        className="h-full overflow-hidden flex flex-col"
+        className={`${isHoriz ? "h-full" : "w-full"} overflow-hidden flex flex-col flex-shrink-0`}
       >
         {left}
       </div>
@@ -82,7 +82,7 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
       {/* Pane 2 */}
       <div
         style={{ [isHoriz ? "width" : "height"]: `${100 - split}%` }}
-        className="h-full overflow-hidden flex flex-col"
+        className={`${isHoriz ? "h-full" : "w-full"} overflow-hidden flex flex-col flex-shrink-0`}
       >
         {right}
       </div>
