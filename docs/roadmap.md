@@ -20,11 +20,21 @@ Roadmap resmi pengembangan **DRACODECK** (*The Offensive-Grade Developer Cockpit
 
 ## Milestone 1.1: Kali Linux OS Desktop Experience & Native File Manager
 > Dokumen Spesifikasi: [m1-1-kali-os-experience.md](m1-1-kali-os-experience.md)
-- [ ] Implementasi logo resmi **Dracodeck** (koreksi typo nama).
-- [ ] Layout Taskbar Vertikal Sisi Kiri (Kali Left Vertical Dock, launcher naga, app pins, vertical clock).
-- [ ] Kali Desktop Environment UI & Internal File Manager (Thunar / Dolphin style).
-- [ ] Algoritma Strict Folder-First Ascending (seluruh folder A-Z di atas, seluruh file A-Z di bawah).
-- [ ] Integrasi pembukaan berkas dari file manager langsung ke editor VS Code Kali Dark.
+- [x] Implementasi logo resmi **Dracodeck** (koreksi typo nama).
+- [x] Layout Taskbar Vertikal Sisi Kiri (Kali Left Vertical Dock, launcher naga, app pins, vertical clock).
+- [x] Kali Desktop Environment UI & Internal File Manager (Thunar / Dolphin style).
+- [x] Algoritma Strict Folder-First Ascending (seluruh folder A-Z di atas, seluruh file A-Z di bawah).
+- [x] Signature Status Bar Hot Magenta (#ff007f) selaras dengan VS Code pengguna.
+
+---
+
+## Milestone 1.2: Kali OS Desktop, Comprehensive Syntax Highlighting & Workspace Scoping
+> Dokumen Spesifikasi: [m1-2-desktop-syntax-scoping.md](m1-2-desktop-syntax-scoping.md)
+- [ ] Comprehensive syntax highlighting (html, css, js, ts, tsx, py, dart, rs, json, md, sh).
+- [ ] Dedicated file-type icons (TS, JS, Py, Dart, Rust, HTML, CSS, JSON, Markdown).
+- [ ] Fullscreen boot window & tombol shutdown sistem di dock kiri.
+- [ ] Tampilan UI Desktop OS sejati (wallpaper cyberdeck + desktop app shortcuts).
+- [ ] Right-click folder context menu: Copy, Cut, Paste, Properties, dan **Open Scope Here** (isolasi fokus folder).
 
 ---
 

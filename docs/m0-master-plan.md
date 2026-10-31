@@ -79,7 +79,8 @@ flowchart TD
 | :--- | :--- | :--- | :--- |
 | **M0: Master Plan & Foundation Docs** | Transisi arsitektur ke Electron, blueprint 4 pilar besar, eliminasi C++ overhead. | [m0-master-plan.md](m0-master-plan.md) | **ACTIVE** |
 | **M1: Kali Dark Shell & Electron Scaffold** | Scaffold Electron BrowserWindow, Kali tokens di Tailwind v4, TopBar, ActivityBar, SplitPane. | [m1-kali-shell.md](m1-kali-shell.md) | Done |
-| **M1.1: Kali OS Experience & Native File Manager** | Koreksi logo Dracodeck, left vertical dock, Kali OS desktop, internal file manager (folders first). | [m1-1-kali-os-experience.md](m1-1-kali-os-experience.md) | Ready |
+| **M1.1: Kali OS Experience & Native File Manager** | Koreksi logo Dracodeck, left vertical dock, Kali OS desktop, internal file manager (folders first). | [m1-1-kali-os-experience.md](m1-1-kali-os-experience.md) | Done |
+| **M1.2: Desktop OS, Syntax & Workspace Scoping** | Syntax highlighting komplit, ikon file spesifik, fullscreen boot & shutdown, right-click Open Scope Here. | [m1-2-desktop-syntax-scoping.md](m1-2-desktop-syntax-scoping.md) | **NEXT** |
 | **M2: Terminal ConPTY & Monaco Editor** | PTY bridge PowerShell/WSL2 ke xterm.js via IPC, Monaco Editor dengan Kali Dark theme. | [m2-terminal-editor.md](m2-terminal-editor.md) | Planned |
 | **M3: Antigravity & Agent Telemetry Hub** | Watcher `transcript.jsonl` non-blocking, parser streaming event, live diff & thinking viewer. | [m3-telemetry-engine.md](m3-telemetry-engine.md) | Planned |
 | **M4: DracoNet & Zombie Port Slayer** | Win32 socket scanner, 1-klik kill zombie port dev, HTTP/TCP endpoint probe, Windows packaging. | [m4-port-slayer.md](m4-port-slayer.md) | Planned |
