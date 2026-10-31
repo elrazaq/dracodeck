@@ -69,7 +69,8 @@ flowchart TD
 | Milestone | Target & Deliverables | Spec Document | Status |
 | :--- | :--- | :--- | :--- |
 | **M0: Master Plan & Foundation Docs** | Transisi arsitektur ke Electron, pembaruan seluruh docs, eliminasi C++ overhead. | [m0-master-plan.md](m0-master-plan.md) | **ACTIVE** |
-| **M1: Kali Dark Shell & Electron Scaffold** | Scaffold Electron BrowserWindow, Kali tokens di Tailwind v4, TopBar, ActivityBar, SplitPane. | [m1-kali-shell.md](m1-kali-shell.md) | Ready |
+| **M1: Kali Dark Shell & Electron Scaffold** | Scaffold Electron BrowserWindow, Kali tokens di Tailwind v4, TopBar, ActivityBar, SplitPane. | [m1-kali-shell.md](m1-kali-shell.md) | Done |
+| **M1.1: Kali OS Experience & File Manager** | Koreksi logo Dracodeck, left vertical dock, Kali OS desktop, internal file manager (folders first). | [m1-1-kali-os-experience.md](m1-1-kali-os-experience.md) | **NEXT** |
 | **M2: Terminal PTY & Monaco Integration** | PTY bridge PowerShell/WSL2 ke xterm.js via IPC, Monaco Editor dengan Kali Dark theme. | [m2-terminal-editor.md](m2-terminal-editor.md) | Planned |
 | **M3: Antigravity Live Telemetry Engine** | Watcher `transcript.jsonl` non-blocking, parser streaming event, live diff & thinking viewer. | [m3-telemetry-engine.md](m3-telemetry-engine.md) | Planned |
 | **M4: Zombie Port Slayer & Packaging** | Scanner port development lokal, 1-click process killer, packaging Windows `.exe` installer. | [m4-port-slayer.md](m4-port-slayer.md) | Planned |

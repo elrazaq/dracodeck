@@ -141,3 +141,4 @@ export const WorkspaceWelcome: React.FC<WorkspaceWelcomeProps> = ({
     </div>
   );
 };
+
