@@ -162,22 +162,38 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
   const renderToken = (tok: Token, idx: number) => {
     switch (tok.type) {
-      case "kw":
-        return <span key={idx} className="text-[#00e676] font-semibold">{tok.value}</span>;
-      case "str":
-        return <span key={idx} className="text-[#00e5ff]">{tok.value}</span>;
-      case "fn":
-        return <span key={idx} className="text-[#ff007f]">{tok.value}</span>;
+      case "kw-control":
+        return <span key={idx} className="text-[#00e676] font-bold">{tok.value}</span>;
+      case "kw-decl":
+        return <span key={idx} className="text-[#00e5ff] font-semibold">{tok.value}</span>;
       case "type":
         return <span key={idx} className="text-[#38bdf8] font-medium">{tok.value}</span>;
+      case "fn-def":
+        return <span key={idx} className="text-[#ff007f] font-bold">{tok.value}</span>;
+      case "fn-call":
+        return <span key={idx} className="text-[#f43f5e]">{tok.value}</span>;
+      case "prop":
+        return <span key={idx} className="text-[#c084fc]">{tok.value}</span>;
+      case "str":
+        return <span key={idx} className="text-[#ffb74d]">{tok.value}</span>;
+      case "template":
+        return <span key={idx} className="text-[#ffcc80]">{tok.value}</span>;
       case "num":
-        return <span key={idx} className="text-[#ff8800]">{tok.value}</span>;
+        return <span key={idx} className="text-[#ff9100]">{tok.value}</span>;
+      case "bool":
+        return <span key={idx} className="text-[#ffd600] font-bold">{tok.value}</span>;
+      case "operator":
+        return <span key={idx} className="text-[#a3e635]">{tok.value}</span>;
+      case "punct":
+        return <span key={idx} className="text-[#94a3b8]">{tok.value}</span>;
+      case "decorator":
+        return <span key={idx} className="text-[#e879f9] italic">{tok.value}</span>;
       case "tag":
         return <span key={idx} className="text-[#ff1744] font-semibold">{tok.value}</span>;
       case "attr":
-        return <span key={idx} className="text-[#00e5ff]">{tok.value}</span>;
+        return <span key={idx} className="text-[#22d3ee]">{tok.value}</span>;
       case "cmt":
-        return <span key={idx} className="text-[#7a7194] italic">{tok.value}</span>;
+        return <span key={idx} className="text-[#64748b] italic">{tok.value}</span>;
       case "heading":
         return <span key={idx} className="text-[#00e5ff] font-bold">{tok.value}</span>;
       case "md-code":

@@ -7,6 +7,7 @@ import { EditorPane } from "../editor/EditorPane";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { TelemetryPane } from "../telemetry/TelemetryPane";
 import { SlayerPane } from "../slayer/SlayerPane";
+import { DracoBrowser } from "../browser/DracoBrowser";
 import { KaliDesktop } from "../desktop/KaliDesktop";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
 import { ActiveView } from "../../types";
@@ -72,7 +73,15 @@ export const Shell: React.FC = () => {
             workspacePath={workspace}
             onOpenFile={handleOpenFile}
             onOpenScope={handleOpenScope}
+            onSelectView={(v) => setActiveView(v)}
           />
+        );
+
+      case "browser":
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <DracoBrowser />
+          </div>
         );
 
       case "explorer":

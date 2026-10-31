@@ -1,92 +1,81 @@
 /**
- * Comprehensive Code Syntax Highlighter for DRACODECK (Cyberpunk Violet Theme)
- * Authentic tokenizer supporting: html, css, js, jsx, ts, tsx, py, dart, rs, json, md, sh, ps1, sql, yaml
+ * Deep Granular Semantic Syntax Highlighter for DRACODECK (Cyberpunk Violet Theme)
+ * Granular classification across 16+ semantic token types:
+ * - Control Keywords vs Declaration Keywords
+ * - Types & Built-ins
+ * - Function Definitions vs Invocations
+ * - Object Properties (.property)
+ * - Decorators & Attributes
+ * - Booleans, Nulls, Numbers
+ * - String & Template Literals
+ * - Operators & Punctuation
+ * - Comments & Markdown
  */
 
+export type TokenType =
+  | "kw-control"
+  | "kw-decl"
+  | "type"
+  | "fn-def"
+  | "fn-call"
+  | "prop"
+  | "str"
+  | "template"
+  | "num"
+  | "bool"
+  | "operator"
+  | "punct"
+  | "decorator"
+  | "tag"
+  | "attr"
+  | "cmt"
+  | "heading"
+  | "md-code"
+  | "text";
+
 export interface Token {
-  type: "text" | "kw" | "str" | "fn" | "type" | "num" | "tag" | "attr" | "cmt" | "heading" | "md-code";
+  type: TokenType;
   value: string;
 }
 
-const JS_TS_KEYWORDS = new Set([
-  "import", "export", "from", "default", "const", "let", "var", "function", "return",
-  "if", "else", "switch", "case", "break", "for", "while", "do", "try", "catch",
-  "finally", "throw", "async", "await", "class", "extends", "new", "this", "super",
-  "typeof", "instanceof", "in", "of", "yield", "interface", "type", "enum", "namespace",
-  "declare", "as", "is", "keyof", "readonly", "private", "protected", "public",
-  "implements", "unknown", "any", "never", "void", "true", "false", "null", "undefined"
+const CONTROL_KEYWORDS = new Set([
+  "if", "else", "switch", "case", "default", "break", "continue", "return",
+  "try", "catch", "finally", "throw", "while", "do", "for", "in", "of",
+  "await", "yield", "elif", "except", "with", "raise", "pass", "loop",
+  "match", "where", "move", "unsafe", "select", "from", "where", "group", "having"
 ]);
 
-const PYTHON_KEYWORDS = new Set([
-  "def", "class", "import", "from", "as", "return", "if", "elif", "else",
-  "for", "while", "try", "except", "finally", "with", "raise", "pass",
-  "lambda", "yield", "global", "nonlocal", "assert", "async", "await",
-  "True", "False", "None", "self", "in", "is", "not", "and", "or"
+const DECLARATION_KEYWORDS = new Set([
+  "import", "export", "from", "as", "const", "let", "var", "function", "class",
+  "extends", "implements", "interface", "type", "enum", "namespace", "declare",
+  "def", "lambda", "global", "nonlocal", "fn", "let", "mut", "pub", "struct",
+  "impl", "trait", "mod", "crate", "use", "void", "async", "sync", "new", "delete",
+  "static", "readonly", "private", "protected", "public", "abstract", "mixin"
 ]);
 
-const DART_KEYWORDS = new Set([
-  "import", "as", "show", "hide", "export", "class", "extends", "with", "implements",
-  "abstract", "mixin", "extension", "void", "return", "if", "else", "switch", "case",
-  "for", "while", "do", "break", "continue", "async", "await", "sync", "yield",
-  "var", "final", "const", "late", "required", "dynamic", "get", "set", "true", "false", "null"
+const BUILTIN_TYPES = new Set([
+  "string", "number", "boolean", "any", "unknown", "never", "void", "symbol", "bigint",
+  "Promise", "Array", "Record", "Map", "Set", "Object", "Function", "Date", "RegExp",
+  "int", "float", "str", "bool", "list", "dict", "tuple", "set",
+  "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
+  "f32", "f64", "char", "bool", "Option", "Result", "String", "Vec"
 ]);
 
-const RUST_KEYWORDS = new Set([
-  "fn", "let", "mut", "pub", "struct", "enum", "impl", "trait", "match", "if",
-  "else", "loop", "while", "for", "in", "return", "break", "continue", "use",
-  "mod", "crate", "as", "where", "async", "await", "move", "unsafe", "type",
-  "Some", "None", "Ok", "Err", "true", "false", "self", "Self"
-]);
-
-const SHELL_KEYWORDS = new Set([
-  "echo", "cd", "ls", "cat", "grep", "mkdir", "rm", "cp", "mv", "chmod", "chown",
-  "curl", "wget", "sudo", "export", "source", "if", "then", "else", "elif", "fi",
-  "for", "while", "do", "done", "case", "esac", "exit", "return", "function",
-  "Get-Process", "Stop-Process", "Write-Host", "Get-ChildItem", "Set-Item", "Clear-Host"
-]);
-
-const SQL_KEYWORDS = new Set([
-  "SELECT", "FROM", "WHERE", "INSERT", "INTO", "UPDATE", "DELETE", "CREATE", "TABLE",
-  "DROP", "ALTER", "JOIN", "LEFT", "RIGHT", "INNER", "OUTER", "ORDER", "BY",
-  "GROUP", "HAVING", "LIMIT", "OFFSET", "AND", "OR", "NOT", "NULL", "AS", "VALUES",
-  "select", "from", "where", "insert", "into", "update", "delete", "create", "table",
-  "join", "left", "right", "inner", "order", "by", "group", "having", "limit"
-]);
-
-const CSS_PROPERTIES = new Set([
-  "color", "background", "background-color", "display", "flex", "grid", "padding",
-  "margin", "border", "font-size", "font-family", "width", "height", "position",
-  "absolute", "relative", "fixed", "top", "left", "right", "bottom", "z-index",
-  "opacity", "cursor", "overflow", "border-radius", "box-shadow", "transition"
+const BOOLEAN_NULLS = new Set([
+  "true", "false", "null", "undefined", "NaN", "Infinity",
+  "True", "False", "None", "self", "this", "super", "Ok", "Err", "Some", "nil"
 ]);
 
 export function highlightCode(code: string, fileName?: string): Token[][] {
   const ext = (fileName?.split(".").pop() || "txt").toLowerCase();
   const lines = code.split("\n");
 
-  let keywords: Set<string> | null = null;
-  if (["js", "jsx", "ts", "tsx"].includes(ext)) {
-    keywords = JS_TS_KEYWORDS;
-  } else if (ext === "py") {
-    keywords = PYTHON_KEYWORDS;
-  } else if (ext === "dart") {
-    keywords = DART_KEYWORDS;
-  } else if (ext === "rs") {
-    keywords = RUST_KEYWORDS;
-  } else if (["sh", "bash", "ps1"].includes(ext)) {
-    keywords = SHELL_KEYWORDS;
-  } else if (ext === "sql") {
-    keywords = SQL_KEYWORDS;
-  } else if (["css", "scss"].includes(ext)) {
-    keywords = CSS_PROPERTIES;
-  }
-
   return lines.map((line) => {
     const tokens: Token[] = [];
     let i = 0;
 
     // Special Markdown handling
-    if (ext === "md") {
+    if (ext === "md" || ext === "mdx") {
       const headingMatch = line.match(/^(#{1,6}\s+.*)$/);
       if (headingMatch) {
         return [{ type: "heading", value: line }];
@@ -94,16 +83,16 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
       if (line.trim().startsWith("```")) {
         return [{ type: "md-code", value: line }];
       }
-      if (line.trim().startsWith("- ") || line.trim().startsWith("* ") || /^\d+\.\s/.test(line.trim())) {
-        const bulletMatch = line.match(/^(\s*[-*]|\s*\d+\.)/);
+      if (/^\s*[-*+]\s/.test(line) || /^\s*\d+\.\s/.test(line)) {
+        const bulletMatch = line.match(/^(\s*[-*+]\s|\s*\d+\.\s)/);
         if (bulletMatch) {
-          tokens.push({ type: "kw", value: bulletMatch[0] });
+          tokens.push({ type: "operator", value: bulletMatch[0] });
           i += bulletMatch[0].length;
         }
       }
     }
 
-    // Single-line full comment check
+    // Full-line Comments
     const trimmed = line.trimStart();
     if (
       trimmed.startsWith("//") ||
@@ -115,7 +104,7 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
     }
 
     while (i < line.length) {
-      // In-line comment check
+      // In-line comments
       if (line.slice(i, i + 2) === "//") {
         tokens.push({ type: "cmt", value: line.slice(i) });
         break;
@@ -125,9 +114,9 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         break;
       }
 
-      // Strings (double quotes, single quotes, backticks)
+      // Strings (double or single quotes)
       const char = line[i];
-      if (char === '"' || char === "'" || char === "`") {
+      if (char === '"' || char === "'") {
         const quote = char;
         let strVal = quote;
         i++;
@@ -148,6 +137,27 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         continue;
       }
 
+      // Template Literals (backticks)
+      if (char === "`") {
+        let tmplVal = "`";
+        i++;
+        while (i < line.length && line[i] !== "`") {
+          if (line[i] === "\\" && i + 1 < line.length) {
+            tmplVal += line[i] + line[i + 1];
+            i += 2;
+          } else {
+            tmplVal += line[i];
+            i++;
+          }
+        }
+        if (i < line.length) {
+          tmplVal += line[i];
+          i++;
+        }
+        tokens.push({ type: "template", value: tmplVal });
+        continue;
+      }
+
       // HTML / JSX opening and closing tags
       if (char === "<" && ["html", "jsx", "tsx", "xml"].includes(ext)) {
         const tagMatch = line.slice(i).match(/^<(\/?[a-zA-Z0-9_-]+)/);
@@ -158,25 +168,73 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         }
       }
 
-      // Numbers (decimal, float, hex)
-      const numMatch = line.slice(i).match(/^(0x[0-9a-fA-F]+|-?\b\d+(\.\d+)?\b)/);
+      // Decorators / Rust attributes (@decorator, #[attribute])
+      if (char === "@" && /^[a-zA-Z_$]/.test(line[i + 1] || "")) {
+        const decMatch = line.slice(i).match(/^@[a-zA-Z0-9_$]+/);
+        if (decMatch) {
+          tokens.push({ type: "decorator", value: decMatch[0] });
+          i += decMatch[0].length;
+          continue;
+        }
+      }
+
+      // Numbers (hex, float, decimal)
+      const numMatch = line.slice(i).match(/^(0x[0-9a-fA-F]+|-?\b\d+(\.\d+)?(n|f|u)?\b)/);
       if (numMatch) {
         tokens.push({ type: "num", value: numMatch[0] });
         i += numMatch[0].length;
         continue;
       }
 
-      // Words (identifiers, keywords, types, functions)
-      const wordMatch = line.slice(i).match(/^[a-zA-Z_$@][a-zA-Z0-9_$-]*/);
+      // Operators (multi-char first: ===, !==, =>, &&, ||, etc.)
+      const opMatch = line.slice(i).match(/^(===|!==|==|!=|=>|<=|>=|\+\+|--|&&|\|\||\.\.\.|\+=|-=|\*=|\/=|%=|\?|:|\+|-|\*|\/|%|=|!|<|>|&|\||\^)/);
+      if (opMatch) {
+        tokens.push({ type: "operator", value: opMatch[0] });
+        i += opMatch[0].length;
+        continue;
+      }
+
+      // Punctuation characters
+      if (["(", ")", "{", "}", "[", "]", ";", ",", "."].includes(char)) {
+        // Special case: check if . is property access
+        if (char === "." && i + 1 < line.length && /^[a-zA-Z_$]/.test(line[i + 1])) {
+          tokens.push({ type: "punct", value: "." });
+          i++;
+          const propMatch = line.slice(i).match(/^[a-zA-Z0-9_$]+/);
+          if (propMatch) {
+            tokens.push({ type: "prop", value: propMatch[0] });
+            i += propMatch[0].length;
+            continue;
+          }
+        }
+        tokens.push({ type: "punct", value: char });
+        i++;
+        continue;
+      }
+
+      // Words (identifiers, keywords, functions)
+      const wordMatch = line.slice(i).match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
       if (wordMatch) {
         const word = wordMatch[0];
         const nextChar = line[i + word.length];
 
-        if (keywords && keywords.has(word)) {
-          tokens.push({ type: "kw", value: word });
+        // Check preceding token to distinguish function definition
+        const lastToken = tokens[tokens.length - 1];
+        const isPrevDecl = lastToken && (lastToken.value === "function" || lastToken.value === "def" || lastToken.value === "fn");
+
+        if (CONTROL_KEYWORDS.has(word)) {
+          tokens.push({ type: "kw-control", value: word });
+        } else if (DECLARATION_KEYWORDS.has(word)) {
+          tokens.push({ type: "kw-decl", value: word });
+        } else if (BOOLEAN_NULLS.has(word)) {
+          tokens.push({ type: "bool", value: word });
+        } else if (BUILTIN_TYPES.has(word)) {
+          tokens.push({ type: "type", value: word });
+        } else if (isPrevDecl) {
+          tokens.push({ type: "fn-def", value: word });
         } else if (nextChar === "(") {
-          tokens.push({ type: "fn", value: word });
-        } else if (/^[A-Z]/.test(word) && ext !== "sql") {
+          tokens.push({ type: "fn-call", value: word });
+        } else if (/^[A-Z][a-zA-Z0-9_$]*$/.test(word)) {
           tokens.push({ type: "type", value: word });
         } else if (ext === "json" && nextChar === ":") {
           tokens.push({ type: "attr", value: word });
@@ -188,7 +246,7 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         continue;
       }
 
-      // Punctuation, operators, spaces
+      // Fallback for whitespace and other symbols
       tokens.push({ type: "text", value: char });
       i++;
     }

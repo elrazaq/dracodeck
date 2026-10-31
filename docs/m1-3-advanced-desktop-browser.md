@@ -180,3 +180,4 @@ mainWindow = new BrowserWindow({
 5. **Universal Context Menu**: Klik kanan pada file menampilkan opsi file (Open in Editor, Copy Path, Delete, Properties), klik kanan pada folder menampilkan `Open Scope Here`.
 6. **Wallpaper Switcher**: Wallpaper desktop dapat diganti dari menu klik kanan desktop dan tersimpan permanen.
 7. **Deep Syntax**: Kode sumber di editor menampilkan pewarnaan bertingkat tajam (variabel, keyword, fungsi, tipe, angka, operator, string).
+

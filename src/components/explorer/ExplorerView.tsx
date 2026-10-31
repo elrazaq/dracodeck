@@ -29,6 +29,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
     y: number;
     path: string;
     name: string;
+    isDirectory: boolean;
   } | null>(null);
 
   const loadDirectory = useCallback(async (dirPath: string): Promise<ExplorerItem[]> => {
@@ -88,14 +89,13 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
   const handleContextMenu = (e: React.MouseEvent, item: ExplorerItem) => {
     e.preventDefault();
     e.stopPropagation();
-    if (item.isDirectory) {
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        path: item.path,
-        name: item.name,
-      });
-    }
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      path: item.path,
+      name: item.name,
+      isDirectory: item.isDirectory,
+    });
   };
 
   const renderItem = (item: ExplorerItem, depth: number = 0) => {
@@ -133,6 +133,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
       <div
         key={item.path}
         onClick={() => onOpenFile(item.path, item.name)}
+        onContextMenu={(e) => handleContextMenu(e, item)}
         style={{ paddingLeft: `${depth * 12 + 20}px` }}
         className={`flex items-center gap-1.5 py-1 pr-2 cursor-pointer text-xs transition-colors font-mono truncate ${
           isSelected
@@ -175,16 +176,21 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
         {items.map((item) => renderItem(item, 0))}
       </div>
 
-      {/* Context Menu on Folder */}
+      {/* Context Menu on File or Folder */}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           targetPath={contextMenu.path}
           targetName={contextMenu.name}
+          isDirectory={contextMenu.isDirectory}
           onOpenScope={(path, name) => {
             onOpenScope?.(path, name);
           }}
+          onOpenFile={(path, name) => {
+            onOpenFile(path, name);
+          }}
+          onRefresh={refreshRoot}
           onClose={() => setContextMenu(null)}
         />
       )}

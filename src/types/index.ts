@@ -1,4 +1,4 @@
-export type ActiveView = 'desktop' | 'explorer' | 'editor' | 'terminal' | 'telemetry' | 'slayer' | 'settings';
+export type ActiveView = 'desktop' | 'explorer' | 'editor' | 'terminal' | 'telemetry' | 'slayer' | 'browser' | 'settings';
 
 export interface FileEntry {
   name: string;

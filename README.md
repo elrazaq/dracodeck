@@ -85,7 +85,7 @@ flowchart TD
 - Cognitive flow accordion for inspecting model reasoning and chain-of-thought traces.
 
 ### 🎯 Zombie Port & Process Slayer
-- Monitors local TCP ports: `1420` (Tauri), `5173` (Vite), `3000` (Node/Next), `8080` (HTTP), `5432` (PostgreSQL), `8000` (Python).
+- Monitors local TCP ports: `5173` (Vite), `3000` (Node/Next), `8080` (HTTP), `5432` (PostgreSQL), `8000` (Python), `9222` (Chrome DevTools).
 - 1-click `KILL` action to immediately liberate locked ports from stubborn zombie processes.
 
 ---

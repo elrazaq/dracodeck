@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { FolderTree, Terminal, Radio, Zap, Sliders, FolderSync, Monitor, Wifi, Volume2, Power, AlertTriangle, X } from "lucide-react";
+import { FolderTree, Terminal, Radio, Zap, Sliders, FolderSync, Monitor, Wifi, Volume2, Power, AlertTriangle, X, Globe } from "lucide-react";
 import { ActiveView } from "../../types";
 
 interface LeftDockProps {
@@ -34,6 +34,7 @@ export const LeftDock: React.FC<LeftDockProps> = ({
   const navItems: { id: ActiveView; label: string; icon: React.ReactNode }[] = [
     { id: "desktop", label: "Kali Desktop Space", icon: <Monitor className="w-4 h-4" /> },
     { id: "explorer", label: "Kali File Manager", icon: <FolderTree className="w-4 h-4" /> },
+    { id: "browser", label: "DracoBrowser (Chromium)", icon: <Globe className="w-4 h-4" /> },
     { id: "terminal", label: "ConPTY Terminal", icon: <Terminal className="w-4 h-4" /> },
     { id: "telemetry", label: "Antigravity Telemetry", icon: <Radio className="w-4 h-4" /> },
     { id: "slayer", label: "Zombie Port Slayer", icon: <Zap className="w-4 h-4" /> },

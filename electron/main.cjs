@@ -11,6 +11,9 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 640,
     show: false,
+    fullscreen: true,
+    fullscreenable: true,
+    frame: false,
     backgroundColor: '#0b0813',
     title: 'Dracodeck // Offensive Developer Cockpit',
     autoHideMenuBar: true,
@@ -18,6 +21,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true,
     },
   });
 
@@ -29,8 +33,8 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    // Open maximized / fullscreen on boot
-    mainWindow.maximize();
+    // Enforce exclusive F11 fullscreen on startup
+    mainWindow.setFullScreen(true);
     mainWindow.show();
     mainWindow.focus();
   });
@@ -88,6 +92,41 @@ ipcMain.handle('write-file', async (event, filePath, content) => {
   } catch (err) {
     console.error('Error writing file:', err);
     throw err;
+  }
+});
+
+ipcMain.handle('delete-file', async (event, targetPath) => {
+  try {
+    await fs.promises.rm(targetPath, { recursive: true, force: true });
+    return true;
+  } catch (err) {
+    console.error('Error deleting file/folder:', err);
+    throw err;
+  }
+});
+
+ipcMain.handle('rename-file', async (event, oldPath, newPath) => {
+  try {
+    await fs.promises.rename(oldPath, newPath);
+    return true;
+  } catch (err) {
+    console.error('Error renaming file/folder:', err);
+    throw err;
+  }
+});
+
+ipcMain.handle('stat-file', async (event, targetPath) => {
+  try {
+    const stats = await fs.promises.stat(targetPath);
+    return {
+      size: stats.size,
+      mtime: stats.mtime.toISOString(),
+      isDirectory: stats.isDirectory(),
+      isFile: stats.isFile(),
+    };
+  } catch (err) {
+    console.error('Error stating file:', err);
+    return null;
   }
 });
 

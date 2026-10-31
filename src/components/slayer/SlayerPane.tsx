@@ -10,7 +10,7 @@ interface PortRow {
 }
 
 const INITIAL_PORTS: PortRow[] = [
-  { port: 1420, label: "Tauri Desktop Host", pid: 4920, process: "tauri.exe", state: "LISTENING" },
+  { port: 9222, label: "Dracodeck Electron Core", pid: 4920, process: "electron.exe", state: "LISTENING" },
   { port: 5173, label: "Vite React Server", pid: 6112, process: "node.exe", state: "LISTENING" },
   { port: 3000, label: "Next.js / Node Default", pid: null, process: "--", state: "IDLE" },
   { port: 8080, label: "Alternative Web Server", pid: null, process: "--", state: "IDLE" },

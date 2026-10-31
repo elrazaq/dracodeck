@@ -42,6 +42,7 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
     y: number;
     path: string;
     name: string;
+    isDirectory: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -122,14 +123,13 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
   const handleContextMenu = (e: React.MouseEvent, item: FileEntry) => {
     e.preventDefault();
     e.stopPropagation();
-    if (item.isDirectory) {
-      setContextMenu({
-        x: e.clientX,
-        y: e.clientY,
-        path: item.path,
-        name: item.name,
-      });
-    }
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      path: item.path,
+      name: item.name,
+      isDirectory: item.isDirectory,
+    });
   };
 
   const filteredEntries = entries.filter((e) =>
@@ -351,9 +351,14 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
           y={contextMenu.y}
           targetPath={contextMenu.path}
           targetName={contextMenu.name}
+          isDirectory={contextMenu.isDirectory}
           onOpenScope={(path, name) => {
             onOpenScope?.(path, name);
           }}
+          onOpenFile={(path, name) => {
+            onOpenFile(path, name);
+          }}
+          onRefresh={() => loadDirectory(currentDir)}
           onClose={() => setContextMenu(null)}
         />
       )}
