@@ -105,27 +105,27 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
 
   const handleExportReport = () => {
     if (!scanResult) return;
-    const timestamp = new Date().toLocaleString("id-ID");
-    let md = `# LAPORAN AUDIT KEAMANAN WEB & REKOMENDASI REMEDIASI
+    const timestamp = new Date().toUTCString();
+    let md = `# WEB SECURITY AUDIT & REMEDIATION REPORT
 **Target**: ${scanResult.targetUrl}  
-**Waktu Audit**: ${timestamp}  
-**Operator / Auditor**: elrazaq // DRACODECK OFFENSIVE SUITE  
-**Durasi Pemindaian**: ${scanResult.durationMs}ms  
-**Klasifikasi Temuan**: ${scanResult.summary.critical} Kritis, ${scanResult.summary.high} Tinggi, ${scanResult.summary.medium} Sedang, ${scanResult.summary.low} Rendah, ${scanResult.summary.pass} Pass  
+**Audit Time**: ${timestamp}  
+**Auditor**: elrazaq // DRACODECK OFFENSIVE SUITE  
+**Scan Duration**: ${scanResult.durationMs}ms  
+**Findings Classification**: ${scanResult.summary.critical} Critical, ${scanResult.summary.high} High, ${scanResult.summary.medium} Medium, ${scanResult.summary.low} Low, ${scanResult.summary.pass} Pass  
 
 ---
 
-## RINGKASAN TEMUAN KERENTANAN
+## VULNERABILITY FINDINGS SUMMARY
 
 `;
 
     scanResult.findings.forEach((f, idx) => {
       md += `### ${idx + 1}. [${f.severity}] ${f.title}\n`;
       if (f.cwe) md += `- **CWE**: ${f.cwe}\n`;
-      md += `- **Kategori**: ${f.category}\n`;
-      md += `- **Bukti Teknis**: \`${f.evidence}\`\n`;
-      md += `- **Dampak Keamanan**: ${f.description}\n`;
-      md += `\n**Langkah Remediasi**:\n\`\`\`\n${f.remediation}\n\`\`\`\n\n---\n\n`;
+      md += `- **Category**: ${f.category}\n`;
+      md += `- **Technical Evidence**: \`${f.evidence}\`\n`;
+      md += `- **Security Impact**: ${f.description}\n`;
+      md += `\n**Remediation Steps**:\n\`\`\`\n${f.remediation}\n\`\`\`\n\n---\n\n`;
     });
 
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
@@ -420,7 +420,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-[#7a7194] space-y-2">
                   <Activity className="w-10 h-10 text-[#261d38]" />
-                  <p className="text-xs">Pilih salah satu temuan di sebelah kiri untuk melihat bukti forensik.</p>
+                  <p className="text-xs">Select a vulnerability finding on the left to inspect raw technical evidence.</p>
                 </div>
               )}
             </div>
@@ -454,7 +454,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
                   <span className={`text-xs font-bold ${
                     (scanResult.certInfo.daysRemaining ?? 0) < 15 ? "text-[#ff1744]" : "text-[#00e676]"
                   }`}>
-                    {scanResult.certInfo.daysRemaining} HARI TERSISA
+                    {scanResult.certInfo.daysRemaining} DAYS REMAINING
                   </span>
                 </div>
                 <div className="flex items-center justify-between pb-2 border-b border-[#261d38]">
@@ -466,7 +466,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               </div>
             ) : (
               <div className="p-8 text-center bg-[#120c1f] border border-[#261d38] text-[#7a7194]">
-                <p className="text-xs">Jalankan audit pada target HTTPS untuk memuat sertifikat X.509 riil.</p>
+                <p className="text-xs">Run security audit on an HTTPS target to inspect live X.509 certificates.</p>
               </div>
             )}
           </div>
@@ -488,7 +488,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               </button>
             </div>
             <p className="text-xs text-[#7a7194]">
-              Dracodeck memindai soket TCP lokal secara langsung menggunakan native Win32 socket table untuk mencegah kebocoran port dev dan background zombie process.
+              Dracodeck inspects local TCP sockets directly via native Win32 socket tables to mitigate dev port leakage and rogue background zombie processes.
             </p>
           </div>
         )}
@@ -507,7 +507,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
                 type="text"
                 value={newWatchdogUrl}
                 onChange={(e) => setNewWatchdogUrl(e.target.value)}
-                placeholder="https://instansi-pemerintah.go.id"
+                placeholder="https://target-portal.com"
                 className="flex-1 bg-[#120c1f] border border-[#261d38] px-3 py-1.5 text-xs text-[#00e5ff] font-mono outline-none"
               />
               <button

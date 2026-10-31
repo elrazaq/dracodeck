@@ -395,13 +395,13 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
               <span>Dolphin // File Manager</span>
             </div>
             <div className="flex items-center gap-2">
-              <DracoTooltip content="Tempel di Layar Utama (Dock Flush under TopBar)" position="bottom" accent="cyan">
+              <DracoTooltip content="Dock to Canvas (Flush under TopBar)" position="bottom" accent="cyan">
                 <button
                   onClick={() => onSelectView?.("explorer")}
                   className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] hover:border-[#00e5ff]/50 text-[10px] font-bold cursor-pointer transition-colors"
                 >
                   <Maximize2 className="w-2.5 h-2.5 text-[#00e5ff]" />
-                  <span>TEMPEL</span>
+                  <span>DOCK</span>
                 </button>
               </DracoTooltip>
             </div>
@@ -413,7 +413,6 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
               workspacePath={workspacePath}
               onOpenFile={onOpenFile}
               onOpenScope={onOpenScope}
-              onPinToMain={() => onSelectView?.("explorer")}
             />
           </div>
 
@@ -458,13 +457,13 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
               <span>ConPTY // PowerShell Terminal</span>
             </div>
             <div className="flex items-center gap-2">
-              <DracoTooltip content="Tempel di Layar Utama (Dock Flush under TopBar)" position="bottom" accent="green">
+              <DracoTooltip content="Dock to Canvas (Flush under TopBar)" position="bottom" accent="green">
                 <button
                   onClick={() => onSelectView?.("terminal")}
                   className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border border-[#261d38] hover:border-[#00e676]/50 text-[10px] font-bold cursor-pointer transition-colors"
                 >
                   <Maximize2 className="w-2.5 h-2.5 text-[#00e676]" />
-                  <span>TEMPEL</span>
+                  <span>DOCK</span>
                 </button>
               </DracoTooltip>
             </div>
@@ -514,13 +513,13 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
               <span>DracoBrowser // Chromium Web Suite</span>
             </div>
             <div className="flex items-center gap-2">
-              <DracoTooltip content="Tempel di Layar Utama (Dock Flush under TopBar)" position="bottom" accent="cyan">
+              <DracoTooltip content="Dock to Canvas (Flush under TopBar)" position="bottom" accent="cyan">
                 <button
                   onClick={() => onSelectView?.("browser")}
                   className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] hover:border-[#00e5ff]/50 text-[10px] font-bold cursor-pointer transition-colors"
                 >
                   <Maximize2 className="w-2.5 h-2.5 text-[#00e5ff]" />
-                  <span>TEMPEL</span>
+                  <span>DOCK</span>
                 </button>
               </DracoTooltip>
             </div>
@@ -529,7 +528,6 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
           <div className="flex-1 overflow-hidden">
             <DracoBrowser
               onClose={() => setBrowserWin((prev) => ({ ...prev, isOpen: false }))}
-              onPinToMain={() => onSelectView?.("browser")}
             />
           </div>
 
@@ -573,13 +571,13 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
               <span>Antigravity Telemetry // Cognitive Stream</span>
             </div>
             <div className="flex items-center gap-2">
-              <DracoTooltip content="Tempel di Layar Utama (Dock Flush under TopBar)" position="bottom" accent="pink">
+              <DracoTooltip content="Dock to Canvas (Flush under TopBar)" position="bottom" accent="pink">
                 <button
                   onClick={() => onSelectView?.("telemetry")}
                   className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#ff007f] border border-[#261d38] hover:border-[#ff007f]/50 text-[10px] font-bold cursor-pointer transition-colors"
                 >
                   <Maximize2 className="w-2.5 h-2.5 text-[#ff007f]" />
-                  <span>TEMPEL</span>
+                  <span>DOCK</span>
                 </button>
               </DracoTooltip>
             </div>

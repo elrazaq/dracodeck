@@ -180,8 +180,8 @@ async function runVulnerabilityAudit(targetUrl) {
       cwe: 'CWE-497',
       title: 'Target Host Unreachable',
       evidence: `Error: ${rootResponse.statusMessage}`,
-      description: `Gagal terhubung ke host target: ${baseUrl}. Pastikan port web aktif dan koneksi internet stabil.`,
-      remediation: 'Verifikasi IP target, pastikan layanan web server (Nginx/Apache/IIS) sedang berjalan.',
+      description: `Failed to connect to target host: ${baseUrl}. Verify active network port and Internet connectivity.`,
+      remediation: 'Verify target IP / hostname resolution, and ensure web server daemon (Nginx/Apache/IIS) is running.',
     });
     return {
       targetUrl: baseUrl,
@@ -201,9 +201,9 @@ async function runVulnerabilityAudit(targetUrl) {
       severity: 'HIGH',
       cwe: 'CWE-1021',
       title: 'Missing Content-Security-Policy (CSP)',
-      evidence: 'Header Content-Security-Policy tidak ditemukan pada respons HTTP.',
-      description: 'Tanpa CSP, website rentan terhadap serangan Cross-Site Scripting (XSS), data injection, dan eksekusi skrip berbahaya dari domain luar.',
-      remediation: "Tambahkan header: Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;",
+      evidence: 'Content-Security-Policy header not present in HTTP response.',
+      description: 'Without a strict CSP, web applications remain vulnerable to Cross-Site Scripting (XSS), data injection, and unauthorized remote script execution.',
+      remediation: "Add response header: Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;",
     });
   } else {
     findings.push({
@@ -213,8 +213,8 @@ async function runVulnerabilityAudit(targetUrl) {
       cwe: 'CWE-1021',
       title: 'Content-Security-Policy Configured',
       evidence: `CSP: ${csp.substring(0, 100)}...`,
-      description: 'Target telah mengonfigurasi pembatasan sumber daya skrip via CSP.',
-      remediation: 'Pertahankan kebijakan CSP dan tinjau secara berkala.',
+      description: 'Target enforces script execution and resource boundary restrictions via CSP.',
+      remediation: 'Maintain policy and conduct routine reviews of allowed directives.',
     });
   }
 
@@ -227,9 +227,9 @@ async function runVulnerabilityAudit(targetUrl) {
       severity: 'HIGH',
       cwe: 'CWE-319',
       title: 'Missing Strict-Transport-Security (HSTS)',
-      evidence: 'Header Strict-Transport-Security tidak ditemukan pada koneksi HTTPS.',
-      description: 'Koneksi pengguna rentan terhadap serangan SSL Strip dan downgrade man-in-the-middle ke HTTP biasa.',
-      remediation: 'Tambahkan header: Strict-Transport-Security: max-age=31536000; includeSubDomains; preload;',
+      evidence: 'Strict-Transport-Security header not present on HTTPS connection.',
+      description: 'User sessions are vulnerable to SSL Strip attacks and man-in-the-middle downgrades to plaintext HTTP.',
+      remediation: 'Add response header: Strict-Transport-Security: max-age=31536000; includeSubDomains; preload;',
     });
   }
 
@@ -242,9 +242,9 @@ async function runVulnerabilityAudit(targetUrl) {
       severity: 'MEDIUM',
       cwe: 'CWE-1021',
       title: 'Missing X-Frame-Options (Clickjacking Risk)',
-      evidence: 'Header X-Frame-Options tidak ditemukan dan CSP frame-ancestors belum ditentukan.',
-      description: 'Website dapat di-embed ke dalam iframe jahat untuk memanipulasi klik pengguna (Clickjacking).',
-      remediation: 'Tambahkan header: X-Frame-Options: SAMEORIGIN (atau DENY).',
+      evidence: 'X-Frame-Options header not found and CSP frame-ancestors is undefined.',
+      description: 'The website may be embedded in malicious third-party iframes, enabling UI redressing and clickjacking attacks.',
+      remediation: 'Add response header: X-Frame-Options: SAMEORIGIN (or DENY).',
     });
   }
 
@@ -257,9 +257,9 @@ async function runVulnerabilityAudit(targetUrl) {
       severity: 'LOW',
       cwe: 'CWE-79',
       title: 'Missing X-Content-Type-Options: nosniff',
-      evidence: `X-Content-Type-Options: ${xcto || 'Tidak Ditemukan'}`,
-      description: 'Browser dapat melakukan MIME-sniffing terhadap berkas upload teks dan mengeksekusinya sebagai HTML/JS.',
-      remediation: 'Tambahkan header: X-Content-Type-Options: nosniff;',
+      evidence: `X-Content-Type-Options: ${xcto || 'Not Found'}`,
+      description: 'Browsers may perform MIME-type sniffing on user uploads and execute untrusted files as HTML/JavaScript.',
+      remediation: 'Add response header: X-Content-Type-Options: nosniff;',
     });
   }
 
@@ -274,7 +274,7 @@ async function runVulnerabilityAudit(targetUrl) {
       cwe: 'CWE-200',
       title: 'Server Banner & Technology Leak',
       evidence: `Server: ${server || 'N/A'} | X-Powered-By: ${poweredBy || 'N/A'}`,
-      description: 'Mengekspos versi server web memudahkan penyerang memetakan kerentanan 1-day atau CVE publik.',
+      description: 'Exposing explicit server signatures helps adversaries identify public CVEs and targeted exploits.',
       remediation: 'Nginx: `server_tokens off;` | Apache: `ServerTokens Prod` & `ServerSignature Off` | Express: `app.disable("x-powered-by");`',
     });
   }
@@ -290,9 +290,9 @@ async function runVulnerabilityAudit(targetUrl) {
         severity: 'CRITICAL',
         cwe: 'CWE-295',
         title: 'SSL/TLS Certificate Invalid or Expired',
-        evidence: certInfo.error || `Sisa waktu berlaku: ${certInfo.daysRemaining} hari`,
-        description: 'Sertifikat SSL bermasalah atau sudah kedaluwarsa. Browser pengguna akan menampilkan layar peringatan keamanan merah.',
-        remediation: 'Perbarui sertifikat SSL melalui Let\'s Encrypt (Certbot) atau CA resmi segera.',
+        evidence: certInfo.error || `Days remaining: ${certInfo.daysRemaining} days`,
+        description: 'SSL certificate is invalid, untrusted, or has expired. Browsers will block access with security warnings.',
+        remediation: 'Renew SSL certificate immediately via Let\'s Encrypt (Certbot) or an authorized Certificate Authority.',
       });
     } else if (certInfo.daysRemaining <= 14) {
       findings.push({
@@ -301,9 +301,9 @@ async function runVulnerabilityAudit(targetUrl) {
         severity: 'HIGH',
         cwe: 'CWE-298',
         title: `SSL Certificate Expiring in ${certInfo.daysRemaining} Days`,
-        evidence: `Issuer: ${certInfo.issuer} | Valid Hingga: ${certInfo.validTo}`,
-        description: `Sertifikat SSL akan segera kedaluwarsa dalam ${certInfo.daysRemaining} hari ke depan.`,
-        remediation: 'Jalankan renewal otomatis (cth: certbot renew) sebelum masa berlaku habis.',
+        evidence: `Issuer: ${certInfo.issuer} | Valid Until: ${certInfo.validTo}`,
+        description: `SSL certificate will expire within ${certInfo.daysRemaining} days.`,
+        remediation: 'Trigger automated certificate renewal (e.g., certbot renew) before certificate expiration.',
       });
     } else {
       findings.push({
@@ -311,10 +311,10 @@ async function runVulnerabilityAudit(targetUrl) {
         category: 'CRYPTO',
         severity: 'PASS',
         cwe: 'CWE-295',
-        title: `SSL Valid (${certInfo.daysRemaining} Hari Tersisa)`,
+        title: `SSL Valid (${certInfo.daysRemaining} Days Remaining)`,
         evidence: `Issuer: ${certInfo.issuer} | Cipher: ${certInfo.cipher} (${certInfo.protocol})`,
-        description: 'Koneksi TLS aman, sertifikat valid dan dikeluarkan oleh CA terpercaya.',
-        remediation: 'Pertahankan renewal sertifikat berkala.',
+        description: 'TLS connection secured by a valid certificate issued by a trusted Certificate Authority.',
+        remediation: 'Maintain standard certificate renewal schedule.',
       });
     }
   }
@@ -332,10 +332,10 @@ async function runVulnerabilityAudit(targetUrl) {
           category: item.category,
           severity: item.severity,
           cwe: item.cwe,
-          title: `Paparan Berkas Sensitif: ${item.name}`,
-          evidence: `GET ${item.path} -> 200 OK (${res.rawLength} bytes)\nCuplikan:\n${res.body.substring(0, 150)}...`,
-          description: `Berkas ${item.path} dapat diakses secara publik tanpa otentikasi. Potensi kebocoran source code, kunci rahasia, atau kredensial database.`,
-          remediation: `Blokir akses di web server: location ~ ${item.path.replace('.', '\\.')} { deny all; return 404; }`,
+          title: `Sensitive Asset Exposed: ${item.name}`,
+          evidence: `GET ${item.path} -> 200 OK (${res.rawLength} bytes)\nExcerpt:\n${res.body.substring(0, 150)}...`,
+          description: `Asset ${item.path} is publicly accessible without authentication. May leak source code, private keys, or database credentials.`,
+          remediation: `Block endpoint access in web server: location ~ ${item.path.replace('.', '\\.')} { deny all; return 404; }`,
         });
       }
     }
@@ -357,8 +357,8 @@ async function runVulnerabilityAudit(targetUrl) {
       cwe: 'CWE-942',
       title: 'Insecure CORS Policy (Wildcard with Credentials)',
       evidence: `Access-Control-Allow-Origin: * | Access-Control-Allow-Credentials: true`,
-      description: 'Konfigurasi CORS memungkinkan situs pihak ketiga mengekstrak data terotentikasi pengguna.',
-      remediation: 'Tentukan whitelist domain terpercaya secara eksplisit dan tolak origin sembarang.',
+      description: 'CORS configuration allows untrusted third-party origins to read authenticated user session data.',
+      remediation: 'Specify an explicit trusted origin whitelist and reject wildcard configurations with credentials.',
     });
   } else if (acao === 'https://attacker-origin.test') {
     findings.push({
@@ -367,9 +367,9 @@ async function runVulnerabilityAudit(targetUrl) {
       severity: 'HIGH',
       cwe: 'CWE-942',
       title: 'CORS Arbitrary Origin Reflection',
-      evidence: `Origin attacker dipantulkan: Access-Control-Allow-Origin: ${acao}`,
-      description: 'Server memantulkan nilai origin yang dikirimkan klien tanpa validasi whitelist.',
-      remediation: 'Validasi header Origin terhadap daftar domain resmi instansi.',
+      evidence: `Arbitrary attacker origin reflected: Access-Control-Allow-Origin: ${acao}`,
+      description: 'Server reflects arbitrary client-supplied Origin headers without whitelist validation.',
+      remediation: 'Validate Origin request header strictly against approved domain lists.',
     });
   }
 

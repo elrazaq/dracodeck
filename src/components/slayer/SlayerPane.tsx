@@ -155,7 +155,7 @@ export const SlayerPane: React.FC = () => {
             ))}
           </div>
 
-          <DracoTooltip content="Pindai Ulang Soket TCP Win32" shortcut="F5" position="bottom" accent="cyan">
+          <DracoTooltip content="Rescan Win32 TCP Sockets" shortcut="F5" position="bottom" accent="cyan">
             <button
               onClick={fetchPorts}
               disabled={isLoading}
@@ -166,7 +166,7 @@ export const SlayerPane: React.FC = () => {
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content="Kill Seluruh Server Dev yang Menggantung" position="bottom" accent="pink">
+          <DracoTooltip content="Terminate All Hanging Dev Servers" position="bottom" accent="pink">
             <button
               onClick={() => setShowSlayAllModal(true)}
               className="flex items-center gap-1 px-2.5 py-1 bg-[#ff1744]/20 hover:bg-[#ff1744] text-[#ff1744] hover:text-white border border-[#ff1744]/40 font-bold transition-colors cursor-pointer text-[10px]"
@@ -272,7 +272,7 @@ export const SlayerPane: React.FC = () => {
             {filteredPorts.length === 0 && !isLoading && (
               <tr>
                 <td colSpan={7} className="py-8 text-center text-[#7a7194]">
-                  Tidak ada port aktif yang sesuai dengan kriteria filter.
+                  No active ports match current filter criteria.
                 </td>
               </tr>
             )}
@@ -370,7 +370,7 @@ export const SlayerPane: React.FC = () => {
               <h3 className="font-bold text-sm tracking-wider">TERMINATE ALL DEV ZOMBIE PROCESSES</h3>
             </div>
             <p className="text-xs text-[#cbd5e1] leading-relaxed">
-              Tindakan ini akan mematikan seluruh proses developer (Node.js, Vite, Python, DB) yang saat ini mengunci port dev tanpa menyentuh proses sistem Windows.
+              This action will forcefully terminate all developer processes (Node.js, Vite, Python, DB) currently locking dev ports without touching Windows system processes.
             </p>
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#261d38]">
               <button

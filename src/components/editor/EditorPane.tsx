@@ -494,41 +494,52 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       )}
 
       {/* Editor Tab Bar */}
-      <div className="h-8 min-h-[32px] flex-shrink-0 bg-[#120c1f] border-b border-[#261d38] flex items-center overflow-x-auto select-none relative z-20">
-        {tabs.map((tab) => {
-          const isActive = tab.path === activeTabPath;
-          const isMarkdown = tab.name.endsWith(".md");
-          return (
-            <div
-              key={tab.path}
-              onClick={() => setActiveTabPath(tab.path)}
-              className={`h-full flex items-center gap-2 px-3 border-r border-[#261d38] text-xs font-mono cursor-pointer transition-colors max-w-xs truncate ${
-                isActive
-                  ? "bg-[#0b0813] text-[#e2e8f0] border-t-2 border-t-[#ff007f] font-semibold"
-                  : "bg-[#120c1f] text-[#7a7194] hover:bg-[#161026] hover:text-[#cbd5e1]"
-              }`}
-            >
-              {isMarkdown ? (
-                <FileText className="w-3.5 h-3.5 text-[#ff8800]" />
-              ) : (
-                <FileCode className="w-3.5 h-3.5 text-[#00e5ff]" />
-              )}
-              <span className="truncate">{tab.name}</span>
-              {tab.isDirty && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#ff007f] animate-pulse" />
-              )}
-              <button
-                onClick={(e) => closeTab(e, tab.path)}
-                className="hover:text-[#ff1744] hover:bg-[#261d38] p-0.5 cursor-pointer"
+      <div className="h-8 min-h-[32px] max-h-8 flex-shrink-0 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between select-none relative z-20 overflow-hidden">
+        {/* Scrollable Tabs Container (Horizontal Wheel Synced, Vertical Wheel Converted) */}
+        <div
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY;
+            }
+          }}
+          className="flex-1 h-full flex items-center overflow-x-auto overflow-y-hidden"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {tabs.map((tab) => {
+            const isActive = tab.path === activeTabPath;
+            const isMarkdown = tab.name.endsWith(".md");
+            return (
+              <div
+                key={tab.path}
+                onClick={() => setActiveTabPath(tab.path)}
+                className={`h-full flex items-center gap-2 px-3 border-r border-[#261d38] text-xs font-mono cursor-pointer transition-colors max-w-xs truncate flex-shrink-0 ${
+                  isActive
+                    ? "bg-[#0b0813] text-[#e2e8f0] border-t-2 border-t-[#ff007f] font-semibold"
+                    : "bg-[#120c1f] text-[#7a7194] hover:bg-[#161026] hover:text-[#cbd5e1]"
+                }`}
               >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          );
-        })}
+                {isMarkdown ? (
+                  <FileText className="w-3.5 h-3.5 text-[#ff8800] flex-shrink-0" />
+                ) : (
+                  <FileCode className="w-3.5 h-3.5 text-[#00e5ff] flex-shrink-0" />
+                )}
+                <span className="truncate">{tab.name}</span>
+                {tab.isDirty && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#ff007f] animate-pulse flex-shrink-0" />
+                )}
+                <button
+                  onClick={(e) => closeTab(e, tab.path)}
+                  className="hover:text-[#ff1744] hover:bg-[#261d38] p-0.5 cursor-pointer flex-shrink-0"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
         {/* Toolbar Toggles: Format, Minimap, Syntax, Terminal, Save */}
-        <div className="ml-auto mr-2 flex items-center gap-2">
+        <div className="flex-shrink-0 h-full flex items-center gap-1.5 px-2 bg-[#120c1f] border-l border-[#261d38] overflow-hidden">
           <DracoTooltip content="Find & Replace" shortcut="Ctrl+H" position="bottom" accent="cyan">
             <button
               onClick={() => {

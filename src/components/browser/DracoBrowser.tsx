@@ -25,7 +25,6 @@ interface DracoBrowserProps {
 export const DracoBrowser: React.FC<DracoBrowserProps> = ({
   initialUrl = "https://www.kali.org/docs/",
   onClose,
-  onPinToMain,
 }) => {
   const [url, setUrl] = useState<string>(initialUrl);
   const [inputUrl, setInputUrl] = useState<string>(initialUrl);
@@ -184,17 +183,6 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
               <span>OPSEC</span>
             </button>
           </DracoTooltip>
-
-          {onPinToMain && (
-            <DracoTooltip content="Tempel di Layar Utama (Dock Flush to Canvas)" position="bottom" accent="cyan">
-              <button
-                onClick={onPinToMain}
-                className="text-[#7a7194] hover:text-[#00e5ff] px-1 font-bold cursor-pointer"
-              >
-                ⤢ DOCK
-              </button>
-            </DracoTooltip>
-          )}
 
           {onClose && (
             <button
