@@ -58,6 +58,17 @@ Roadmap resmi pengembangan **DRACODECK** (*The Offensive-Grade Developer Cockpit
 
 ---
 
+## Milestone 2.1: Core Hardening, DracoShell CLI & Universal Workstation
+> Dokumen Spesifikasi: [m2-1-core-hardening-dracoshell.md](m2-1-core-hardening-dracoshell.md)
+- Layout Anti-Clipping: Kali Top System Bar permanen mengatasi pemotongan tampilan di atas layar.
+- Kamus Perintah DracoShell: Engine CLI mandiri (`draco ifconfig`, `draco update`, `draco port scan`, `draco sys`, `draco help`) dengan fallback native PowerShell.
+- Universal PC Explorer: Pindai semua logical drive (`C:\`, `D:\`) dan direktori pengguna (`Desktop`, `Downloads`, `Documents`) + direct path input.
+- DracoBrowser Interceptor: Bypass X-Frame-Options & CSP via Electron webRequest session, membuka semua website publik tanpa blocking.
+- Enriched Left Dock & Interactive Bottom Bar: Submenu kategori offensive Kali Linux, gauge CPU/RAM, branch picker, prettier formatter, jump to line, notification drawer.
+- Deep Method Chaining & Prettier: Tokenizer mendeteksi method chaining berantai dan built-in code formatting.
+
+---
+
 ## Milestone 3: Antigravity & Multi-Agent Telemetry Hub
 > Dokumen Spesifikasi: [m3-telemetry-engine.md](m3-telemetry-engine.md)
 - Main Process: File watcher non-blocking (`fs.watch`) memantau `transcript.jsonl`.
