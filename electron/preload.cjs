@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
+  listTelemetrySessions: () => ipcRenderer.invoke('telemetry:list-convs'),
+  attachTelemetry: (convId, maxHistory) => ipcRenderer.invoke('telemetry:attach', { convId, maxHistory }),
+  pauseTelemetry: (paused) => ipcRenderer.invoke('telemetry:pause', { paused }),
+  getActiveTelemetrySession: () => ipcRenderer.invoke('telemetry:get-active'),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {
@@ -27,7 +31,7 @@ contextBridge.exposeInMainWorld('dracoAPI', {
     }
   },
   receive: (channel, func) => {
-    const validChannels = ['fromMain', 'terminal-output'];
+    const validChannels = ['fromMain', 'terminal-output', 'telemetry:stream'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => func(...args));
     }

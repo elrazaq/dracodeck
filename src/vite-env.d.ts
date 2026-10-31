@@ -38,6 +38,71 @@ export interface UpdateInfo {
   status: string;
 }
 
+export interface TelemetryDiff {
+  path: string;
+  target: string;
+  replacement: string;
+  isNewFile?: boolean;
+}
+
+export interface TelemetryToolCall {
+  id: string;
+  name: string;
+  args: Record<string, any>;
+  toolSummary?: string | null;
+  durationMs?: number;
+  command?: string;
+  diff?: TelemetryDiff;
+  filePath?: string;
+  status?: string;
+}
+
+export interface TelemetryTokens {
+  input: number;
+  output: number;
+  cache: number;
+}
+
+export interface TelemetryEvent {
+  id: string;
+  stepIndex: number;
+  conversationId: string;
+  source: string;
+  type: string;
+  status: string;
+  timestamp: string;
+  userPrompt?: string | null;
+  modelThinking?: string | null;
+  modelResponse?: string | null;
+  toolCalls: TelemetryToolCall[];
+  tokens: TelemetryTokens;
+}
+
+export interface TelemetrySessionItem {
+  id: string;
+  path: string;
+  logPath: string | null;
+  hasLogs: boolean;
+  logSize: number;
+  lineEstimate: number;
+  mtime: string;
+  lastActiveMs: number;
+}
+
+export interface AttachTelemetryResult {
+  success: boolean;
+  convId?: string;
+  history?: TelemetryEvent[];
+  error?: string;
+}
+
+export interface ActiveTelemetrySession {
+  active: boolean;
+  convId?: string;
+  isPaused?: boolean;
+  logPath?: string;
+}
+
 declare global {
   interface Window {
     dracoAPI?: {
@@ -60,6 +125,10 @@ declare global {
       windowMinimize: () => Promise<void>;
       windowMaximize: () => Promise<void>;
       windowClose: () => Promise<void>;
+      listTelemetrySessions: () => Promise<TelemetrySessionItem[]>;
+      attachTelemetry: (convId?: string, maxHistory?: number) => Promise<AttachTelemetryResult>;
+      pauseTelemetry: (paused: boolean) => Promise<boolean>;
+      getActiveTelemetrySession: () => Promise<ActiveTelemetrySession>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => void;
     };

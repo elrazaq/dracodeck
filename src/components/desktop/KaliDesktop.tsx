@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { KaliFileManager } from "./KaliFileManager";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { DracoBrowser } from "../browser/DracoBrowser";
+import { TelemetryPane } from "../telemetry/TelemetryPane";
 import {
   Folder,
   Terminal,
@@ -76,9 +77,18 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     isMaximized: false,
   });
 
+  const [telemetryWin, setTelemetryWin] = useState<WindowState>({
+    x: 180,
+    y: 70,
+    width: 880,
+    height: 560,
+    isOpen: false,
+    isMaximized: false,
+  });
+
   // Dragging & Resizing References
   const dragRef = useRef<{
-    activeWin: "file" | "term" | "browser" | null;
+    activeWin: "file" | "term" | "browser" | "telemetry" | null;
     mode: "drag" | "resize" | null;
     startX: number;
     startY: number;
@@ -139,6 +149,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
       if (activeWin === "file") setFileWin(updateWin);
       if (activeWin === "term") setTermWin(updateWin);
       if (activeWin === "browser") setBrowserWin(updateWin);
+      if (activeWin === "telemetry") setTelemetryWin(updateWin);
     };
 
     const handleMouseUp = () => {
@@ -154,7 +165,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     };
   }, []);
 
-  const startDrag = (winType: "file" | "term" | "browser", e: React.MouseEvent, win: WindowState) => {
+  const startDrag = (winType: "file" | "term" | "browser" | "telemetry", e: React.MouseEvent, win: WindowState) => {
     e.stopPropagation();
     if (win.isMaximized) return;
     dragRef.current = {
@@ -169,7 +180,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     };
   };
 
-  const startResize = (winType: "file" | "term" | "browser", e: React.MouseEvent, win: WindowState) => {
+  const startResize = (winType: "file" | "term" | "browser" | "telemetry", e: React.MouseEvent, win: WindowState) => {
     e.stopPropagation();
     if (win.isMaximized) return;
     dragRef.current = {
@@ -251,7 +262,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
       id: "telemetry",
       label: "AI Telemetry",
       icon: <Radio className="w-10 h-10 text-[#d500f9] stroke-[1.5]" />,
-      action: () => onSelectView?.("telemetry"),
+      action: () => setTelemetryWin((prev) => ({ ...prev, isOpen: true })),
     },
     {
       id: "readme",
@@ -468,6 +479,48 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
             <div
               onMouseDown={(e) => startResize("browser", e, browserWin)}
               className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-30 flex items-end justify-end p-0.5 text-[#7a7194] hover:text-[#00e5ff]"
+            >
+              <div className="w-2 h-2 border-r-2 border-b-2 border-current" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Floating Window 4: Antigravity AI Telemetry Hub */}
+      {telemetryWin.isOpen && (
+        <div
+          style={{
+            top: telemetryWin.isMaximized ? 0 : `${telemetryWin.y}px`,
+            left: telemetryWin.isMaximized ? 0 : `${telemetryWin.x}px`,
+            width: telemetryWin.isMaximized ? "100%" : `${telemetryWin.width}px`,
+            height: telemetryWin.isMaximized ? "100%" : `${telemetryWin.height}px`,
+          }}
+          className="absolute z-35 shadow-[0_20px_70px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden"
+        >
+          <div
+            onMouseDown={(e) => startDrag("telemetry", e, telemetryWin)}
+            className="h-8 bg-[#120c1f] border-b border-[#261d38] px-3 flex items-center justify-between text-xs cursor-move select-none"
+          >
+            {renderMacTrafficLights(
+              () => setTelemetryWin((prev) => ({ ...prev, isOpen: false })),
+              () => setTelemetryWin((prev) => ({ ...prev, isOpen: false })),
+              () => setTelemetryWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized }))
+            )}
+            <div className="flex items-center gap-2 text-[#ff007f] font-bold text-[11px]">
+              <Radio className="w-3.5 h-3.5" />
+              <span>Antigravity Telemetry // Cognitive Stream</span>
+            </div>
+            <div className="w-12" />
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            <TelemetryPane />
+          </div>
+
+          {!telemetryWin.isMaximized && (
+            <div
+              onMouseDown={(e) => startResize("telemetry", e, telemetryWin)}
+              className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-30 flex items-end justify-end p-0.5 text-[#7a7194] hover:text-[#ff007f]"
             >
               <div className="w-2 h-2 border-r-2 border-b-2 border-current" />
             </div>

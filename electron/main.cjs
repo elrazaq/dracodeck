@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const https = require('https');
 const { spawn } = require('child_process');
+const telemetry = require('./telemetry.cjs');
 
 let mainWindow = null;
 let terminalProcess = null;
@@ -99,6 +100,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    telemetry.stopTelemetry();
     if (terminalProcess) {
       try {
         terminalProcess.kill();
@@ -199,6 +201,27 @@ ipcMain.handle('check-update', () => {
       resolve({ commit: 'c407f06', status: 'OFFLINE', message: 'Offline mode / cache valid' });
     });
   });
+});
+
+// IPC Handlers - Antigravity Telemetry Engine (M3)
+ipcMain.handle('telemetry:list-convs', () => {
+  return telemetry.listConversations();
+});
+
+ipcMain.handle('telemetry:attach', (event, { convId, maxHistory } = {}) => {
+  return telemetry.attachTelemetry(convId, (newEvents) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('telemetry:stream', newEvents);
+    }
+  }, maxHistory);
+});
+
+ipcMain.handle('telemetry:pause', (event, { paused } = {}) => {
+  return telemetry.pauseTelemetry(paused);
+});
+
+ipcMain.handle('telemetry:get-active', () => {
+  return telemetry.getActiveSession();
 });
 
 // IPC Handlers - Universal PC Drive & Folder Discovery

@@ -77,13 +77,15 @@ flowchart TD
 
 | Milestone | Target & Deliverables | Spec Document | Status |
 | :--- | :--- | :--- | :--- |
-| **M0: Master Plan & Foundation Docs** | Transisi arsitektur ke Electron, blueprint 4 pilar besar, eliminasi C++ overhead. | [m0-master-plan.md](m0-master-plan.md) | **ACTIVE** |
-| **M1: Kali Dark Shell & Electron Scaffold** | Scaffold Electron BrowserWindow, Kali tokens di Tailwind v4, TopBar, ActivityBar, SplitPane. | [m1-kali-shell.md](m1-kali-shell.md) | Done |
-| **M1.1: Kali OS Experience & Native File Manager** | Koreksi logo Dracodeck, left vertical dock, Kali OS desktop, internal file manager (folders first). | [m1-1-kali-os-experience.md](m1-1-kali-os-experience.md) | Done |
-| **M1.2: Desktop OS, Syntax & Workspace Scoping** | Syntax highlighting komplit, ikon file spesifik, fullscreen boot & shutdown, right-click Open Scope Here. | [m1-2-desktop-syntax-scoping.md](m1-2-desktop-syntax-scoping.md) | **NEXT** |
-| **M2: Terminal ConPTY & Monaco Editor** | PTY bridge PowerShell/WSL2 ke xterm.js via IPC, Monaco Editor dengan Kali Dark theme. | [m2-terminal-editor.md](m2-terminal-editor.md) | Planned |
-| **M3: Antigravity & Agent Telemetry Hub** | Watcher `transcript.jsonl` non-blocking, parser streaming event, live diff & thinking viewer. | [m3-telemetry-engine.md](m3-telemetry-engine.md) | Planned |
-| **M4: DracoNet & Zombie Port Slayer** | Win32 socket scanner, 1-klik kill zombie port dev, HTTP/TCP endpoint probe, Windows packaging. | [m4-port-slayer.md](m4-port-slayer.md) | Planned |
+| **M0: Master Plan & Foundation Docs** | Transisi arsitektur ke Electron, blueprint 4 pilar besar, eliminasi C++ overhead. | [m0-master-plan.md](m0-master-plan.md) | COMPLETED |
+| **M1: Kali Dark Shell & Electron Scaffold** | Scaffold Electron BrowserWindow, Kali tokens di Tailwind v4, TopBar, ActivityBar, SplitPane. | [m1-kali-shell.md](m1-kali-shell.md) | COMPLETED |
+| **M1.1: Kali OS Experience & Native File Manager** | Koreksi logo Dracodeck, left vertical dock, Kali OS desktop, internal file manager (folders first). | [m1-1-kali-os-experience.md](m1-1-kali-os-experience.md) | COMPLETED |
+| **M1.2: Desktop OS, Syntax & Workspace Scoping** | Syntax highlighting komplit, ikon file spesifik, fullscreen boot & shutdown, right-click Open Scope Here. | [m1-2-desktop-syntax-scoping.md](m1-2-desktop-syntax-scoping.md) | COMPLETED |
+| **M1.3: macOS Windowing, DracoBrowser & Deep Syntax** | Window draggable/resizable macOS style, built-in Chromium browser, wallpaper switcher, deep token syntax. | [m1-3-advanced-desktop-browser.md](m1-3-advanced-desktop-browser.md) | COMPLETED |
+| **M2: Terminal ConPTY & Minimap Code Editor** | PTY bridge PowerShell ke terminal canvas via IPC, Code Editor dengan minimap interaktif & local fs. | [m2-terminal-editor.md](m2-terminal-editor.md) | COMPLETED |
+| **M2.1: Core Hardening & DracoShell CLI Engine** | Anti-clipping header, kamus CLI mandiri (`draco ifconfig/update/sys`), universal drive explorer, unblocked browser. | [m2-1-core-hardening-dracoshell.md](m2-1-core-hardening-dracoshell.md) | COMPLETED |
+| **M3: Antigravity & Multi-Agent Telemetry Hub** | Watcher `transcript.jsonl` non-blocking bebas lock, live diff inspector merah/hijau, cognitive flow, quick filter/search. | [m3-telemetry-engine.md](m3-telemetry-engine.md) | COMPLETED |
+| **M4: DracoNet & Zombie Port Slayer** | Win32 socket scanner, 1-klik kill zombie port dev, HTTP/TCP endpoint probe, Windows packaging. | [m4-port-slayer.md](m4-port-slayer.md) | **NEXT** |
 | **M5: DracoMemory & 1-Click Git Ops** | Catatan internal, Kanban project tracker, scheduling, 1-click branch/commit/push GitHub. | [m5-memory-gitops.md](m5-memory-gitops.md) | Planned |
 
 ---
