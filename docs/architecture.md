@@ -61,7 +61,20 @@ flowchart TD
 
 ---
 
-## 3. Directory Map
+## 3. Design System Tokens (VS Code Cyberpunk Violet Theme)
+
+Diselaraskan langsung dari environment VS Code pengguna:
+- **Status Bar (Signature Accent)**: `#ff007f` (Hot Magenta)
+- **Editor Canvas Void**: `#0b0813` (Deep Obsidian Violet)
+- **Activity Bar & Surface**: `#120c1f` (Dark Violet Slate)
+- **Sidebar & Panels**: `#161026` (Eggplant Navy)
+- **Border Lines**: `#261d38` (Violet Gunmetal)
+- **Active Tab Highlight**: `#281b3d` (Subtle Purple Glow)
+- **Syntax / Prompt Accents**: `#00e676` (Mint Green), `#00e5ff` (Kali Cyan), `#ff8800` (Amber)
+
+---
+
+## 4. Directory Map
 
 ```text
 electron/

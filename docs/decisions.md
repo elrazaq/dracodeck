@@ -54,3 +54,8 @@
 - **Status**: Accepted
 - **Context**: Mengadopsi persenjataan networking Kali Linux untuk kebutuhan rekayasa perangkat lunak developer.
 - **Decision**: Menyediakan modul TCP socket probe cepat, inspeksi HTTP/header, dan analisis port dev langsung dari cockpit.
+
+## D-011: Penyelarasan Tema Visual ke VS Code Cyberpunk Violet
+- **Status**: Accepted
+- **Context**: Tampilan visual harus seragam dengan lingkungan kerja VS Code harian pengguna agar transisi ergonomis dan otentik.
+- **Decision**: Mengadopsi palet warna dari environment pengguna: Status Bar Hot Magenta (`#ff007f`), Ground Obsidian Violet (`#0b0813`), Sidebar Eggplant (`#161026`), Border Violet Gunmetal (`#261d38`), dan aksen sintaks Mint Green (`#00e676`) / Kali Cyan (`#00e5ff`).

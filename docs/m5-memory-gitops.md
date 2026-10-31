@@ -63,3 +63,4 @@ flowchart TD
 1. Catatan baru dapat dibuat, diedit, dan tersimpan otomatis ke folder `.draco/notes/`.
 2. Task Kanban dapat dipindahkan antar status dan bertahan saat aplikasi ditutup lalu dibuka kembali.
 3. Pergantian branch git terjadi dalam waktu < 500ms dan langsung me-refresh file tree explorer.
+

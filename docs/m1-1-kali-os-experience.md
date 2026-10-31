@@ -13,7 +13,26 @@ Berdasarkan referensi visual terbaru pengguna:
 
 ---
 
-## 2. Arsitektur Layout: Kali Linux Left Vertical Taskbar
+## 2. Ekstraksi Skema Warna Otentik dari Setup VS Code Pengguna
+
+Berdasarkan screenshot setup VS Code pengguna (`media_1793439016508_1f163e8d.jpg`), skema warna diselaraskan secara presisi ke estetika **Cyberpunk Violet / Kali Cyberdeck**:
+
+| Elemen UI | Hex Code | Deskripsi & Titik Penggunaan |
+| :--- | :--- | :--- |
+| **Status Bar Utama (Signature)** | `#ff007f` / `#e0007b` | Neon Hot Magenta penuh di bar status bawah layar (kontras teks gelap). |
+| **Activity Bar & Badge** | `#120c1f` & `#ff007f` | Background Activity Bar ungu pekat dengan badge notifikasi pink magenta menyala. |
+| **Sidebar / Explorer** | `#161026` | Permukaan panel file explorer dan drawer kiri (deep eggplant slate). |
+| **Border Divider** | `#261d38` | Garis pembatas panel 1px violet gunmetal halus. |
+| **Editor Canvas Void** | `#0b0813` | Background utama area penulisan kode editor (deep obsidian violet). |
+| **Active Item / Tab Highlight**| `#281b3d` | Background berkas terpilih di explorer dan tab editor yang sedang aktif. |
+| **Syntax Keyword** | `#00e676` / `#05df72` | Mint Green untuk keyword sintaks (`export`, `function`, `return`, `if`). |
+| **Syntax String / Variables** | `#00e5ff` / `#38bdf8` | Kali Cyan untuk prompt terminal `PS`, string, dan variabel. |
+| **Git Modified / Tags** | `#ff8800` | Amber orange untuk badge modified `M` dan tag markdown. |
+| **Text Primary / Muted** | `#e2e8f0` / `#7a7194` | Teks utama putih keperakan, komentar kode ungu keabuan. |
+
+---
+
+## 3. Arsitektur Layout: Kali Linux Left Vertical Taskbar
 
 Berdasarkan screenshot referensi desktop Kali Linux XFCE/KDE:
 - **Posisi Taskbar**: Di **sebelah kiri layar (Left Vertical Dock)** secara penuh dari atas ke bawah (`h-screen w-14` / ~56px).
