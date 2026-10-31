@@ -242,9 +242,33 @@ function probeSocket(host = '127.0.0.1', port) {
   });
 }
 
+function killPortProcess(targetPort) {
+  return new Promise(async (resolve) => {
+    try {
+      const portNum = parseInt(targetPort, 10);
+      if (isNaN(portNum)) {
+        resolve({ success: false, error: 'Invalid port number' });
+        return;
+      }
+      const ports = await scanWin32Ports();
+      const match = ports.find((p) => p.port === portNum && p.state === 'LISTENING');
+      if (!match) {
+        resolve({ success: false, error: `No active listening process on port ${portNum}` });
+        return;
+      }
+      const killResult = await killWin32Process(match.pid, true);
+      resolve({ ...killResult, port: portNum, processName: match.processName });
+    } catch (err) {
+      resolve({ success: false, error: err.message });
+    }
+  });
+}
+
 module.exports = {
   scanWin32Ports,
   killWin32Process,
+  killPortProcess,
   probeSocket,
   KNOWN_DEV_PORTS,
 };
+

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Terminal, Plus, Trash2, RotateCw, XCircle } from "lucide-react";
+import { Terminal, Plus, Trash2, RotateCw, XCircle, Zap } from "lucide-react";
 import { executeDracoCommand } from "./dracoShell";
 import { DracoTooltip } from "../common/DracoTooltip";
 
@@ -31,6 +31,17 @@ export const TerminalPane: React.FC = () => {
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [outputLines]);
+
+  // Hydrate persistent history from Electron backend so switching views never loses logs
+  useEffect(() => {
+    if (window.dracoAPI?.terminalGetHistory) {
+      window.dracoAPI.terminalGetHistory().then((history) => {
+        if (history && history.length > 0) {
+          setOutputLines(history);
+        }
+      });
+    }
+  }, []);
 
   // Hook into Electron IPC terminal stream with cleanup
   useEffect(() => {
@@ -114,8 +125,11 @@ export const TerminalPane: React.FC = () => {
     }
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     setOutputLines([]);
+    if (window.dracoAPI?.terminalClearHistory) {
+      await window.dracoAPI.terminalClearHistory();
+    }
   };
 
   const handleRestart = async () => {
@@ -128,7 +142,36 @@ export const TerminalPane: React.FC = () => {
   const handleKill = async () => {
     if (window.dracoAPI?.terminalKill) {
       await window.dracoAPI.terminalKill();
-      setOutputLines((prev) => [...prev, "[ConPTY process terminated.]"]);
+      setOutputLines((prev) => [...prev, "[ConPTY process tree terminated. Respawning fresh session...]"]);
+      if (window.dracoAPI?.terminalInit) {
+        await window.dracoAPI.terminalInit();
+      }
+    }
+  };
+
+  const handleSlayDevServers = async () => {
+    const devPorts = [5174, 5173, 3000, 8080, 8000];
+    let killed = 0;
+    if (window.dracoAPI?.slayerKillPort) {
+      for (const port of devPorts) {
+        try {
+          const res = await window.dracoAPI.slayerKillPort(port);
+          if (res.success) {
+            killed++;
+            setOutputLines((prev) => [...prev, `[Slayer] Terminated process on port ${port} (${res.processName}).`]);
+          }
+        } catch {}
+      }
+    }
+    // Also terminate terminal process tree
+    if (window.dracoAPI?.terminalKill) {
+      await window.dracoAPI.terminalKill();
+      if (window.dracoAPI?.terminalInit) {
+        await window.dracoAPI.terminalInit();
+      }
+    }
+    if (killed === 0) {
+      setOutputLines((prev) => [...prev, "[Slayer] Process tree terminated. All dev ports checked & free."]);
     }
   };
 
@@ -230,16 +273,29 @@ export const TerminalPane: React.FC = () => {
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content="Kill Active Shell Process" shortcut="Ctrl+C" position="bottom" accent="pink">
+          <DracoTooltip content="Kill Active Shell Process Tree" shortcut="Ctrl+C" position="bottom" accent="pink">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleKill();
               }}
-              className="flex items-center gap-1 hover:text-[#ff1744] p-0.5 transition-colors"
+              className="flex items-center gap-1 hover:text-[#ff1744] p-0.5 transition-colors cursor-pointer"
             >
               <XCircle className="w-3 h-3" />
               <span className="hidden sm:inline">KILL</span>
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Force Terminate Background Dev Servers (Ports 5174/5173/3000)" position="bottom" accent="pink">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSlayDevServers();
+              }}
+              className="flex items-center gap-1 bg-[#ff1744]/20 hover:bg-[#ff1744] text-[#ff1744] hover:text-white px-1.5 py-0.5 border border-[#ff1744]/40 font-bold transition-colors cursor-pointer text-[10px]"
+            >
+              <Zap className="w-3 h-3" />
+              <span className="hidden sm:inline">STOP DEV / SLAY PORTS</span>
             </button>
           </DracoTooltip>
 

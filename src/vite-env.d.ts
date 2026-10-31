@@ -120,8 +120,11 @@ declare global {
       terminalKill: () => Promise<boolean>;
       terminalSetCwd: (cwd: string) => Promise<boolean>;
       terminalGetCwd: () => Promise<string>;
+      terminalGetHistory: () => Promise<string[]>;
+      terminalClearHistory: () => Promise<boolean>;
       slayerScanPorts: () => Promise<any[]>;
       slayerKillProcess: (pid: number, forceTree?: boolean) => Promise<{ success: boolean; pid?: number; error?: string; output?: string }>;
+      slayerKillPort: (port: number) => Promise<{ success: boolean; port?: number; error?: string; processName?: string }>;
       slayerProbePort: (host: string, port: number) => Promise<{ open: boolean; latencyMs: number; banner?: string; error?: string }>;
       vulnScan: (targetUrl: string) => Promise<any>;
       vulnCertInspect: (host: string, port?: number) => Promise<any>;

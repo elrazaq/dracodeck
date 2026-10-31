@@ -11,11 +11,30 @@ const portSlayer = require('./portSlayer.cjs');
 let mainWindow = null;
 let terminalProcess = null;
 let activeAppCwd = process.cwd();
+let terminalLogBuffer = [
+  'DRACODECK ConPTY PseudoConsole Bridge [Version 1.0.0]',
+  'Windows PowerShell Interactive Session Connected.',
+  'Type any PowerShell / Win32 command and press Enter.',
+  '',
+];
+const MAX_LOG_LINES = 3000;
+
+function appendTerminalLog(data) {
+  const str = data.toString();
+  const lines = str.split(/\r?\n/);
+  for (const l of lines) {
+    terminalLogBuffer.push(l);
+  }
+  if (terminalLogBuffer.length > MAX_LOG_LINES) {
+    terminalLogBuffer = terminalLogBuffer.slice(terminalLogBuffer.length - MAX_LOG_LINES);
+  }
+}
 
 function initTerminal(cwd) {
   if (terminalProcess) {
+    const oldPid = terminalProcess.pid;
     try {
-      terminalProcess.kill();
+      portSlayer.killWin32Process(oldPid, true);
     } catch {}
     terminalProcess = null;
   }
@@ -26,26 +45,30 @@ function initTerminal(cwd) {
 
   try {
     terminalProcess = spawn(shell, args, {
-      cwd: cwd || process.cwd(),
+      cwd: cwd || activeAppCwd || process.cwd(),
       env: { ...process.env, TERM: 'xterm-256color' },
       shell: true,
     });
 
     terminalProcess.stdout.on('data', (chunk) => {
+      appendTerminalLog(chunk);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('terminal-output', chunk.toString());
       }
     });
 
     terminalProcess.stderr.on('data', (chunk) => {
+      appendTerminalLog(chunk);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('terminal-output', chunk.toString());
       }
     });
 
     terminalProcess.on('close', (code) => {
+      const msg = `\r\n[Process terminated with code ${code}]\r\n`;
+      appendTerminalLog(msg);
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal-output', `\r\n[Process terminated with code ${code}]\r\n`);
+        mainWindow.webContents.send('terminal-output', msg);
       }
       terminalProcess = null;
     });
@@ -187,13 +210,23 @@ ipcMain.handle('terminal-get-cwd', () => {
   return activeAppCwd || process.cwd();
 });
 
-ipcMain.handle('terminal-kill', () => {
+ipcMain.handle('terminal-kill', async () => {
   if (terminalProcess) {
+    const pid = terminalProcess.pid;
     try {
-      terminalProcess.kill();
+      await portSlayer.killWin32Process(pid, true);
     } catch {}
     terminalProcess = null;
   }
+  return true;
+});
+
+ipcMain.handle('terminal-get-history', () => {
+  return terminalLogBuffer;
+});
+
+ipcMain.handle('terminal-clear-history', () => {
+  terminalLogBuffer = [];
   return true;
 });
 
@@ -449,6 +482,14 @@ ipcMain.handle('slayer-scan-ports', async () => {
 ipcMain.handle('slayer-kill-process', async (event, pid, forceTree = true) => {
   try {
     return await portSlayer.killWin32Process(pid, forceTree);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('slayer-kill-port', async (event, port) => {
+  try {
+    return await portSlayer.killPortProcess(port);
   } catch (err) {
     return { success: false, error: err.message };
   }

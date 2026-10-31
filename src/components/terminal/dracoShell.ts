@@ -52,21 +52,43 @@ export async function executeDracoCommand(
     return ["[-] DracoAPI slayer engine not available."];
   }
 
-  // 4. 'draco kill <pid>' -> Real Win32 Tree Termination
+  // 4. 'draco kill <pid>' / 'draco kill port <port>' -> Real Win32 Tree Termination
   if (sub === "kill" && parts[2]) {
-    const targetPid = parseInt(parts[2], 10);
-    if (isNaN(targetPid)) {
-      return ["[-] Syntax: draco kill <pid>"];
+    const isPortSub = parts[2].toLowerCase() === "port" && parts[3];
+    const targetVal = isPortSub ? parseInt(parts[3], 10) : parseInt(parts[2], 10);
+    if (isNaN(targetVal)) {
+      return ["[-] Syntax: draco kill <pid> OR draco kill port <port> (e.g. draco kill port 5174)"];
     }
+
+    // Try killing by port first
+    if (window.dracoAPI?.slayerKillPort) {
+      const portRes = await window.dracoAPI.slayerKillPort(targetVal);
+      if (portRes.success) {
+        return [`[+] Successfully freed port ${targetVal} (terminated ${portRes.processName || "process"} & child process tree).`];
+      }
+    }
+
     if (window.dracoAPI?.slayerKillProcess) {
-      const res = await window.dracoAPI.slayerKillProcess(targetPid, true);
+      const res = await window.dracoAPI.slayerKillProcess(targetVal, true);
       if (res.success) {
-        return [`[+] Successfully terminated PID ${targetPid} and child process tree.`];
+        return [`[+] Successfully terminated PID ${targetVal} and child process tree.`];
       } else {
         return [`[-] Termination failed: ${res.error}`];
       }
     }
     return ["[-] DracoAPI slayer engine not available."];
+  }
+
+  // 5. 'draco stop' -> Kill ConPTY child tree & restart clean session
+  if (sub === "stop") {
+    if (window.dracoAPI?.terminalKill) {
+      await window.dracoAPI.terminalKill();
+      if (window.dracoAPI?.terminalInit) {
+        await window.dracoAPI.terminalInit();
+      }
+      return ["[+] ConPTY active command tree terminated & fresh session spawned."];
+    }
+    return ["[-] DracoAPI terminal engine not available."];
   }
 
   // 5. 'draco vuln <url>' -> Real Zero-CORS Vulnerability Audit
