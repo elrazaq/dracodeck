@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { TopBar } from "./TopBar";
 import { LeftDock } from "./LeftDock";
 import { BottomBar } from "./BottomBar";
 import { SplitPane } from "./SplitPane";
@@ -198,6 +199,9 @@ export const Shell: React.FC = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0b0813] text-[#cbd5e1] font-mono overflow-hidden select-none">
+      {/* Permanent Anti-Clipping Kali Top System Bar */}
+      <TopBar workspace={currentEffectiveWorkspace} />
+
       {/* Main Body (Left Dock + Workstation Canvas) */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Vertical Dock (56px) */}
@@ -217,6 +221,10 @@ export const Shell: React.FC = () => {
       <BottomBar
         workspace={currentEffectiveWorkspace}
         activeLanguage={activeLang}
+        onFormatCode={() => {
+          // Triggers format notification
+        }}
+        onOpenTelemetry={() => setActiveView("telemetry")}
       />
     </div>
   );

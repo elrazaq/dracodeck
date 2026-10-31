@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   quitApp: () => ipcRenderer.invoke('quit-app'),
   terminalInit: (cwd) => ipcRenderer.invoke('terminal-init', cwd),
   terminalKill: () => ipcRenderer.invoke('terminal-kill'),
+  getNetInterfaces: () => ipcRenderer.invoke('get-net-interfaces'),
+  getSysInfo: () => ipcRenderer.invoke('get-sys-info'),
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  getDrives: () => ipcRenderer.invoke('get-drives'),
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {

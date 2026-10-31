@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { X, FileCode, Save, Check, FileText, CornerDownLeft, Eye, EyeOff, Layout } from "lucide-react";
+import { X, FileCode, Save, Check, FileText, CornerDownLeft, Eye, EyeOff, Layout, Wand2 } from "lucide-react";
 import { highlightCode, Token } from "./syntaxHighlighter";
+import { formatCode } from "./codeFormatter";
 
 export interface OpenTab {
   path: string;
@@ -118,6 +119,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           : t
       )
     );
+  };
+
+  const handleFormat = () => {
+    if (!currentTab) return;
+    const formatted = formatCode(currentTab.content, currentTab.name);
+    if (formatted !== currentTab.content) {
+      handleContentChange(formatted);
+      setSaveStatus("FORMATTED");
+      setTimeout(() => setSaveStatus(null), 2000);
+    }
   };
 
   const handleSave = async () => {
@@ -289,6 +300,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
         {/* Minimap & Syntax Toggles */}
         <div className="ml-auto mr-2 flex items-center gap-2">
+          <button
+            onClick={handleFormat}
+            title="Prettier Auto-Format Code"
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border-[#261d38] hover:border-[#00e676]/50 transition-colors"
+          >
+            <Wand2 className="w-3 h-3 text-[#00e676]" />
+            <span>FORMAT</span>
+          </button>
+
           <button
             onClick={() => setIsMinimapOn(!isMinimapOn)}
             title={isMinimapOn ? "Hide Code Minimap" : "Show Code Minimap"}

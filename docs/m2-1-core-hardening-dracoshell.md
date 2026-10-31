@@ -177,3 +177,4 @@ Dengan mekanisme ini, situs besar (Google, GitHub, Wikipedia, Kali Docs) dapat d
 4. **DracoBrowser Berfungsi**: Membuka `https://www.google.com` atau `https://github.com` berhasil me-render halaman tanpa error frame blocking.
 5. **Left Dock & Bottom Bar Interaktif**: Seluruh tombol di dock kiri dan status bar bawah dapat diklik dan memiliki aksi nyata.
 6. **Syntax & Prettier**: Method chaining terdeteksi dengan warna Neon Rose (`#f43f5e`), dan tombol Prettier merapikan kode file aktif.
+

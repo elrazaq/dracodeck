@@ -11,11 +11,12 @@ import {
   LayoutGrid,
   List as ListIcon,
   Search,
-  FolderOpen,
+  Folder,
 } from "lucide-react";
 import { FileEntry, sortEntries } from "../../types";
 import { FileIcon } from "../common/FileIcon";
 import { ContextMenu } from "../common/ContextMenu";
+import { DriveItem } from "../../vite-env";
 
 interface KaliFileManagerProps {
   workspacePath: string;
@@ -29,12 +30,15 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
   onOpenScope,
 }) => {
   const [currentDir, setCurrentDir] = useState<string>(workspacePath);
+  const [dirInput, setDirInput] = useState<string>(workspacePath);
   const [history, setHistory] = useState<string[]>([workspacePath]);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [drives, setDrives] = useState<DriveItem[]>([]);
+  const [places, setPlaces] = useState<DriveItem[]>([]);
 
   // Context Menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -45,8 +49,21 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
     isDirectory: boolean;
   } | null>(null);
 
+  // Discover PC Drives and User Places on mount
+  useEffect(() => {
+    if (window.dracoAPI?.getDrives) {
+      window.dracoAPI.getDrives().then((res) => {
+        if (res) {
+          setDrives(res.drives || []);
+          setPlaces(res.places || []);
+        }
+      });
+    }
+  }, []);
+
   useEffect(() => {
     setCurrentDir(workspacePath);
+    setDirInput(workspacePath);
     setHistory([workspacePath]);
     setHistoryIndex(0);
   }, [workspacePath]);
@@ -85,6 +102,7 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
 
   useEffect(() => {
     loadDirectory(currentDir);
+    setDirInput(currentDir);
   }, [currentDir, loadDirectory]);
 
   const navigateTo = (newPath: string) => {
@@ -115,8 +133,16 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
     const parts = currentDir.split(/[/\\]/).filter(Boolean);
     if (parts.length > 1) {
       parts.pop();
-      const parent = parts.join("\\");
+      const parent = parts.length === 1 && /^[a-zA-Z]:$/.test(parts[0])
+        ? `${parts[0]}\\`
+        : parts.join("\\");
       navigateTo(parent);
+    }
+  };
+
+  const handlePathSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && dirInput.trim()) {
+      navigateTo(dirInput.trim());
     }
   };
 
@@ -175,10 +201,17 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
           </button>
         </div>
 
-        {/* Breadcrumb Path Bar */}
-        <div className="flex-1 bg-[#0b0813] border border-[#261d38] px-3 py-1 flex items-center text-[11px] truncate text-[#00e5ff] font-mono">
-          <span className="text-[#7a7194] mr-1">PATH:</span>
-          <span className="truncate">{currentDir}</span>
+        {/* Universal Direct Path Input Bar */}
+        <div className="flex-1 bg-[#0b0813] border border-[#261d38] px-2 py-0.5 flex items-center gap-1.5 text-[11px] focus-within:border-[#00e5ff] transition-colors">
+          <span className="text-[#ff007f] font-bold text-[10px]">PATH:</span>
+          <input
+            type="text"
+            value={dirInput}
+            onChange={(e) => setDirInput(e.target.value)}
+            onKeyDown={handlePathSubmit}
+            placeholder="Enter direct path (e.g. C:\, D:\, C:\Windows)..."
+            className="flex-1 bg-transparent text-[#00e5ff] outline-none font-mono text-[11px]"
+          />
         </div>
 
         {/* Search & View Mode */}
@@ -190,7 +223,7 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter..."
-              className="w-32 bg-[#0b0813] border border-[#261d38] focus:border-[#ff007f] pl-7 pr-2 py-1 text-[11px] outline-none text-[#e2e8f0]"
+              className="w-28 bg-[#0b0813] border border-[#261d38] focus:border-[#ff007f] pl-7 pr-2 py-1 text-[11px] outline-none text-[#e2e8f0]"
             />
           </div>
           <div className="flex border border-[#261d38] rounded-xs overflow-hidden">
@@ -210,47 +243,75 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
         </div>
       </div>
 
-      {/* Main Body: Places Sidebar + File Grid */}
+      {/* Main Body: Drives & Places Sidebar + File Grid */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Places Sidebar */}
-        <aside className="w-48 bg-[#120c1f] border-r border-[#261d38] p-2 flex flex-col gap-4 text-xs select-none">
+        {/* Left Places & Storage Drives Sidebar */}
+        <aside className="w-48 bg-[#120c1f] border-r border-[#261d38] p-2 flex flex-col gap-3 text-xs select-none overflow-y-auto">
+          {/* Storage Drives (C:, D:, etc.) */}
+          <div>
+            <p className="text-[10px] font-bold text-[#7a7194] uppercase tracking-wider px-2 mb-1 flex items-center gap-1.5">
+              <HardDrive className="w-3 h-3 text-[#ff007f]" />
+              <span>STORAGE DRIVES</span>
+            </p>
+            <div className="space-y-0.5">
+              {drives.map((d) => (
+                <button
+                  key={d.path}
+                  onClick={() => navigateTo(d.path)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left transition-colors ${
+                    currentDir.startsWith(d.path)
+                      ? "bg-[#281b3d] text-[#00e5ff] font-semibold border-l-2 border-[#00e5ff]"
+                      : "text-[#cbd5e1] hover:bg-[#161026]"
+                  }`}
+                >
+                  <HardDrive className="w-3.5 h-3.5 text-[#00e5ff]" />
+                  <span className="truncate">{d.name}</span>
+                </button>
+              ))}
+              {drives.length === 0 && (
+                <button
+                  onClick={() => navigateTo("C:\\")}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026]"
+                >
+                  <HardDrive className="w-3.5 h-3.5 text-[#00e5ff]" />
+                  <span>Local Disk (C:)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* User Places */}
           <div>
             <p className="text-[10px] font-bold text-[#7a7194] uppercase tracking-wider px-2 mb-1">
-              PLACES
+              USER PLACES
             </p>
             <div className="space-y-0.5">
               <button
                 onClick={() => navigateTo(workspacePath)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left transition-colors ${
                   currentDir === workspacePath
-                    ? "bg-[#281b3d] text-[#00e5ff] font-semibold border-l-2 border-[#ff007f]"
+                    ? "bg-[#281b3d] text-[#ff007f] font-semibold border-l-2 border-[#ff007f]"
                     : "text-[#cbd5e1] hover:bg-[#161026]"
                 }`}
               >
-                <Home className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <Home className="w-3.5 h-3.5 text-[#ff007f]" />
                 <span className="truncate">Workspace Root</span>
               </button>
-              <button
-                onClick={() => navigateTo(`${workspacePath}\\docs`)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026] transition-colors"
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-[#2979ff]" />
-                <span className="truncate">docs</span>
-              </button>
-              <button
-                onClick={() => navigateTo(`${workspacePath}\\src`)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026] transition-colors"
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-[#00e676]" />
-                <span className="truncate">src</span>
-              </button>
-              <button
-                onClick={() => navigateTo(`${workspacePath}\\electron`)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026] transition-colors"
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-[#ff8800]" />
-                <span className="truncate">electron</span>
-              </button>
+
+              {places.map((p) => (
+                <button
+                  key={p.path}
+                  onClick={() => navigateTo(p.path)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left transition-colors ${
+                    currentDir === p.path
+                      ? "bg-[#281b3d] text-[#00e5ff] font-semibold border-l-2 border-[#00e5ff]"
+                      : "text-[#cbd5e1] hover:bg-[#161026]"
+                  }`}
+                >
+                  <Folder className="w-3.5 h-3.5 text-[#2979ff]" />
+                  <span className="truncate">{p.name}</span>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -259,7 +320,10 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
               SYSTEM
             </p>
             <div className="space-y-0.5 text-[#7a7194]">
-              <div className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-[#161026] hover:text-[#cbd5e1]">
+              <div
+                onClick={() => navigateTo(workspacePath)}
+                className="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-[#161026] hover:text-[#cbd5e1]"
+              >
                 <Clock className="w-3.5 h-3.5" />
                 <span>Recent Files</span>
               </div>
@@ -340,7 +404,7 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <HardDrive className="w-3 h-3 text-[#00e676]" />
-          <span>Local Storage: Connected</span>
+          <span>Universal Storage: Connected</span>
         </div>
       </div>
 

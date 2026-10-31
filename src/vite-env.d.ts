@@ -13,6 +13,31 @@ export interface FileStat {
   isFile: boolean;
 }
 
+export interface DriveItem {
+  name: string;
+  path: string;
+  isDrive: boolean;
+}
+
+export interface SysInfo {
+  cpus: number;
+  cpuModel: string;
+  totalMem: number;
+  freeMem: number;
+  uptime: number;
+  platform: string;
+  release: string;
+  arch: string;
+  hostname: string;
+}
+
+export interface UpdateInfo {
+  commit: string;
+  message: string;
+  date: string;
+  status: string;
+}
+
 declare global {
   interface Window {
     dracoAPI?: {
@@ -28,6 +53,13 @@ declare global {
       quitApp: () => Promise<void>;
       terminalInit: (cwd?: string) => Promise<boolean>;
       terminalKill: () => Promise<boolean>;
+      getNetInterfaces: () => Promise<Record<string, any[]>>;
+      getSysInfo: () => Promise<SysInfo>;
+      checkUpdate: () => Promise<UpdateInfo>;
+      getDrives: () => Promise<{ drives: DriveItem[]; places: DriveItem[] }>;
+      windowMinimize: () => Promise<void>;
+      windowMaximize: () => Promise<void>;
+      windowClose: () => Promise<void>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => void;
     };

@@ -196,14 +196,20 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
 
       // Punctuation characters
       if (["(", ")", "{", "}", "[", "]", ";", ",", "."].includes(char)) {
-        // Special case: check if . is property access
+        // Special case: check if . is property access or chained method call
         if (char === "." && i + 1 < line.length && /^[a-zA-Z_$]/.test(line[i + 1])) {
           tokens.push({ type: "punct", value: "." });
           i++;
           const propMatch = line.slice(i).match(/^[a-zA-Z0-9_$]+/);
           if (propMatch) {
-            tokens.push({ type: "prop", value: propMatch[0] });
-            i += propMatch[0].length;
+            const memberName = propMatch[0];
+            const nextChar = line[i + memberName.length];
+            if (nextChar === "(") {
+              tokens.push({ type: "fn-call", value: memberName });
+            } else {
+              tokens.push({ type: "prop", value: memberName });
+            }
+            i += memberName.length;
             continue;
           }
         }

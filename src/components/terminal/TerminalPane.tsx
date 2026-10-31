@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Terminal, Plus, Trash2, RotateCw, XCircle } from "lucide-react";
+import { executeDracoCommand } from "./dracoShell";
 
 interface TerminalTab {
   id: string;
@@ -40,10 +41,29 @@ export const TerminalPane: React.FC = () => {
     }
   }, []);
 
-  const handleSendCommand = (cmd: string) => {
+  const handleSendCommand = async (cmd: string) => {
     if (!cmd.trim()) return;
 
-    // Send to native ConPTY process via IPC
+    // Check custom DracoShell CLI dictionary first
+    const dracoResult = await executeDracoCommand(cmd);
+    if (dracoResult !== null) {
+      if (dracoResult[0] === "__CLEAR__") {
+        setOutputLines([]);
+      } else {
+        setOutputLines((prev) => [
+          ...prev,
+          `┌──(dracodeck㉿kali)-[terminal]`,
+          `└─$ ${cmd}`,
+          ...dracoResult,
+        ]);
+      }
+      setCmdHistory((prev) => [...prev, cmd]);
+      setHistoryIndex(-1);
+      setCurrentInput("");
+      return;
+    }
+
+    // Passthrough to native ConPTY process via IPC
     if (window.dracoAPI?.send) {
       window.dracoAPI.send("terminal-input", cmd + "\r\n");
     } else {

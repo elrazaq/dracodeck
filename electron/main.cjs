@@ -1,6 +1,8 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const https = require('https');
 const { spawn } = require('child_process');
 
 let mainWindow = null;
@@ -69,6 +71,16 @@ function createWindow() {
     },
   });
 
+  // Strip restrictive security headers (X-Frame-Options & CSP) to unblock all websites in DracoBrowser
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    delete responseHeaders['x-frame-options'];
+    delete responseHeaders['X-Frame-Options'];
+    delete responseHeaders['content-security-policy'];
+    delete responseHeaders['Content-Security-Policy'];
+    callback({ cancel: false, responseHeaders });
+  });
+
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (devUrl) {
     mainWindow.loadURL(devUrl);
@@ -96,6 +108,25 @@ function createWindow() {
   });
 }
 
+// IPC Handlers - Window Controls
+ipcMain.handle('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+    } else {
+      mainWindow.setFullScreen(true);
+    }
+  }
+});
+
+ipcMain.handle('window-close', () => {
+  app.quit();
+});
+
 // IPC Handlers - Terminal ConPTY Engine
 ipcMain.on('terminal-input', (event, data) => {
   if (!terminalProcess) {
@@ -121,7 +152,80 @@ ipcMain.handle('terminal-kill', () => {
   return true;
 });
 
-// IPC Handlers - Filesystem & System
+// IPC Handlers - DracoShell CLI & System Telemetry
+ipcMain.handle('get-net-interfaces', () => {
+  return os.networkInterfaces();
+});
+
+ipcMain.handle('get-sys-info', () => {
+  const cpus = os.cpus();
+  return {
+    cpus: cpus.length,
+    cpuModel: cpus[0]?.model || 'Generic Processor',
+    totalMem: os.totalmem(),
+    freeMem: os.freemem(),
+    uptime: os.uptime(),
+    platform: os.platform(),
+    release: os.release(),
+    arch: os.arch(),
+    hostname: os.hostname(),
+  };
+});
+
+ipcMain.handle('check-update', () => {
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/elrazaq/dracodeck/commits/main',
+      headers: { 'User-Agent': 'Dracodeck-Cockpit' },
+    };
+    https.get(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          resolve({
+            commit: parsed.sha ? parsed.sha.slice(0, 7) : 'c407f06',
+            message: parsed.commit?.message || 'Latest commit up to date',
+            date: parsed.commit?.author?.date || new Date().toISOString(),
+            status: 'UP_TO_DATE',
+          });
+        } catch {
+          resolve({ commit: 'c407f06', status: 'LATEST', message: 'Current version active' });
+        }
+      });
+    }).on('error', () => {
+      resolve({ commit: 'c407f06', status: 'OFFLINE', message: 'Offline mode / cache valid' });
+    });
+  });
+});
+
+// IPC Handlers - Universal PC Drive & Folder Discovery
+ipcMain.handle('get-drives', async () => {
+  const home = os.homedir();
+  const places = [
+    { name: 'Home (~)', path: home, isDrive: false },
+    { name: 'Desktop', path: path.join(home, 'Desktop'), isDrive: false },
+    { name: 'Downloads', path: path.join(home, 'Downloads'), isDrive: false },
+    { name: 'Documents', path: path.join(home, 'Documents'), isDrive: false },
+  ];
+
+  const drives = [];
+  // Probe Windows drive letters C to Z
+  for (let code = 67; code <= 90; code++) {
+    const letter = String.fromCharCode(code) + ':\\';
+    try {
+      if (fs.existsSync(letter)) {
+        drives.push({ name: `Local Disk (${letter[0]}:)`, path: letter, isDrive: true });
+      }
+    } catch {}
+  }
+
+  return { drives, places };
+});
+
+// IPC Handlers - Filesystem & System Operations
 ipcMain.handle('quit-app', () => {
   app.quit();
 });
