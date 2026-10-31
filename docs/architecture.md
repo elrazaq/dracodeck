@@ -1,53 +1,63 @@
-# Architecture: Project DRACODECK (Electron Edition)
+# Architecture: Project DRACODECK (Comprehensive Edition)
 
 ## 1. System Overview
 
-DRACODECK adalah desktop developer cockpit untuk Windows yang dibangun di atas **Electron (Node.js 22 + Chromium) + React 19 + Tailwind CSS v4**.
+DRACODECK adalah desktop developer cockpit untuk Windows yang menggabungkan filosofi *offensive-grade* Kali Linux dengan alur kerja rekayasa perangkat lunak modern, orkestrasi AI, dan manajemen proyek.
 
 ```mermaid
 flowchart TD
-    subgraph UI_Renderer ["Electron Renderer (React 19 + Tailwind v4)"]
-        TopBar["Kali XFCE Top Bar (RAM/CPU, Branch, Active Ports)"]
-        ActivityBar["Activity Bar (Explorer, Terminal, Telemetry, Slayer)"]
-        EditorArea["Monaco Editor Engine (@monaco-editor/react)"]
-        TerminalCanvas["Xterm.js Canvas (@xterm/xterm)"]
-        TelemetryPanel["Antigravity Telemetry Window (Diff + Tool Invocation)"]
-        PortMatrix["Port Slayer Panel (Active Dev Ports)"]
+    subgraph UI_Renderer ["Electron Renderer (React 19 + Tailwind CSS v4)"]
+        LeftDock["Kali Vertical Left Dock (56px)"]
+        DesktopSpace["Kali OS Desktop & Built-in File Manager"]
+        CodeEditor["VS Code Kali Dark Editor Engine"]
+        TerminalCanvas["Xterm.js Canvas (PowerShell / WSL2)"]
+        TelemetryPanel["Antigravity & Agent Telemetry Hub"]
+        MemoryPanel["DracoMemory Notes & Kanban Project Tracker"]
+        GitBar["Lightning Git Ops (1-Click Branch & Push)"]
+        NetMatrix["DracoNet Kali Networking & Port Slayer"]
     end
 
-    subgraph Bridge ["Secure IPC Layer (preload.ts)"]
+    subgraph Bridge ["Secure IPC Layer (preload.cjs)"]
         ContextAPI["contextBridge: window.dracoAPI"]
     end
 
-    subgraph Main_Node ["Electron Main Process (Node.js)"]
-        PtyBridge["ConPTY Bridge (PowerShell / WSL2)"]
-        LogTailer["Antigravity Tailer (fs.watch / readline offset)"]
-        PortScanner["Port Inspector (netstat & process kill)"]
-        FsBridge["Workspace Filesystem Bridge"]
+    subgraph Main_Process ["Electron Main Process (Node.js 22 Runtime)"]
+        FsService["Filesystem Engine & .draco/ Vault"]
+        PtyService["ConPTY Native Terminal Bridge"]
+        TailerService["Agent Telemetry Streamer (JSONL non-blocking)"]
+        GitService["Local Git CLI & GitHub REST Bridge"]
+        NetService["Win32 TCP Socket Probe & Process Killer"]
     end
 
-    UI_Renderer <-->|IPC invoke / on| ContextAPI <--> Main_Node
-    PtyBridge <--> TerminalCanvas
-    LogTailer --> TelemetryPanel
-    PortScanner --> PortMatrix
+    UI_Renderer <-->|IPC invoke / on| ContextAPI <--> Main_Process
+    FsService <--> LocalDisk["Workspace Filesystem"]
+    PtyService <--> PowerShell["PowerShell / WSL2 Processes"]
+    TailerService <---|Shared Read| BrainLogs["%USERPROFILE%/.gemini/antigravity/..."]
+    GitService <--> GitHubAPI["GitHub REST API & Git Repo"]
+    NetService <--> WinTCP["Windows TCP Socket Table"]
 ```
 
 ---
 
 ## 2. Component Specifications
 
-### 2.1 Native ConPTY Terminal Bridge
-- **Engine**: Node.js child_process / PTY streaming.
-- **Protocol**: Menggunakan Electron IPC stream bidireksional (`ipcRenderer.send` / `ipcMain.on`) untuk menyalurkan input keystroke dan output terminal ke `@xterm/xterm`.
+### 2.1 DracoMemory & Project Management
+- **Format Catatan**: Berkas Markdown (`.md`) disimpan di direktori `.draco/notes/`.
+- **Manajemen Proyek**: Task list dan board Kanban bertipe JSON disimpan di `.draco/project/tasks.json`.
+- **Jadwal & Tracking**: Indikator progres tanggal, deadline, dan badge prioritas (Critical, High, Medium, Low).
 
-### 2.2 Antigravity Live Telemetry Tailer
-- **Target File**: `%USERPROFILE%\.gemini\antigravity\brain\<conversation-id>\.system_generated\logs\transcript.jsonl`.
-- **File Access**: Menggunakan Node.js `fs.createReadStream` dengan opsi tracking byte offset (`start: lastOffset`).
-- **Parsing**: Line-by-line JSONL streaming parser memancarkan event pemanggilan tool (`run_command`, `edit_file`, dsb.) ke renderer process.
+### 2.2 DracoGit Ops (1-Click Lightning Operations)
+- **Branch Management**: Mengambil daftar branch aktif lokal & remote, switch branch via IPC command cepat (`git switch <branch>`).
+- **One-Click Commit & Push**: Menggabungkan stage all, commit, dan push dalam satu aksi tombol di UI tanpa perlu menulis perintah git manual di terminal.
 
-### 2.3 Zombie Port Slayer
-- **Mekanisme**: Membaca port listening lokal via Windows `netstat -ano -p tcp` melalui Node.js subshell atau socket probe.
-- **Aksi Kill**: `process.kill(pid)` atau Windows `taskkill /F /PID <pid>` untuk membersihkan port terkunci (`3000`, `5173`, `8080`, `5432`, `8000`).
+### 2.3 DracoAgent Multi-Bridge
+- **Google Antigravity**: Tailing berkas `transcript.jsonl` non-blocking dengan Windows flag `FILE_SHARE_READ`.
+- **GitHub Copilot & Codex**: Adapter untuk memantau status sesi, token penggunaan, dan alur sintesis kode.
+
+### 2.4 DracoNet (Kali Linux Offensive Networking Suite)
+- **Socket Probe**: Pemindai port listening lokal dan subnet berbasis soket murni Node.js.
+- **HTTP / Header Inspector**: Debugger permintaan HTTP/API instan.
+- **Zombie Port Slayer**: Scanner socket TCP Windows dengan terminasi proses 1-klik untuk port dev terkunci (`3000`, `5173`, `8080`, `5432`, `8000`).
 
 ---
 
@@ -55,17 +65,19 @@ flowchart TD
 
 ```text
 electron/
-├── main.ts           # Window lifecycle, native menu, IPC listeners
-└── preload.ts        # contextBridge API exposing safe dracoAPI
+├── main.cjs          # Window lifecycle, native menu, IPC listeners
+└── preload.cjs       # contextBridge API exposing safe dracoAPI
 
 src/
 ├── components/
-│   ├── layout/       # TopBar, ActivityBar, SplitPane, Shell
-│   ├── editor/       # Monaco Editor wrapper & tabs
+│   ├── layout/       # LeftDock, TopBar, SplitPane, Shell
+│   ├── desktop/      # Kali OS Desktop & Built-in File Manager
+│   ├── editor/       # VS Code Kali Dark Editor
 │   ├── terminal/     # Xterm.js container & PTY IPC hook
-│   ├── telemetry/    # Antigravity live debug cards & diff viewer
-│   ├── slayer/       # Port & process killer UI
-│   └── explorer/     # Workspace file tree
+│   ├── telemetry/    # Antigravity & Agent live debug cards
+│   ├── memory/       # DracoMemory notes & Kanban project tracker
+│   ├── git/          # 1-click Git Ops bar & branch switcher
+│   └── slayer/       # DracoNet socket scanner & process killer
 ├── types/            # IPC payloads & telemetry interfaces
 ├── index.css         # Tailwind v4 Kali Dark design tokens
 └── App.tsx           # Shell root orchestrator

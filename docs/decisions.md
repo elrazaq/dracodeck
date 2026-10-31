@@ -1,7 +1,7 @@
 # Architecture Decision Records (ADR)
 
 ## D-001: Migrasi dari Tauri v2 ke Electron
-- **Status**: Accepted (Supercedes D-001 lama)
+- **Status**: Accepted
 - **Context**: Tauri v2 di Windows membutuhkan compiler C++ Visual Studio Build Tools (MSVC) berukuran 6.7 GB dan hak akses Administrator UAC. Ini memberatkan ruang penyimpanan dan menghambat setup cepat.
 - **Decision**: Menggunakan **Electron (Node.js 22 + Chromium)**.
 - **Consequences**:
@@ -35,7 +35,22 @@
 - **Context**: Developer sering mengalami port bentrok saat server zombie menggantung.
 - **Decision**: Main process memeriksa status socket TCP dan menyediakan endpoint 1-klik untuk menghentikan proses pengunci port.
 
-## D-007: YAGNI Scope Pruning pada MVP
+## D-007: Pola Local-First Storage `.draco/` untuk Catatan & Task
 - **Status**: Accepted
-- **Context**: Menjaga lingkup tetap ramping dan cepat dirilis.
-- **Decision**: Berfokus penuh pada 5 pilar inti: Shell Kali, Monaco Editor, Terminal, Antigravity Telemetry, dan Zombie Port Slayer.
+- **Context**: Aplikasi membutuhkan fitur memori internal (catatan developer) dan manajemen proyek (Kanban & scheduling) tanpa membebani repositori git atau memerlukan server eksternal berbayar.
+- **Decision**: Menyimpan catatan di `.draco/notes/*.md` dan data task proyek di `.draco/project/tasks.json` di dalam root workspace pengguna.
+
+## D-008: 1-Click Lightning Git Ops via Native CLI Bridge
+- **Status**: Accepted
+- **Context**: Developer menginginkan pergantian branch, commit, dan push secepat kilat dengan 1-klik tanpa perlu mengetik perintah git berulang di terminal.
+- **Decision**: Mengintegrasikan jembatan Git CLI lokal di main process Electron untuk mengeksekusi `git switch`, `git checkout -b`, `git add .`, dan `git push` secara instan.
+
+## D-009: Multi-Agent Adapter Interface (Antigravity, Copilot, Codex)
+- **Status**: Accepted
+- **Context**: Cockpit perlu mendukung observabilitas dan komunikasi tidak hanya untuk Antigravity, tetapi juga GitHub Copilot dan OpenAI Codex.
+- **Decision**: Membangun unified telemetry HUD yang mengabstraksi sumber data agent ke dalam format unified stream event.
+
+## D-010: DracoNet Offensive Networking Suite
+- **Status**: Accepted
+- **Context**: Mengadopsi persenjataan networking Kali Linux untuk kebutuhan rekayasa perangkat lunak developer.
+- **Decision**: Menyediakan modul TCP socket probe cepat, inspeksi HTTP/header, dan analisis port dev langsung dari cockpit.

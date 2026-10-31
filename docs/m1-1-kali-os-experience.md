@@ -131,3 +131,4 @@ Ketika berkas di File Manager diklik:
 4. **File Manager Integrity**:
    - File explorer tampil sebagai antarmuka bergaya Dolphin/Thunar Kali Linux di dalam window aplikasi.
    - Navigasi folder dan pembukaan file berfungsi mulus.
+
