@@ -5,9 +5,12 @@ const os = require('os');
 const https = require('https');
 const { spawn } = require('child_process');
 const telemetry = require('./telemetry.cjs');
+const vulnScanner = require('./vulnScanner.cjs');
+const portSlayer = require('./portSlayer.cjs');
 
 let mainWindow = null;
 let terminalProcess = null;
+let activeAppCwd = process.cwd();
 
 function initTerminal(cwd) {
   if (terminalProcess) {
@@ -153,8 +156,35 @@ ipcMain.on('terminal-input', (event, data) => {
 });
 
 ipcMain.handle('terminal-init', (event, cwd) => {
-  initTerminal(cwd);
+  const targetCwd = cwd || activeAppCwd || process.cwd();
+  activeAppCwd = targetCwd;
+  initTerminal(targetCwd);
   return true;
+});
+
+ipcMain.handle('terminal-set-cwd', (event, newCwd) => {
+  if (!newCwd) return false;
+  try {
+    if (fs.existsSync(newCwd)) {
+      activeAppCwd = newCwd;
+      if (terminalProcess && terminalProcess.stdin && terminalProcess.stdin.writable) {
+        const isWin = process.platform === 'win32';
+        const cdCmd = isWin ? `Set-Location -LiteralPath "${newCwd}"\r\n` : `cd "${newCwd}"\n`;
+        terminalProcess.stdin.write(cdCmd);
+        return true;
+      } else {
+        initTerminal(newCwd);
+        return true;
+      }
+    }
+  } catch (err) {
+    console.error('Failed to set terminal CWD:', err);
+  }
+  return false;
+});
+
+ipcMain.handle('terminal-get-cwd', () => {
+  return activeAppCwd || process.cwd();
 });
 
 ipcMain.handle('terminal-kill', () => {
@@ -394,12 +424,72 @@ ipcMain.handle('browser-check-ip', async () => {
   }
 });
 
-ipcMain.handle('open-webview-devtools', () => {
+ipcMain.handle('open-webview-devtools', (event, options) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.openDevTools({ mode: 'right' });
-    return true;
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      mainWindow.webContents.closeDevTools();
+      return { opened: false };
+    } else {
+      mainWindow.webContents.openDevTools({ mode: options?.mode || 'right' });
+      return { opened: true };
+    }
   }
-  return false;
+  return { opened: false };
+});
+
+// Port Slayer IPC Handlers
+ipcMain.handle('slayer-scan-ports', async () => {
+  try {
+    return await portSlayer.scanWin32Ports();
+  } catch (err) {
+    return [];
+  }
+});
+
+ipcMain.handle('slayer-kill-process', async (event, pid, forceTree = true) => {
+  try {
+    return await portSlayer.killWin32Process(pid, forceTree);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('slayer-probe-port', async (event, host, port) => {
+  try {
+    return await portSlayer.probeSocket(host, port);
+  } catch (err) {
+    return { open: false, latencyMs: -1, error: err.message };
+  }
+});
+
+// Vulnerability Scanner IPC Handlers (Zero CORS via Node Main Process)
+ipcMain.handle('vuln-scan', async (event, targetUrl) => {
+  try {
+    return await vulnScanner.runVulnerabilityAudit(targetUrl);
+  } catch (err) {
+    return {
+      targetUrl,
+      timestamp: new Date().toISOString(),
+      findings: [{
+        id: 'SCAN_CRASH',
+        category: 'SYSTEM',
+        severity: 'CRITICAL',
+        title: 'Scanner Engine Error',
+        evidence: err.message,
+        description: 'Vulnerability scanner encountered an unhandled exception.',
+        remediation: 'Verify target URL format and network accessibility.',
+      }],
+      summary: { critical: 1, high: 0, medium: 0, low: 0, pass: 0 },
+    };
+  }
+});
+
+ipcMain.handle('vuln-cert-inspect', async (event, hostname, port = 443) => {
+  try {
+    return await vulnScanner.inspectTlsCert(hostname, port);
+  } catch (err) {
+    return { valid: false, error: err.message };
+  }
 });
 
 ipcMain.handle('wsl-check', async () => {

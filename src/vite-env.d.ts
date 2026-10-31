@@ -118,6 +118,13 @@ declare global {
       quitApp: () => Promise<void>;
       terminalInit: (cwd?: string) => Promise<boolean>;
       terminalKill: () => Promise<boolean>;
+      terminalSetCwd: (cwd: string) => Promise<boolean>;
+      terminalGetCwd: () => Promise<string>;
+      slayerScanPorts: () => Promise<any[]>;
+      slayerKillProcess: (pid: number, forceTree?: boolean) => Promise<{ success: boolean; pid?: number; error?: string; output?: string }>;
+      slayerProbePort: (host: string, port: number) => Promise<{ open: boolean; latencyMs: number; banner?: string; error?: string }>;
+      vulnScan: (targetUrl: string) => Promise<any>;
+      vulnCertInspect: (host: string, port?: number) => Promise<any>;
       getNetInterfaces: () => Promise<Record<string, any[]>>;
       getSysInfo: () => Promise<SysInfo>;
       checkUpdate: () => Promise<UpdateInfo>;
@@ -133,7 +140,7 @@ declare global {
       setProxy: (proxyRules: string) => Promise<{ success: boolean; proxy?: string; error?: string }>;
       setUserAgent: (ua: string) => Promise<{ success: boolean; userAgent?: string; error?: string }>;
       checkPublicIP: () => Promise<{ ip: string; status: string }>;
-      openWebviewDevTools: () => Promise<boolean>;
+      openWebviewDevTools: (options?: { mode?: 'right' | 'bottom' | 'undocked' }) => Promise<{ opened: boolean } | boolean>;
       checkWSL: () => Promise<{ hasWSL: boolean; isKali: boolean }>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => (() => void) | void;

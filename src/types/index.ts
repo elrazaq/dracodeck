@@ -1,4 +1,59 @@
-export type ActiveView = 'desktop' | 'explorer' | 'editor' | 'terminal' | 'telemetry' | 'slayer' | 'browser' | 'settings';
+export type ActiveView = 'desktop' | 'explorer' | 'editor' | 'terminal' | 'telemetry' | 'slayer' | 'browser' | 'settings' | 'offensive';
+
+export interface PortInfo {
+  port: number;
+  protocol: 'TCP';
+  localAddress: string;
+  state: 'LISTENING' | 'ESTABLISHED' | string;
+  pid: number;
+  processName: string;
+  label: string;
+  isDevPort: boolean;
+  isProtected: boolean;
+  isSelf: boolean;
+  latencyMs?: number;
+  banner?: string;
+}
+
+export interface CertInfo {
+  valid: boolean;
+  subject?: string;
+  issuer?: string;
+  validFrom?: string;
+  validTo?: string;
+  daysRemaining?: number;
+  protocol?: string;
+  cipher?: string;
+  serialNumber?: string;
+  san?: string;
+  error?: string;
+}
+
+export interface VulnFinding {
+  id: string;
+  category: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'PASS' | 'INFO';
+  cwe?: string;
+  title: string;
+  evidence: string;
+  description: string;
+  remediation: string;
+}
+
+export interface VulnAuditResult {
+  targetUrl: string;
+  timestamp: string;
+  durationMs: number;
+  certInfo?: CertInfo | null;
+  findings: VulnFinding[];
+  summary: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    pass: number;
+  };
+}
 
 export interface FileEntry {
   name: string;

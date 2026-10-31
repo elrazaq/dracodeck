@@ -11,7 +11,7 @@ import { SlayerPane } from "../slayer/SlayerPane";
 import { DracoBrowser } from "../browser/DracoBrowser";
 import { KaliDesktop } from "../desktop/KaliDesktop";
 import { KaliFileManager } from "../desktop/KaliFileManager";
-import { OffensiveSuiteModal } from "../offensive/OffensiveSuiteModal";
+import { OffensiveWorkstation } from "../offensive/OffensiveWorkstation";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
 import { ActiveView } from "../../types";
 
@@ -23,7 +23,6 @@ export const Shell: React.FC = () => {
   const [activeView, setActiveView] = useState<ActiveView>("explorer");
   const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
   const [activeLang, setActiveLang] = useState<string>("Markdown");
-  const [isOffensiveSuiteOpen, setIsOffensiveSuiteOpen] = useState(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
 
   // Keyboard shortcut Ctrl+` to toggle terminal
@@ -42,6 +41,9 @@ export const Shell: React.FC = () => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       setWorkspace(saved);
+      if (window.dracoAPI?.terminalSetCwd) {
+        window.dracoAPI.terminalSetCwd(saved);
+      }
     }
   }, []);
 
@@ -49,6 +51,9 @@ export const Shell: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, path);
     setWorkspace(path);
     setScopedWorkspace(null);
+    if (window.dracoAPI?.terminalSetCwd) {
+      window.dracoAPI.terminalSetCwd(path);
+    }
   };
 
   const handleOpenFile = (filePath: string, fileName: string) => {
@@ -59,10 +64,16 @@ export const Shell: React.FC = () => {
   const handleOpenScope = (folderPath: string) => {
     setScopedWorkspace(folderPath);
     setActiveView("editor");
+    if (window.dracoAPI?.terminalSetCwd) {
+      window.dracoAPI.terminalSetCwd(folderPath);
+    }
   };
 
   const handleExitScope = () => {
     setScopedWorkspace(null);
+    if (workspace && window.dracoAPI?.terminalSetCwd) {
+      window.dracoAPI.terminalSetCwd(workspace);
+    }
   };
 
   const handleChangeWorkspace = async () => {
@@ -188,6 +199,16 @@ export const Shell: React.FC = () => {
           </div>
         );
 
+      case "offensive":
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <OffensiveWorkstation
+              workspacePath={defaultWs}
+              onSelectView={(v) => setActiveView(v)}
+            />
+          </div>
+        );
+
       case "settings":
         return (
           <div className="h-full w-full bg-[#0b0813] p-6 text-xs font-mono space-y-4">
@@ -236,7 +257,7 @@ export const Shell: React.FC = () => {
           activeView={activeView}
           onSelectView={(v) => setActiveView(v)}
           onChangeWorkspace={handleChangeWorkspace}
-          onOpenOffensiveSuite={() => setIsOffensiveSuiteOpen(true)}
+          onOpenOffensiveSuite={() => setActiveView("offensive")}
         />
 
         {/* Dynamic Center Workstation Canvas */}
@@ -253,14 +274,6 @@ export const Shell: React.FC = () => {
           // Triggers format notification
         }}
         onOpenTelemetry={() => setActiveView("telemetry")}
-      />
-
-      {/* Dracodeck Offensive Suite Modal */}
-      <OffensiveSuiteModal
-        isOpen={isOffensiveSuiteOpen}
-        onClose={() => setIsOffensiveSuiteOpen(false)}
-        onSelectView={(v) => setActiveView(v)}
-        workspacePath={currentEffectiveWorkspace || ""}
       />
     </div>
   );

@@ -1,11 +1,9 @@
 /**
  * DracoShell CLI Engine
- * Exclusive Dracodeck Command Suite with Kali Linux Hybrid Suite Interceptor.
- * Directly executes nmap, whatweb, msfconsole, searchsploit, dirsearch, sqlmap, ffuf, penelope, top, ifconfig, uname.
- * Standard shell commands pass through directly to native ConPTY powershell.exe.
+ * Exclusive Dracodeck Command Suite.
+ * Custom 'draco' commands invoke native Electron backend services.
+ * All standard OS & offensive commands (nmap, sqlmap, git, npm, dir, ls) pass through directly to native ConPTY PowerShell.
  */
-
-import { OffensiveEngine } from "../../services/offensiveEngine";
 
 export async function executeDracoCommand(
   rawCmd: string
@@ -14,83 +12,84 @@ export async function executeDracoCommand(
   const lower = trimmed.toLowerCase();
   const parts = trimmed.split(/\s+/);
   const bin = parts[0]?.toLowerCase() || "";
-  const args = parts.slice(1);
+  const sub = parts[1]?.toLowerCase() || "";
 
-  // 1. Kali Linux Offensive Commands Interceptor
-  if (bin === "nmap") {
-    const target = args[0] || "127.0.0.1";
-    const flags = args.slice(1).join(" ") || "-sV -T4";
-    const out = await OffensiveEngine.nmap(target, flags);
-    return out.split("\n");
-  }
-
-  if (bin === "whatweb") {
-    const target = args[0] || "http://localhost:3000";
-    const out = await OffensiveEngine.whatweb(target);
-    return out.split("\n");
-  }
-
-  if (bin === "searchsploit") {
-    const query = args.join(" ") || "apache";
-    const out = OffensiveEngine.searchsploit(query);
-    return out.split("\n");
-  }
-
-  if (bin === "msfconsole") {
-    const sub = args.join(" ");
-    const out = OffensiveEngine.msfconsole(sub);
-    return out.split("\n");
-  }
-
-  if (bin === "dirsearch") {
-    const target = args.find((_, i) => args[i - 1] === "-u") || args[0] || "http://localhost:3000";
-    const out = await OffensiveEngine.dirsearch(target);
-    return out.split("\n");
-  }
-
-  if (bin === "ffuf") {
-    const target = args.find((_, i) => args[i - 1] === "-u") || args[0] || "http://localhost:3000";
-    const out = await OffensiveEngine.dirsearch(target);
-    return out.split("\n");
-  }
-
-  if (bin === "sqlmap") {
-    const target = args.find((_, i) => args[i - 1] === "-u") || args[0] || "http://localhost:3000/api/users?id=1";
-    const out = await OffensiveEngine.sqlmap(target);
-    return out.split("\n");
-  }
-
-  if (bin === "penelope") {
-    const lhost = args[0] || "10.10.14.5";
-    const lport = args[1] || "4444";
-    const out = OffensiveEngine.penelope(lhost, lport);
-    return out.split("\n");
-  }
-
-  if (bin === "uname") {
-    return [OffensiveEngine.uname()];
-  }
-
-  if (bin === "top" || bin === "htop") {
-    const out = await OffensiveEngine.top();
-    return out.split("\n");
-  }
-
-  if (bin === "ifconfig" || bin === "ip") {
-    const out = await OffensiveEngine.ifconfig();
-    return out.split("\n");
-  }
-
+  // 1. Terminal Canvas Clear
   if (bin === "clear" || bin === "cls" || lower === "draco clear" || lower === "draco cls") {
     return ["__CLEAR__"];
   }
 
-  // 2. Strict check: only intercept commands starting with 'draco'
-  if (!lower.startsWith("draco")) {
-    return null; // 100% passthrough to native shell (powershell.exe / cmd)
+  // 2. Strict Check: Only intercept commands prefixed with 'draco'
+  // Everything else passes through 100% to native ConPTY powershell.exe / wsl.exe
+  if (bin !== "draco") {
+    return null;
   }
 
-  // 3. ASCII Banner & Draco Operator Blueprint
+  // 3. 'draco port' / 'draco slayer' -> Real Win32 Port Slayer
+  if (sub === "port" || sub === "slayer" || sub === "ports") {
+    if (window.dracoAPI?.slayerScanPorts) {
+      try {
+        const ports = await window.dracoAPI.slayerScanPorts();
+        const listening = ports.filter((p: any) => p.state === "LISTENING");
+        const lines = [
+          "  PORT      PROTO   PID      PROCESS           SERVICE / LABEL",
+          "  ───────────────────────────────────────────────────────────────────",
+        ];
+        listening.slice(0, 15).forEach((p: any) => {
+          const portCol = p.port.toString().padEnd(9);
+          const protoCol = p.protocol.padEnd(7);
+          const pidCol = p.pid.toString().padEnd(8);
+          const procCol = p.processName.padEnd(17);
+          lines.push(`  ${portCol} ${protoCol} ${pidCol} ${procCol} ${p.label}`);
+        });
+        lines.push("  ───────────────────────────────────────────────────────────────────");
+        lines.push(`  [+] Total active listening ports: ${listening.length}`);
+        return lines;
+      } catch (err: any) {
+        return [`[-] Failed to scan ports: ${err.message}`];
+      }
+    }
+    return ["[-] DracoAPI slayer engine not available."];
+  }
+
+  // 4. 'draco kill <pid>' -> Real Win32 Tree Termination
+  if (sub === "kill" && parts[2]) {
+    const targetPid = parseInt(parts[2], 10);
+    if (isNaN(targetPid)) {
+      return ["[-] Syntax: draco kill <pid>"];
+    }
+    if (window.dracoAPI?.slayerKillProcess) {
+      const res = await window.dracoAPI.slayerKillProcess(targetPid, true);
+      if (res.success) {
+        return [`[+] Successfully terminated PID ${targetPid} and child process tree.`];
+      } else {
+        return [`[-] Termination failed: ${res.error}`];
+      }
+    }
+    return ["[-] DracoAPI slayer engine not available."];
+  }
+
+  // 5. 'draco vuln <url>' -> Real Zero-CORS Vulnerability Audit
+  if (sub === "vuln" && parts[2]) {
+    const target = parts[2];
+    if (window.dracoAPI?.vulnScan) {
+      const res = await window.dracoAPI.vulnScan(target);
+      const lines = [
+        `[*] Running real OWASP audit against: ${res.targetUrl}`,
+        `[*] Scan completed in ${res.durationMs}ms`,
+        "  ───────────────────────────────────────────────────────────────────",
+      ];
+      res.findings.forEach((f: any, idx: number) => {
+        lines.push(`  [${f.severity}] #${idx + 1} ${f.title}`);
+        lines.push(`      Evidence: ${f.evidence.substring(0, 80)}...`);
+      });
+      lines.push("  ───────────────────────────────────────────────────────────────────");
+      lines.push(`[+] Critical: ${res.summary.critical} | High: ${res.summary.high} | Medium: ${res.summary.medium} | Pass: ${res.summary.pass}`);
+      return lines;
+    }
+  }
+
+  // 6. Default 'draco' / 'draco help' -> Cyberdeck ASCII Banner & Syntax Dictionary
   return [
     "  ██████╗ ██████╗  █████╗  ██████╗ ██████╗ ███████╗ ██████╗██╗  ██╗",
     "  ██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔═══██╗██╔════╝██╔════╝██║ ██╔╝",
@@ -99,32 +98,18 @@ export async function executeDracoCommand(
     "  ██████╔╝██║  ██║██║  ██║╚██████╗╚██████╔╝███████╗╚██████╗██║  ██╗",
     "  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝",
     "",
-    "  ════════════════════════════════════════════════════════════════════",
-    "  DRACODECK CLI // EXCLUSIVE KERNEL SUITE v0.1.0",
-    "  ════════════════════════════════════════════════════════════════════",
+    "  DRACODECK OFFENSIVE-GRADE DEVELOPER COCKPIT // RUNTIME v0.1.0",
+    "  ARCHITECTURE: ConPTY Streaming Bridge & Node.js Zero-CORS Engine",
+    "  ─────────────────────────────────────────────────────────────────",
+    "  AVAILABLE DRACO CLI SYNTAX:",
+    "    draco                        Display Dracodeck banner & syntax dictionary",
+    "    draco port / draco slayer    Scan listening Win32 dev sockets and PIDs",
+    "    draco kill <pid>             Force terminate process tree (frees zombie ports)",
+    "    draco vuln <url>             Execute real zero-CORS web vulnerability audit",
+    "    draco clear                  Clear terminal viewport",
     "",
-    "  KALI LINUX OFFENSIVE COMMANDS (Direct execution):",
-    "    nmap <target> [-flags]         Network port scanner & service discovery",
-    "    whatweb <url>                  Web technology identifier & security headers",
-    "    searchsploit <cve|app>         Exploit-DB archive searcher",
-    "    msfconsole [command]           Metasploit framework interactive console",
-    "    dirsearch -u <url>             Multi-threaded web path fuzzer",
-    "    sqlmap -u <url>                SQL injection detection & assessment",
-    "    penelope [lhost] [lport]       Reverse shell payload generator & handler",
-    "    top / htop                     Process load & active system telemetry",
-    "    ifconfig / ip                  Network interface IP, MAC & MTU inspector",
-    "    uname -a                       Kali Linux system kernel signature",
-    "",
-    "  DRACO ENGINE OPS:",
-    "    draco suite --recon            Trigger 01 - Info Gathering Matrix",
-    "    draco suite --vuln             Trigger 02 - Security Headers & SSL Prober",
-    "    draco slayer [port]            Kill zombie dev process locking port",
-    "    draco telemetry --live         Stream Antigravity agent telemetry",
-    "    draco clear                    Clear active terminal screen buffer",
-    "",
-    "  NOTE: Native Windows/PowerShell commands (dir, git, ping, etc.) run directly.",
-    "  ────────────────────────────────────────────────────────────────────",
-    "  OPERATOR: elrazaq // AUTHORIZED OFFENSIVE COCKPIT",
-    "",
+    "  ALL NATIVE TOOLS (nmap, sqlmap, git, npm, python, cargo) EXECUTE DIRECTLY IN CONPTY.",
+    "  ─────────────────────────────────────────────────────────────────",
+    "  OPERATOR: elrazaq // GOV-GRADE COCKPIT READY",
   ];
 }

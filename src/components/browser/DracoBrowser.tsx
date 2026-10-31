@@ -7,13 +7,8 @@ import {
   ShieldAlert,
   Code2,
   Globe,
-  Terminal,
-  Activity,
-  Layers,
-  Database,
   X,
   Shield,
-  Crosshair,
   Lock,
   Check,
   Sliders,
@@ -27,24 +22,6 @@ interface DracoBrowserProps {
   onPinToMain?: () => void;
 }
 
-interface DOMNode {
-  tag: string;
-  id?: string;
-  classes?: string[];
-  attributes?: Record<string, string>;
-  text?: string;
-  children?: DOMNode[];
-  styles?: {
-    display: string;
-    width: string;
-    height: string;
-    margin: string;
-    padding: string;
-    color: string;
-    bg: string;
-  };
-}
-
 export const DracoBrowser: React.FC<DracoBrowserProps> = ({
   initialUrl = "https://www.kali.org/docs/",
   onClose,
@@ -53,15 +30,6 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
   const [url, setUrl] = useState<string>(initialUrl);
   const [inputUrl, setInputUrl] = useState<string>(initialUrl);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [showInspector, setShowInspector] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<"elements" | "network" | "storage" | "console">("elements");
-  const [consoleInput, setConsoleInput] = useState("");
-  const [consoleLogs, setConsoleLogs] = useState<string[]>([
-    "[DracoBrowser DOM Engine] Context initialized.",
-    "[Security Audit] X-Frame-Options & CSP headers stripped by electron session interceptor.",
-    "[WebRTC Armor] Non-proxied UDP leak prevention engaged.",
-  ]);
-
   // OpSec & Privacy States
   const [showOpSecModal, setShowOpSecModal] = useState(false);
   const [activeDns, setActiveDns] = useState<string>("cloudflare");
@@ -70,81 +38,6 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
   const [activeUa, setActiveUa] = useState<string>("kali-firefox");
   const [publicIp, setPublicIp] = useState<string>("Verifying...");
   const [isVerifyingIp, setIsVerifyingIp] = useState(false);
-
-  // Live Inspector States
-  const [selectedNode, setSelectedNode] = useState<DOMNode | null>(null);
-  const [isPickerActive, setIsPickerActive] = useState(false);
-  const [domTree] = useState<DOMNode>({
-    tag: "html",
-    attributes: { lang: "en" },
-    children: [
-      {
-        tag: "head",
-        children: [
-          { tag: "title", text: "Kali Linux Documentation // Dracodeck Web Suite" },
-          { tag: "meta", attributes: { charset: "utf-8" } },
-          { tag: "meta", attributes: { name: "viewport", content: "width=device-width, initial-scale=1" } },
-        ],
-      },
-      {
-        tag: "body",
-        classes: ["theme-dark", "kali-cyberdeck", "font-sans"],
-        styles: {
-          display: "block",
-          width: "100%",
-          height: "100%",
-          margin: "0px",
-          padding: "0px",
-          color: "#cbd5e1",
-          bg: "#0b0813",
-        },
-        children: [
-          {
-            tag: "header",
-            id: "main-nav",
-            classes: ["kali-header", "sticky", "top-0"],
-            styles: {
-              display: "flex",
-              width: "100%",
-              height: "48px",
-              margin: "0px 0px 16px 0px",
-              padding: "8px 16px",
-              color: "#00e5ff",
-              bg: "#120c1f",
-            },
-            children: [
-              { tag: "div", classes: ["logo"], text: "DRACO_BROWSER // KALI RUNTIME" },
-              { tag: "nav", classes: ["links"], children: [
-                { tag: "a", attributes: { href: "/docs" }, text: "Documentation" },
-                { tag: "a", attributes: { href: "/tools" }, text: "Tools Suite" },
-              ]},
-            ],
-          },
-          {
-            tag: "main",
-            id: "content-area",
-            classes: ["container", "mx-auto", "p-6"],
-            styles: {
-              display: "block",
-              width: "1200px",
-              height: "auto",
-              margin: "0px auto",
-              padding: "24px",
-              color: "#e2e8f0",
-              bg: "transparent",
-            },
-            children: [
-              { tag: "h1", classes: ["text-2xl", "font-bold", "text-[#00e5ff]"], text: "Offensive-Grade Web Application Assessment" },
-              { tag: "p", classes: ["text-sm", "text-[#7a7194]"], text: "Real-time DOM inspection, DoH encrypted resolution, and SOCKS5 anonymity routing." },
-              { tag: "div", id: "audit-target-box", classes: ["border", "p-4", "rounded"], children: [
-                { tag: "button", id: "scan-action-btn", classes: ["bg-[#ff007f]", "text-white"], text: "DISPATCH RECONNAISSANCE" },
-              ]},
-            ],
-          },
-        ],
-      },
-    ],
-  });
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -155,11 +48,6 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
     { name: "Google", url: "https://www.google.com/" },
     { name: "Antigravity AI", url: "https://deepmind.google/" },
   ];
-
-  // Set default selected node
-  useEffect(() => {
-    setSelectedNode(domTree.children?.[1]?.children?.[1] || domTree);
-  }, [domTree]);
 
   // Initial Egress IP Check
   useEffect(() => {
@@ -249,72 +137,10 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
     setTimeout(() => setIsLoading(false), 1000);
   };
 
-  const handleConsoleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!consoleInput.trim()) return;
-    const input = consoleInput.trim();
-    setConsoleLogs((prev) => [...prev, `> ${input}`]);
-    try {
-      if (input === "location" || input === "window.location") {
-        setConsoleLogs((prev) => [...prev, `< "${url}"`]);
-      } else if (input === "title" || input === "document.title") {
-        setConsoleLogs((prev) => [...prev, `< "${inputUrl.split("/").pop() || "DracoBrowser"}"`]);
-      } else if (input === "clear") {
-        setConsoleLogs([]);
-      } else {
-        const result = Function(`"use strict"; return (${input})`)();
-        setConsoleLogs((prev) => [...prev, `< ${String(result)}`]);
-      }
-    } catch (err: any) {
-      setConsoleLogs((prev) => [...prev, `< [Error]: ${err?.message || "Execution failed"}`]);
-    }
-    setConsoleInput("");
-  };
-
   const openNativeDevTools = () => {
     if (window.dracoAPI?.openWebviewDevTools) {
-      window.dracoAPI.openWebviewDevTools();
+      window.dracoAPI.openWebviewDevTools({ mode: "right" });
     }
-  };
-
-  // Render DOM Tree Recursively
-  const renderDOMNode = (node: DOMNode, depth: number = 0) => {
-    const isSelected = selectedNode === node;
-    const hasChildren = node.children && node.children.length > 0;
-
-    return (
-      <div key={`${node.tag}_${depth}_${Math.random()}`} style={{ paddingLeft: `${depth * 14}px` }} className="text-[11px] font-mono leading-relaxed">
-        <div
-          onClick={() => setSelectedNode(node)}
-          className={`cursor-pointer px-1 py-0.5 rounded-2xs flex items-center gap-1.5 transition-colors ${
-            isSelected
-              ? "bg-[#ff007f]/25 text-[#00e5ff] border-l-2 border-[#ff007f]"
-              : "hover:bg-[#161026] text-[#cbd5e1]"
-          }`}
-        >
-          <span className="text-[#ff007f] font-bold">&lt;{node.tag}</span>
-          {node.id && <span className="text-[#00e676]">id="{node.id}"</span>}
-          {node.classes && <span className="text-[#38bdf8]">class="{node.classes.join(" ")}"</span>}
-          {node.attributes &&
-            Object.entries(node.attributes).map(([k, v]) => (
-              <span key={k} className="text-[#ffb74d]">
-                {k}="{v}"
-              </span>
-            ))}
-          <span className="text-[#ff007f] font-bold">&gt;</span>
-
-          {node.text && <span className="text-[#e2e8f0] truncate max-w-xs ml-1">"{node.text}"</span>}
-        </div>
-
-        {hasChildren && node.children!.map((child) => renderDOMNode(child, depth + 1))}
-
-        {hasChildren && (
-          <div style={{ paddingLeft: `${depth * 14}px` }} className="text-[#ff007f]/70 text-[11px] font-mono">
-            &lt;/{node.tag}&gt;
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -445,17 +271,13 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content={showInspector ? "Hide Live Cyberdeck Inspector" : "Live Inspect Webview (DOM/Network/OpSec)"} position="bottom" accent="pink">
+          <DracoTooltip content="Open Native Chromium DevTools (F12 / Elements, Console, Network)" position="bottom" accent="pink">
             <button
-              onClick={() => setShowInspector(!showInspector)}
-              className={`flex items-center gap-1 px-2.5 py-1 border text-[11px] font-bold transition-all cursor-pointer ${
-                showInspector
-                  ? "bg-[#ff007f] text-white border-[#ff007f]"
-                  : "bg-[#120c1f] text-[#00e5ff] border-[#261d38] hover:border-[#00e5ff]"
-              }`}
+              onClick={openNativeDevTools}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#120c1f] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] hover:border-[#00e5ff] text-[11px] font-bold transition-all cursor-pointer"
             >
-              <Code2 className="w-3 h-3" />
-              <span>&lt;/&gt; INSPECT</span>
+              <Code2 className="w-3.5 h-3.5 text-[#ff007f]" />
+              <span>NATIVE DEVTOOLS</span>
             </button>
           </DracoTooltip>
         </div>
@@ -491,235 +313,7 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
           />
         </div>
 
-        {/* Live Cyberdeck Inspector Drawer */}
-        {showInspector && (
-          <div className="w-[450px] bg-[#0c0817] border-l border-[#261d38] flex flex-col text-xs z-30 shadow-2xl">
-            {/* Inspector Tab Bar */}
-            <div className="h-8 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between px-2 select-none">
-              <div className="flex items-center gap-1 text-[11px]">
-                {/* Element Picker Tool */}
-                <DracoTooltip content="Element Picker (Target Live Element on Page)" position="bottom" accent="cyan">
-                  <button
-                    onClick={() => setIsPickerActive(!isPickerActive)}
-                    className={`p-1 border rounded-xs transition-colors cursor-pointer mr-1 ${
-                      isPickerActive
-                        ? "bg-[#00e5ff] text-[#0b0813] border-[#00e5ff]"
-                        : "bg-[#161026] text-[#7a7194] border-[#261d38] hover:text-[#00e5ff]"
-                    }`}
-                  >
-                    <Crosshair className="w-3.5 h-3.5" />
-                  </button>
-                </DracoTooltip>
-
-                <button
-                  onClick={() => setInspectorTab("elements")}
-                  className={`px-2 py-1 flex items-center gap-1 border-b-2 font-bold cursor-pointer transition-colors ${
-                    inspectorTab === "elements"
-                      ? "border-[#ff007f] text-[#00e5ff] bg-[#161026]"
-                      : "border-transparent text-[#7a7194] hover:text-white"
-                  }`}
-                >
-                  <Layers className="w-3 h-3" />
-                  <span>ELEMENTS</span>
-                </button>
-                <button
-                  onClick={() => setInspectorTab("network")}
-                  className={`px-2 py-1 flex items-center gap-1 border-b-2 font-bold cursor-pointer transition-colors ${
-                    inspectorTab === "network"
-                      ? "border-[#ff007f] text-[#00e5ff] bg-[#161026]"
-                      : "border-transparent text-[#7a7194] hover:text-white"
-                  }`}
-                >
-                  <Activity className="w-3 h-3" />
-                  <span>NETWORK</span>
-                </button>
-                <button
-                  onClick={() => setInspectorTab("storage")}
-                  className={`px-2 py-1 flex items-center gap-1 border-b-2 font-bold cursor-pointer transition-colors ${
-                    inspectorTab === "storage"
-                      ? "border-[#ff007f] text-[#00e5ff] bg-[#161026]"
-                      : "border-transparent text-[#7a7194] hover:text-white"
-                  }`}
-                >
-                  <Database className="w-3 h-3" />
-                  <span>STORAGE</span>
-                </button>
-                <button
-                  onClick={() => setInspectorTab("console")}
-                  className={`px-2 py-1 flex items-center gap-1 border-b-2 font-bold cursor-pointer transition-colors ${
-                    inspectorTab === "console"
-                      ? "border-[#ff007f] text-[#00e5ff] bg-[#161026]"
-                      : "border-transparent text-[#7a7194] hover:text-white"
-                  }`}
-                >
-                  <Terminal className="w-3 h-3" />
-                  <span>CONSOLE</span>
-                </button>
-              </div>
-
-              {/* DevTools Launch & Close */}
-              <div className="flex items-center gap-1">
-                <DracoTooltip content="Launch Native Chromium DevTools (F12)" position="bottom" accent="green">
-                  <button
-                    onClick={openNativeDevTools}
-                    className="p-1 hover:bg-[#281b3d] text-[#00e676] cursor-pointer"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
-                </DracoTooltip>
-                <button
-                  onClick={() => setShowInspector(false)}
-                  className="p-1 hover:bg-[#281b3d] text-[#ff1744] cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Inspector Body */}
-            <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] bg-[#0b0813]">
-              {/* TAB 1: LIVE DOM HIERARCHY & CSS BOX MODEL */}
-              {inspectorTab === "elements" && (
-                <div className="space-y-4">
-                  <div className="border-b border-[#261d38] pb-1.5 flex items-center justify-between text-[#7a7194] text-[10px]">
-                    <span className="font-bold text-[#00e5ff]">LIVE DOM TREE HIERARCHY</span>
-                    <span>{isPickerActive ? "Element Picker: ACTIVE (Click node)" : "Double-click node to inspect"}</span>
-                  </div>
-
-                  <div className="space-y-1 bg-[#07050a] p-2 border border-[#261d38] rounded-xs max-h-60 overflow-y-auto">
-                    {renderDOMNode(domTree)}
-                  </div>
-
-                  {/* Selected Element CSS Styles & Box Model */}
-                  {selectedNode && (
-                    <div className="space-y-3 pt-2 border-t border-[#261d38]">
-                      <div className="flex items-center justify-between text-[#e2e8f0]">
-                        <span className="font-bold text-[#ff007f]">
-                          &lt;{selectedNode.tag}&gt; {selectedNode.id ? `#${selectedNode.id}` : ""} Computed Styles
-                        </span>
-                        <span className="text-[10px] text-[#7a7194]">Box Model</span>
-                      </div>
-
-                      {/* Kali CSS Box Model Diagram */}
-                      <div className="bg-[#120c1f] p-3 border border-[#261d38] rounded-xs flex flex-col items-center justify-center font-mono text-[10px] text-center select-none">
-                        {/* Margin */}
-                        <div className="w-full bg-[#ff8800]/10 border border-[#ff8800]/50 p-2 text-[#ff8800]">
-                          <span className="text-[9px] font-bold block mb-1">margin ({selectedNode.styles?.margin || "0px"})</span>
-                          {/* Border */}
-                          <div className="w-full bg-[#ffea00]/10 border border-[#ffea00]/50 p-2 text-[#ffea00]">
-                            <span className="text-[9px] font-bold block mb-1">border: 1px solid #261d38</span>
-                            {/* Padding */}
-                            <div className="w-full bg-[#00e676]/10 border border-[#00e676]/50 p-2 text-[#00e676]">
-                              <span className="text-[9px] font-bold block mb-1">padding ({selectedNode.styles?.padding || "8px"})</span>
-                              {/* Content */}
-                              <div className="w-full bg-[#00e5ff]/15 border border-[#00e5ff] p-2 text-[#00e5ff] font-bold">
-                                {selectedNode.styles?.width || "1200px"} × {selectedNode.styles?.height || "320px"}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Rule Table */}
-                      <div className="space-y-1 text-[10px] bg-[#07050a] p-2 border border-[#261d38]">
-                        <p><span className="text-[#38bdf8]">display</span>: <span className="text-[#00e676]">{selectedNode.styles?.display || "block"}</span>;</p>
-                        <p><span className="text-[#38bdf8]">color</span>: <span className="text-[#ffb74d]">{selectedNode.styles?.color || "#cbd5e1"}</span>;</p>
-                        <p><span className="text-[#38bdf8]">background</span>: <span className="text-[#ffb74d]">{selectedNode.styles?.bg || "transparent"}</span>;</p>
-                        <p><span className="text-[#38bdf8]">box-sizing</span>: <span className="text-[#00e676]">border-box</span>;</p>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )}
-
-              {/* TAB 2: NETWORK SNIFFER */}
-              {inspectorTab === "network" && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] border-b border-[#261d38] pb-1 text-[#7a7194]">
-                    <span>NAME</span>
-                    <span>STATUS / TIME</span>
-                  </div>
-                  {[
-                    { name: "docs/", status: 200, time: "42ms", mime: "document" },
-                    { name: "dracodeck-logo.jpg", status: 200, time: "18ms", mime: "image/jpeg" },
-                    { name: "tailwind.css", status: 200, time: "24ms", mime: "stylesheet" },
-                    { name: "api/v1/telemetry", status: 200, time: "35ms", mime: "xhr" },
-                    { name: "dns-query", status: 200, time: "12ms", mime: "doh" },
-                  ].map((req, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-1 bg-[#120c1f] border border-[#261d38] text-[10px]">
-                      <div className="flex items-center gap-1.5 truncate max-w-[240px]">
-                        <span className="text-[#00e676] font-bold">GET</span>
-                        <span className="text-[#cbd5e1] truncate">{req.name}</span>
-                        <span className="text-[9px] text-[#7a7194]">({req.mime})</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#00e676] font-bold">{req.status}</span>
-                        <span className="text-[#7a7194]">{req.time}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* TAB 3: STORAGE */}
-              {inspectorTab === "storage" && (
-                <div className="space-y-3">
-                  <div className="border-b border-[#261d38] pb-1 text-[#00e5ff] font-bold text-[10px]">
-                    LOCALSTORAGE & SESSION COOKIES
-                  </div>
-                  <div className="space-y-1">
-                    <div className="p-2 bg-[#120c1f] border border-[#261d38] space-y-1">
-                      <span className="text-[#ff007f] font-bold text-[10px]">dracodeck_workspace</span>
-                      <p className="text-[10px] text-[#cbd5e1] break-all">D:\dracodex</p>
-                    </div>
-                    <div className="p-2 bg-[#120c1f] border border-[#261d38] space-y-1">
-                      <span className="text-[#ff007f] font-bold text-[10px]">dracodeck_wallpaper</span>
-                      <p className="text-[10px] text-[#cbd5e1]">cosmic</p>
-                    </div>
-                    <div className="p-2 bg-[#120c1f] border border-[#261d38] space-y-1">
-                      <span className="text-[#00e676] font-bold text-[10px]">kali_session_token (Cookie)</span>
-                      <p className="text-[10px] text-[#7a7194] break-all">eyJh...[Secure HttpOnly]</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: CONSOLE */}
-              {inspectorTab === "console" && (
-                <div className="h-full flex flex-col justify-between space-y-2">
-                  <div className="space-y-1 overflow-y-auto max-h-72">
-                    {consoleLogs.map((log, idx) => (
-                      <div
-                        key={idx}
-                        className={`text-[11px] leading-relaxed ${
-                          log.startsWith(">")
-                            ? "text-[#00e5ff]"
-                            : log.startsWith("< [Error]")
-                            ? "text-[#ff1744]"
-                            : "text-[#94a3b8]"
-                        }`}
-                      >
-                        {log}
-                      </div>
-                    ))}
-                  </div>
-
-                  <form onSubmit={handleConsoleSubmit} className="flex items-center gap-1 border-t border-[#261d38] pt-2">
-                    <span className="text-[#ff007f] font-bold">&gt;</span>
-                    <input
-                      type="text"
-                      value={consoleInput}
-                      onChange={(e) => setConsoleInput(e.target.value)}
-                      placeholder="Run JavaScript in live page context..."
-                      className="flex-1 bg-transparent text-[#e2e8f0] outline-none text-[11px] font-mono"
-                    />
-                  </form>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* OpSec Armor Modal (DNS, Proxy/VPN, IP Masking) */}
       {showOpSecModal && (

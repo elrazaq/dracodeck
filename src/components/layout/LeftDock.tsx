@@ -135,6 +135,13 @@ export const LeftDock: React.FC<LeftDockProps> = ({
       icon: <Radio className="w-4 h-4 text-[#d500f9]" />,
     },
     {
+      id: "offensive",
+      label: "Offensive Security Suite",
+      shortcut: "Alt+O",
+      accent: "pink",
+      icon: <Shield className="w-4 h-4 text-[#ff007f]" />,
+    },
+    {
       id: "slayer",
       label: "Zombie Port Slayer",
       shortcut: "Alt+P",
