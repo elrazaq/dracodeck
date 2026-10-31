@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --color-void: #0a0e17;
+  --color-slate-surface: #111726;
+  --color-slate-border: #1b253b;
+  --color-slate-hover: #1e293b;
+  --color-kali-cyan: #00e5ff;
+  --color-dragon-blue: #2979ff;
+  --color-attack-red: #ff1744;
+  --color-matrix-green: #00e676;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: var(--font-mono);
+}
+
+/* Kali Cyberdeck Minimal Flat Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0e17;
+}
+::-webkit-scrollbar-thumb {
+  background: #1b253b;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00e5ff;
+}
