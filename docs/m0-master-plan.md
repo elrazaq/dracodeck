@@ -85,7 +85,7 @@ flowchart TD
 | **M2: Terminal ConPTY & Minimap Code Editor** | PTY bridge PowerShell ke terminal canvas via IPC, Code Editor dengan minimap interaktif & local fs. | [m2-terminal-editor.md](m2-terminal-editor.md) | COMPLETED |
 | **M2.1: Core Hardening & DracoShell CLI Engine** | Anti-clipping header, kamus CLI mandiri (`draco ifconfig/update/sys`), universal drive explorer, unblocked browser. | [m2-1-core-hardening-dracoshell.md](m2-1-core-hardening-dracoshell.md) | COMPLETED |
 | **M3: Antigravity & Multi-Agent Telemetry Hub** | Watcher `transcript.jsonl` non-blocking bebas lock, live diff inspector merah/hijau, cognitive flow, quick filter/search. | [m3-telemetry-engine.md](m3-telemetry-engine.md) | COMPLETED |
-| **M3.1: Terminal Hardening, Offensive Suite & Hacker Polish** | Fix terminal 2x exec, Dracodeck Offensive Suite 5 domain, hapus badge F11, ASCII draco logo (elrazaq), pemisahan File vs Editor, universal custom hacker tooltips. | [m3-1-offensive-suite-hacker-polish.md](m3-1-offensive-suite-hacker-polish.md) | **ACTIVE** |
+| **M3.1: Terminal Hardening, Offensive Suite & Hacker Polish** | Fix terminal 2x exec, Dracodeck Offensive Suite 5 domain, hapus badge F11, ASCII draco logo (elrazaq), pemisahan File vs Editor, universal custom hacker tooltips. | [m3-1-offensive-suite-hacker-polish.md](m3-1-offensive-suite-hacker-polish.md) | COMPLETED |
 | **M4: DracoNet & Zombie Port Slayer** | Win32 socket scanner, 1-klik kill zombie port dev, HTTP/TCP endpoint probe, Windows packaging. | [m4-port-slayer.md](m4-port-slayer.md) | **NEXT** |
 | **M5: DracoMemory & 1-Click Git Ops** | Catatan internal, Kanban project tracker, scheduling, 1-click branch/commit/push GitHub. | [m5-memory-gitops.md](m5-memory-gitops.md) | Planned |
 

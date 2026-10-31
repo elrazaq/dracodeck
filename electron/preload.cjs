@@ -33,7 +33,18 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   receive: (channel, func) => {
     const validChannels = ['fromMain', 'terminal-output', 'telemetry:stream'];
     if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, (event, ...args) => func(...args));
+      const subscription = (event, ...args) => func(...args);
+      ipcRenderer.on(channel, subscription);
+      return () => {
+        ipcRenderer.removeListener(channel, subscription);
+      };
+    }
+    return () => {};
+  },
+  off: (channel, func) => {
+    const validChannels = ['fromMain', 'terminal-output', 'telemetry:stream'];
+    if (validChannels.includes(channel)) {
+      ipcRenderer.removeListener(channel, func);
     }
   },
 });

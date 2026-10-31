@@ -1,5 +1,6 @@
 import React from "react";
 import { Zap, RefreshCw } from "lucide-react";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface PortRow {
   port: number;
@@ -76,12 +77,13 @@ export const SlayerPane: React.FC = () => {
                   </td>
                   <td className="py-2 px-2 text-right">
                     {p.pid ? (
-                      <button
-                        title={`Terminate PID ${p.pid}`}
-                        className="bg-[#ff1744]/20 hover:bg-[#ff1744] text-[#ff1744] hover:text-white px-2 py-0.5 text-[10px] border border-[#ff1744]/40 font-bold tracking-wider transition-colors"
-                      >
-                        KILL
-                      </button>
+                      <DracoTooltip content={`Terminate PID ${p.pid}`} shortcut="Kill -9" position="left" accent="pink">
+                        <button
+                          className="bg-[#ff1744]/20 hover:bg-[#ff1744] text-[#ff1744] hover:text-white px-2 py-0.5 text-[10px] border border-[#ff1744]/40 font-bold tracking-wider transition-colors"
+                        >
+                          KILL
+                        </button>
+                      </DracoTooltip>
                     ) : (
                       <span className="text-[10px] text-[#443a57]">-</span>
                     )}

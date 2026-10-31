@@ -3,6 +3,7 @@ import { KaliFileManager } from "./KaliFileManager";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { DracoBrowser } from "../browser/DracoBrowser";
 import { TelemetryPane } from "../telemetry/TelemetryPane";
+import { DracoTooltip } from "../common/DracoTooltip";
 import {
   Folder,
   Terminal,
@@ -195,34 +196,39 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     };
   };
 
-  // macOS Traffic Light Button Renderer
+  // macOS Traffic Light Button Renderer with Hacker Cyberdeck Tooltips
   const renderMacTrafficLights = (
     onClose: () => void,
     onMin: () => void,
     onMax: () => void
   ) => (
     <div className="flex items-center gap-1.5 select-none">
-      <button
-        onClick={onClose}
-        title="Close Window"
-        className="w-3 h-3 rounded-full bg-[#ff5f56] hover:brightness-110 border border-[#e0443e] flex items-center justify-center group"
-      >
-        <span className="text-[8px] text-[#4a0002] opacity-0 group-hover:opacity-100 font-bold leading-none">×</span>
-      </button>
-      <button
-        onClick={onMin}
-        title="Minimize Window"
-        className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:brightness-110 border border-[#dea123] flex items-center justify-center group"
-      >
-        <span className="text-[8px] text-[#543500] opacity-0 group-hover:opacity-100 font-bold leading-none">-</span>
-      </button>
-      <button
-        onClick={onMax}
-        title="Maximize / Restore"
-        className="w-3 h-3 rounded-full bg-[#27c93f] hover:brightness-110 border border-[#1aab29] flex items-center justify-center group"
-      >
-        <span className="text-[7px] text-[#004d11] opacity-0 group-hover:opacity-100 font-bold leading-none">⤢</span>
-      </button>
+      <DracoTooltip content="Close Window" shortcut="Ctrl+W" position="bottom" accent="pink">
+        <button
+          onClick={onClose}
+          className="w-3 h-3 rounded-full bg-[#ff5f56] hover:brightness-110 border border-[#e0443e] flex items-center justify-center group"
+        >
+          <span className="text-[8px] text-[#4a0002] opacity-0 group-hover:opacity-100 font-bold leading-none">×</span>
+        </button>
+      </DracoTooltip>
+
+      <DracoTooltip content="Minimize" shortcut="Ctrl+M" position="bottom" accent="amber">
+        <button
+          onClick={onMin}
+          className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:brightness-110 border border-[#dea123] flex items-center justify-center group"
+        >
+          <span className="text-[8px] text-[#543500] opacity-0 group-hover:opacity-100 font-bold leading-none">-</span>
+        </button>
+      </DracoTooltip>
+
+      <DracoTooltip content="Maximize / Restore" shortcut="Ctrl+F" position="bottom" accent="green">
+        <button
+          onClick={onMax}
+          className="w-3 h-3 rounded-full bg-[#27c93f] hover:brightness-110 border border-[#1aab29] flex items-center justify-center group"
+        >
+          <span className="text-[7px] text-[#004d11] opacity-0 group-hover:opacity-100 font-bold leading-none">⤢</span>
+        </button>
+      </DracoTooltip>
     </div>
   );
 

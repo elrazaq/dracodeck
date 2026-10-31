@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { ArrowLeft, ArrowRight, RotateCw, Home, Lock, ExternalLink, ShieldAlert, Code2, Globe } from "lucide-react";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface DracoBrowserProps {
   initialUrl?: string;
@@ -80,34 +81,41 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
       {/* Navigation Omnibar */}
       <div className="h-9 bg-[#161026] border-b border-[#261d38] px-3 flex items-center gap-2">
         <div className="flex items-center gap-1 text-[#7a7194]">
-          <button
-            onClick={() => window.history.back()}
-            title="Back"
-            className="p-1 hover:text-[#00e5ff] hover:bg-[#281b3d] transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => window.history.forward()}
-            title="Forward"
-            className="p-1 hover:text-[#00e5ff] hover:bg-[#281b3d] transition-colors"
-          >
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={handleReload}
-            title="Reload"
-            className="p-1 hover:text-[#ff007f] hover:bg-[#281b3d] transition-colors"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#ff007f]" : ""}`} />
-          </button>
-          <button
-            onClick={() => handleNavigate("https://www.kali.org/docs/")}
-            title="Home"
-            className="p-1 hover:text-[#00e676] hover:bg-[#281b3d] transition-colors"
-          >
-            <Home className="w-3.5 h-3.5" />
-          </button>
+          <DracoTooltip content="Navigate Back" shortcut="Alt+Left" position="bottom" accent="cyan">
+            <button
+              onClick={() => window.history.back()}
+              className="p-1 hover:text-[#00e5ff] hover:bg-[#281b3d] transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Navigate Forward" shortcut="Alt+Right" position="bottom" accent="cyan">
+            <button
+              onClick={() => window.history.forward()}
+              className="p-1 hover:text-[#00e5ff] hover:bg-[#281b3d] transition-colors"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Reload Page" shortcut="Ctrl+R" position="bottom" accent="pink">
+            <button
+              onClick={handleReload}
+              className="p-1 hover:text-[#ff007f] hover:bg-[#281b3d] transition-colors"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin text-[#ff007f]" : ""}`} />
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Kali Docs Home" position="bottom" accent="green">
+            <button
+              onClick={() => handleNavigate("https://www.kali.org/docs/")}
+              className="p-1 hover:text-[#00e676] hover:bg-[#281b3d] transition-colors"
+            >
+              <Home className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
         </div>
 
         {/* Address URL Input */}
@@ -125,22 +133,25 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
 
         {/* Quick External Launch / DevTools Toggle */}
         <div className="flex items-center gap-1.5 text-[#7a7194]">
-          <a
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            title="Open in System Browser"
-            className="p-1 hover:text-[#00e5ff] transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-          <button
-            onClick={() => alert("Chromium DevTools Shortcut: Ctrl+Shift+I")}
-            title="Inspect Element"
-            className="p-1 hover:text-[#ff007f] transition-colors"
-          >
-            <Code2 className="w-3.5 h-3.5" />
-          </button>
+          <DracoTooltip content="Open in External Browser" position="bottom" accent="cyan">
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="p-1 hover:text-[#00e5ff] transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </DracoTooltip>
+
+          <DracoTooltip content="Chromium DevTools" shortcut="Ctrl+Shift+I" position="bottom" accent="pink">
+            <button
+              onClick={() => alert("Chromium DevTools Shortcut: Ctrl+Shift+I")}
+              className="p-1 hover:text-[#ff007f] transition-colors"
+            >
+              <Code2 className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
         </div>
       </div>
 

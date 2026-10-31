@@ -17,6 +17,7 @@ import { FileEntry, sortEntries } from "../../types";
 import { FileIcon } from "../common/FileIcon";
 import { ContextMenu } from "../common/ContextMenu";
 import { DriveItem } from "../../vite-env";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface KaliFileManagerProps {
   workspacePath: string;
@@ -185,20 +186,23 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
           >
             <ChevronRight className="w-4 h-4" />
           </button>
-          <button
-            onClick={handleUp}
-            className="p-1.5 rounded-xs hover:bg-[#281b3d] text-[#7a7194] hover:text-[#00e5ff] transition-colors"
-            title="Up directory"
-          >
-            <ArrowUp className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => loadDirectory(currentDir)}
-            className="p-1.5 rounded-xs hover:bg-[#281b3d] text-[#7a7194] hover:text-[#00e5ff] transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#ff007f]" : ""}`} />
-          </button>
+          <DracoTooltip content="Parent Directory" shortcut="Alt+Up" position="bottom" accent="cyan">
+            <button
+              onClick={handleUp}
+              className="p-1.5 rounded-xs hover:bg-[#281b3d] text-[#7a7194] hover:text-[#00e5ff] transition-colors"
+            >
+              <ArrowUp className="w-4 h-4" />
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Refresh Directory" shortcut="Ctrl+R" position="bottom" accent="pink">
+            <button
+              onClick={() => loadDirectory(currentDir)}
+              className="p-1.5 rounded-xs hover:bg-[#281b3d] text-[#7a7194] hover:text-[#00e5ff] transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#ff007f]" : ""}`} />
+            </button>
+          </DracoTooltip>
         </div>
 
         {/* Universal Direct Path Input Bar */}

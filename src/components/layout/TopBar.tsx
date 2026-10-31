@@ -1,5 +1,6 @@
 import React from "react";
-import { Shield, Minus, Square, X, Wifi } from "lucide-react";
+import { Minus, Square, X, Wifi } from "lucide-react";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface TopBarProps {
   workspace: string | null;
@@ -44,13 +45,6 @@ export const TopBar: React.FC<TopBarProps> = ({ workspace, onQuit }) => {
         </div>
       </div>
 
-      {/* Center: Offensive Cockpit Tag */}
-      <div className="hidden lg:flex items-center gap-2 text-[10px] bg-[#161026] px-2.5 py-0.5 border border-[#261d38]">
-        <Shield className="w-3 h-3 text-[#00e676]" />
-        <span className="text-[#00e5ff] font-semibold">EXCLUSIVE F11 FULLSCREEN</span>
-        <span className="text-[#ff007f]">● LIVE</span>
-      </div>
-
       {/* Right: Network Status & Frameless Window Controls */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 text-[10px] text-[#00e676]">
@@ -60,29 +54,34 @@ export const TopBar: React.FC<TopBarProps> = ({ workspace, onQuit }) => {
 
         <div className="h-3 w-px bg-[#261d38]" />
 
-        {/* Window Controls */}
+        {/* Window Controls with Hacker Cyberdeck Tooltips */}
         <div className="flex items-center gap-1 text-[#7a7194]">
-          <button
-            onClick={handleMinimize}
-            title="Minimize"
-            className="p-1 hover:bg-[#281b3d] hover:text-[#00e5ff] transition-colors"
-          >
-            <Minus className="w-3 h-3" />
-          </button>
-          <button
-            onClick={handleMaximize}
-            title="Toggle Fullscreen"
-            className="p-1 hover:bg-[#281b3d] hover:text-[#00e5ff] transition-colors"
-          >
-            <Square className="w-2.5 h-2.5" />
-          </button>
-          <button
-            onClick={handleClose}
-            title="Shutdown Dracodeck"
-            className="p-1 hover:bg-[#ff1744] hover:text-white transition-colors"
-          >
-            <X className="w-3 h-3" />
-          </button>
+          <DracoTooltip content="Minimize Cockpit" shortcut="Alt+F9" position="bottom">
+            <button
+              onClick={handleMinimize}
+              className="p-1 hover:bg-[#281b3d] hover:text-[#00e5ff] transition-colors"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Toggle Fullscreen" shortcut="F11" position="bottom">
+            <button
+              onClick={handleMaximize}
+              className="p-1 hover:bg-[#281b3d] hover:text-[#00e5ff] transition-colors"
+            >
+              <Square className="w-2.5 h-2.5" />
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Terminate Session" shortcut="Alt+F4" position="bottom">
+            <button
+              onClick={handleClose}
+              className="p-1 hover:bg-[#ff1744] hover:text-white transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </DracoTooltip>
         </div>
       </div>
     </header>

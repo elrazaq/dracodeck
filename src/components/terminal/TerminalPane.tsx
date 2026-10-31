@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Terminal, Plus, Trash2, RotateCw, XCircle } from "lucide-react";
 import { executeDracoCommand } from "./dracoShell";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface TerminalTab {
   id: string;
@@ -31,20 +32,25 @@ export const TerminalPane: React.FC = () => {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [outputLines]);
 
-  // Hook into Electron IPC terminal stream
+  // Hook into Electron IPC terminal stream with cleanup
   useEffect(() => {
     if (window.dracoAPI?.receive) {
-      window.dracoAPI.receive("terminal-output", (data: string) => {
+      const cleanup = window.dracoAPI.receive("terminal-output", (data: string) => {
         const rawLines = data.split(/\r?\n/);
         setOutputLines((prev) => [...prev, ...rawLines]);
       });
+      return () => {
+        if (typeof cleanup === "function") {
+          cleanup();
+        }
+      };
     }
   }, []);
 
   const handleSendCommand = async (cmd: string) => {
     if (!cmd.trim()) return;
 
-    // Check custom DracoShell CLI dictionary first
+    // Check custom Draco CLI command
     const dracoResult = await executeDracoCommand(cmd);
     if (dracoResult !== null) {
       if (dracoResult[0] === "__CLEAR__") {
@@ -63,16 +69,9 @@ export const TerminalPane: React.FC = () => {
       return;
     }
 
-    // Passthrough to native ConPTY process via IPC
+    // Passthrough 100% to native ConPTY process via IPC
     if (window.dracoAPI?.send) {
       window.dracoAPI.send("terminal-input", cmd + "\r\n");
-    } else {
-      // Browser preview mock execution
-      setOutputLines((prev) => [
-        ...prev,
-        `PS D:\\dracodex> ${cmd}`,
-        `[mock-execution] Command "${cmd}" processed.`,
-      ]);
     }
 
     setCmdHistory((prev) => [...prev, cmd]);
@@ -190,55 +189,59 @@ export const TerminalPane: React.FC = () => {
             );
           })}
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNewTab();
-            }}
-            title="Open New Terminal Shell"
-            className="p-1 hover:bg-[#161026] text-[#7a7194] hover:text-[#e2e8f0] transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
+          <DracoTooltip content="New Terminal Shell" shortcut="Ctrl+Shift+T" position="bottom" accent="cyan">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNewTab();
+              }}
+              className="p-1 hover:bg-[#161026] text-[#7a7194] hover:text-[#e2e8f0] transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </DracoTooltip>
         </div>
 
-        {/* Terminal Action Tools */}
+        {/* Terminal Action Tools with Hacker Cyberdeck Tooltips */}
         <div className="flex items-center gap-2 text-[10px] text-[#7a7194]">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleClear();
-            }}
-            title="Clear Terminal (Ctrl+L)"
-            className="flex items-center gap-1 hover:text-[#00e5ff] p-0.5 transition-colors"
-          >
-            <Trash2 className="w-3 h-3" />
-            <span className="hidden sm:inline">CLEAR</span>
-          </button>
+          <DracoTooltip content="Clear Screen" shortcut="Ctrl+L" position="bottom" accent="cyan">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }}
+              className="flex items-center gap-1 hover:text-[#00e5ff] p-0.5 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span className="hidden sm:inline">CLEAR</span>
+            </button>
+          </DracoTooltip>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRestart();
-            }}
-            title="Restart Shell"
-            className="flex items-center gap-1 hover:text-[#00e676] p-0.5 transition-colors"
-          >
-            <RotateCw className="w-3 h-3" />
-            <span className="hidden sm:inline">RESTART</span>
-          </button>
+          <DracoTooltip content="Restart Shell Session" position="bottom" accent="green">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRestart();
+              }}
+              className="flex items-center gap-1 hover:text-[#00e676] p-0.5 transition-colors"
+            >
+              <RotateCw className="w-3 h-3" />
+              <span className="hidden sm:inline">RESTART</span>
+            </button>
+          </DracoTooltip>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleKill();
-            }}
-            title="Kill Active Shell Process"
-            className="flex items-center gap-1 hover:text-[#ff1744] p-0.5 transition-colors"
-          >
-            <XCircle className="w-3 h-3" />
-            <span className="hidden sm:inline">KILL</span>
-          </button>
+          <DracoTooltip content="Kill Active Shell Process" shortcut="Ctrl+C" position="bottom" accent="pink">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleKill();
+              }}
+              className="flex items-center gap-1 hover:text-[#ff1744] p-0.5 transition-colors"
+            >
+              <XCircle className="w-3 h-3" />
+              <span className="hidden sm:inline">KILL</span>
+            </button>
+          </DracoTooltip>
 
           <span className="text-[#261d38]">|</span>
           <span className="text-[#00e676] font-semibold">ConPTY LIVE</span>

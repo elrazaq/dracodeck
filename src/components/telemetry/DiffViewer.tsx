@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Copy, Check, Columns, AlignJustify, FileCode } from "lucide-react";
 import type { TelemetryDiff } from "../../vite-env";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface DiffViewerProps {
   diff: TelemetryDiff;
@@ -52,41 +53,45 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ diff, compact = false })
             +{replacementLines.length}
           </span>
 
-          {/* Mode Switcher */}
+          {/* Mode Switcher with Cyberdeck Tooltips */}
           {!compact && (
             <div className="flex items-center bg-[#161026] border border-[#261d38] rounded-xs overflow-hidden">
-              <button
-                onClick={() => setViewMode("unified")}
-                title="Unified View"
-                className={`px-1.5 py-0.5 flex items-center gap-1 transition-colors ${
-                  viewMode === "unified" ? "bg-[#00e5ff]/20 text-[#00e5ff]" : "text-[#7a7194] hover:text-[#e2e8f0]"
-                }`}
-              >
-                <AlignJustify className="w-3 h-3" />
-                <span className="hidden md:inline">Unified</span>
-              </button>
-              <button
-                onClick={() => setViewMode("split")}
-                title="Split Side-by-Side View"
-                className={`px-1.5 py-0.5 flex items-center gap-1 transition-colors ${
-                  viewMode === "split" ? "bg-[#00e5ff]/20 text-[#00e5ff]" : "text-[#7a7194] hover:text-[#e2e8f0]"
-                }`}
-              >
-                <Columns className="w-3 h-3" />
-                <span className="hidden md:inline">Split</span>
-              </button>
+              <DracoTooltip content="Unified View" position="bottom" accent="cyan">
+                <button
+                  onClick={() => setViewMode("unified")}
+                  className={`px-1.5 py-0.5 flex items-center gap-1 transition-colors ${
+                    viewMode === "unified" ? "bg-[#00e5ff]/20 text-[#00e5ff]" : "text-[#7a7194] hover:text-[#e2e8f0]"
+                  }`}
+                >
+                  <AlignJustify className="w-3 h-3" />
+                  <span className="hidden md:inline">Unified</span>
+                </button>
+              </DracoTooltip>
+
+              <DracoTooltip content="Split Side-by-Side" position="bottom" accent="cyan">
+                <button
+                  onClick={() => setViewMode("split")}
+                  className={`px-1.5 py-0.5 flex items-center gap-1 transition-colors ${
+                    viewMode === "split" ? "bg-[#00e5ff]/20 text-[#00e5ff]" : "text-[#7a7194] hover:text-[#e2e8f0]"
+                  }`}
+                >
+                  <Columns className="w-3 h-3" />
+                  <span className="hidden md:inline">Split</span>
+                </button>
+              </DracoTooltip>
             </div>
           )}
 
           {/* Copy Patch */}
-          <button
-            onClick={handleCopyPatch}
-            title="Copy Git Diff Patch"
-            className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#261d38] border border-[#261d38] text-[#cbd5e1] hover:text-[#00e5ff] transition-colors"
-          >
-            {copied ? <Check className="w-3 h-3 text-[#00e676]" /> : <Copy className="w-3 h-3" />}
-            <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
-          </button>
+          <DracoTooltip content="Copy Git Patch" position="bottom" accent="green">
+            <button
+              onClick={handleCopyPatch}
+              className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#261d38] border border-[#261d38] text-[#cbd5e1] hover:text-[#00e5ff] transition-colors"
+            >
+              {copied ? <Check className="w-3 h-3 text-[#00e676]" /> : <Copy className="w-3 h-3" />}
+              <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
+            </button>
+          </DracoTooltip>
         </div>
       </div>
 

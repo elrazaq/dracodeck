@@ -3,6 +3,7 @@ import { ChevronRight, ChevronDown, RefreshCw } from "lucide-react";
 import { FileEntry, sortEntries } from "../../types";
 import { FileIcon } from "../common/FileIcon";
 import { ContextMenu } from "../common/ContextMenu";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 export interface ExplorerItem extends FileEntry {
   children?: ExplorerItem[];
@@ -157,13 +158,14 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
           <span className="uppercase tracking-widest font-bold text-[#e2e8f0]">EXPLORER:</span>
           <span className="text-[#00e5ff] font-mono truncate">{basename}</span>
         </div>
-        <button
-          onClick={refreshRoot}
-          title="Refresh Workspace"
-          className="hover:text-[#ff007f] transition-colors p-0.5"
-        >
-          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-[#ff007f]" : ""}`} />
-        </button>
+        <DracoTooltip content="Refresh Explorer" shortcut="Ctrl+R" position="left" accent="pink">
+          <button
+            onClick={refreshRoot}
+            className="hover:text-[#ff007f] transition-colors p-0.5"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-[#ff007f]" : ""}`} />
+          </button>
+        </DracoTooltip>
       </div>
 
       {/* Directory Tree */}

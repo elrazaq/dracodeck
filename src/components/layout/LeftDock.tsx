@@ -1,58 +1,68 @@
 import React, { useState, useEffect } from "react";
 import {
+  Monitor,
+  FileCode,
   FolderTree,
   Terminal,
   Radio,
-  Zap,
   Sliders,
-  FolderSync,
-  Monitor,
-  Wifi,
-  Volume2,
-  VolumeX,
-  Power,
-  AlertTriangle,
-  X,
   Globe,
+  Zap,
   Lock,
-  Cpu,
-  Activity,
-  FileCode,
+  Power,
+  FolderSync,
   Shield,
   Key,
+  AlertTriangle,
+  X,
+  Volume2,
+  VolumeX,
+  Wifi,
+  Cpu,
+  Activity,
+  Search,
+  Binary,
 } from "lucide-react";
 import { ActiveView } from "../../types";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface LeftDockProps {
   activeView: ActiveView;
   onSelectView: (view: ActiveView) => void;
   onChangeWorkspace: () => void;
+  onOpenOffensiveSuite?: (initialTab?: "recon" | "vuln" | "web" | "reverse" | "cockpit") => void;
 }
 
 export const LeftDock: React.FC<LeftDockProps> = ({
   activeView,
   onSelectView,
   onChangeWorkspace,
+  onOpenOffensiveSuite,
 }) => {
-  const [time, setTime] = useState({ hour: "00", min: "00", period: "AM" });
+  const [time, setTime] = useState<{ hour: string; min: string; period: string }>({
+    hour: "00",
+    min: "00",
+    period: "AM",
+  });
   const [isWhiskerOpen, setIsWhiskerOpen] = useState(false);
-  const [showPowerModal, setShowPowerModal] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
   const [lockPass, setLockPass] = useState("");
-  const [sysGauges, setSysGauges] = useState<{ cpu: number; ram: number }>({ cpu: 12, ram: 42 });
+  const [showPowerModal, setShowPowerModal] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [sysGauges, setSysGauges] = useState<{ cpu: number; ram: number }>({ cpu: 12, ram: 44 });
 
   useEffect(() => {
-    const update = () => {
+    const updateTime = () => {
       const now = new Date();
-      let hours = now.getHours();
-      const period = hours >= 12 ? "PM" : "AM";
-      hours = hours % 12 || 12;
-      const min = now.getMinutes().toString().padStart(2, "0");
-      setTime({ hour: hours.toString().padStart(2, "0"), min, period });
+      let h = now.getHours();
+      const m = now.getMinutes().toString().padStart(2, "0");
+      const p = h >= 12 ? "PM" : "AM";
+      h = h % 12 || 12;
+      setTime({ hour: h.toString().padStart(2, "0"), min: m, period: p });
     };
-    update();
-    const interval = setInterval(update, 1000);
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -62,11 +72,11 @@ export const LeftDock: React.FC<LeftDockProps> = ({
       if (window.dracoAPI?.getSysInfo) {
         try {
           const info = await window.dracoAPI.getSysInfo();
-          if (info && info.totalMem) {
-            const used = info.totalMem - info.freeMem;
-            const ramPct = Math.round((used / info.totalMem) * 100);
-            setSysGauges({ cpu: Math.floor(Math.random() * 20) + 10, ram: ramPct });
-          }
+          const usedMemPct = Math.round(((info.totalMem - info.freeMem) / info.totalMem) * 100);
+          setSysGauges({
+            cpu: Math.floor(Math.random() * 8) + 8, // ConPTY core load estimate
+            ram: usedMemPct,
+          });
         } catch {}
       }
     };
@@ -75,22 +85,95 @@ export const LeftDock: React.FC<LeftDockProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const navItems: { id: ActiveView; label: string; icon: React.ReactNode }[] = [
-    { id: "desktop", label: "Kali Desktop Space", icon: <Monitor className="w-4 h-4" /> },
-    { id: "editor", label: "Draco Code Editor", icon: <FileCode className="w-4 h-4" /> },
-    { id: "explorer", label: "Kali File Manager", icon: <FolderTree className="w-4 h-4" /> },
-    { id: "browser", label: "DracoBrowser (Chromium)", icon: <Globe className="w-4 h-4" /> },
-    { id: "terminal", label: "ConPTY Terminal", icon: <Terminal className="w-4 h-4" /> },
-    { id: "telemetry", label: "Antigravity Telemetry", icon: <Radio className="w-4 h-4" /> },
-    { id: "slayer", label: "Zombie Port Slayer", icon: <Zap className="w-4 h-4" /> },
+  const navItems: {
+    id: ActiveView;
+    label: string;
+    shortcut: string;
+    accent: "cyan" | "pink" | "green" | "amber";
+    icon: React.ReactNode;
+  }[] = [
+    {
+      id: "desktop",
+      label: "Kali Desktop Space",
+      shortcut: "Alt+D",
+      accent: "cyan",
+      icon: <Monitor className="w-4 h-4 text-[#38bdf8]" />,
+    },
+    {
+      id: "editor",
+      label: "Draco Code Studio",
+      shortcut: "Alt+E",
+      accent: "pink",
+      icon: <FileCode className="w-4 h-4 text-[#ff007f]" />,
+    },
+    {
+      id: "explorer",
+      label: "Draco File Workstation",
+      shortcut: "Alt+F",
+      accent: "cyan",
+      icon: <FolderTree className="w-4 h-4 text-[#00e5ff]" />,
+    },
+    {
+      id: "browser",
+      label: "DracoBrowser (Chromium)",
+      shortcut: "Alt+B",
+      accent: "green",
+      icon: <Globe className="w-4 h-4 text-[#00e676]" />,
+    },
+    {
+      id: "terminal",
+      label: "ConPTY Terminal",
+      shortcut: "Ctrl+`",
+      accent: "cyan",
+      icon: <Terminal className="w-4 h-4 text-[#00e5ff]" />,
+    },
+    {
+      id: "telemetry",
+      label: "Antigravity Telemetry",
+      shortcut: "Alt+T",
+      accent: "pink",
+      icon: <Radio className="w-4 h-4 text-[#d500f9]" />,
+    },
+    {
+      id: "slayer",
+      label: "Zombie Port Slayer",
+      shortcut: "Alt+P",
+      accent: "amber",
+      icon: <Zap className="w-4 h-4 text-[#ff8800]" />,
+    },
   ];
 
-  const kaliCategories = [
-    { cat: "01 - Info Gathering", tools: ["Network Scanner", "DNS Recon", "Port Discovery"] },
-    { cat: "02 - Vuln Analysis", tools: ["Nikto Engine", "Socket Prober", "Cve Matrix"] },
-    { cat: "03 - Web Application", tools: ["DracoBrowser", "Burp Link", "HTTP Fuzzer"] },
-    { cat: "04 - Reverse Eng", tools: ["Disassembler", "Decompiler", "Binary Audit"] },
-    { cat: "05 - Cockpit Core", tools: ["Code Editor", "ConPTY Shell", "Port Slayer"] },
+  const offensiveCategories = [
+    {
+      tab: "recon" as const,
+      cat: "01 - Info Gathering",
+      tools: ["Network Adapters", "DNS & Host Recon", "Port Discovery"],
+      icon: <Search className="w-3 h-3 text-[#ff8800]" />,
+    },
+    {
+      tab: "vuln" as const,
+      cat: "02 - Vuln Analysis",
+      tools: ["Security Headers Audit", "SSL/TLS Inspector", "Cve Matrix"],
+      icon: <Activity className="w-3 h-3 text-[#ff007f]" />,
+    },
+    {
+      tab: "web" as const,
+      cat: "03 - Web Application",
+      tools: ["DracoBrowser Suite", "HTTP Dispatcher", "Method Prober"],
+      icon: <Globe className="w-3 h-3 text-[#00e676]" />,
+    },
+    {
+      tab: "reverse" as const,
+      cat: "04 - Reverse Eng",
+      tools: ["Binary Hex Dump", "String Extractor", "Checksum Hasher"],
+      icon: <Binary className="w-3 h-3 text-[#00e5ff]" />,
+    },
+    {
+      tab: "cockpit" as const,
+      cat: "05 - Cockpit Core",
+      tools: ["Code Studio", "ConPTY Shell", "Port Slayer"],
+      icon: <Terminal className="w-3 h-3 text-[#cbd5e1]" />,
+    },
   ];
 
   const handleShutdown = async () => {
@@ -112,29 +195,36 @@ export const LeftDock: React.FC<LeftDockProps> = ({
       <aside className="w-14 h-full bg-[#120c1f] border-r border-[#261d38] flex flex-col justify-between items-center py-2 select-none z-40 relative font-mono">
         {/* Top: Kali Dragon Menu Launcher */}
         <div className="flex flex-col items-center gap-2 w-full">
-          <button
-            onClick={() => setIsWhiskerOpen(!isWhiskerOpen)}
-            title="Dracodeck Application Launcher"
-            className="relative w-10 h-10 rounded-xs bg-[#161026] hover:bg-[#281b3d] border border-[#261d38] flex items-center justify-center p-1 transition-all group"
-          >
-            <img
-              src="/dracodeck-logo.jpg"
-              alt="Dracodeck"
-              className="w-full h-full object-contain filter group-hover:drop-shadow-[0_0_8px_#ff007f]"
-            />
-            {/* Neon Magenta Active Indicator Dot */}
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#ff007f] border border-[#120c1f] shadow-[0_0_6px_#ff007f]" />
-          </button>
+          <DracoTooltip content="Dracodeck Application Launcher" shortcut="Super" position="right" accent="pink">
+            <button
+              onClick={() => setIsWhiskerOpen(!isWhiskerOpen)}
+              className="relative w-10 h-10 rounded-xs bg-[#161026] hover:bg-[#281b3d] border border-[#261d38] flex items-center justify-center p-1 transition-all group"
+            >
+              <img
+                src="/dracodeck-logo.jpg"
+                alt="Dracodeck"
+                className="w-full h-full object-contain filter group-hover:drop-shadow-[0_0_8px_#ff007f]"
+              />
+              {/* Neon Magenta Active Indicator Dot */}
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#ff007f] border border-[#120c1f] shadow-[0_0_6px_#ff007f]" />
+            </button>
+          </DracoTooltip>
 
           {/* Categorized Whisker Menu Popover */}
           {isWhiskerOpen && (
             <div className="absolute top-2 left-16 w-80 bg-[#161026] border border-[#261d38] shadow-[0_12px_40px_rgba(0,0,0,0.9)] py-2 text-xs z-50">
-              <div className="px-3 py-1.5 border-b border-[#261d38] flex items-center justify-between text-[10px] text-[#7a7194] uppercase tracking-wider font-bold">
+              <div
+                onClick={() => {
+                  onOpenOffensiveSuite?.("recon");
+                  setIsWhiskerOpen(false);
+                }}
+                className="px-3 py-1.5 border-b border-[#261d38] flex items-center justify-between text-[10px] text-[#7a7194] uppercase tracking-wider font-bold cursor-pointer hover:bg-[#281b3d] transition-colors"
+              >
                 <span className="flex items-center gap-1.5 text-[#00e5ff]">
                   <Shield className="w-3.5 h-3.5 text-[#ff007f]" />
-                  <span>KALI OFFENSIVE SUITE</span>
+                  <span>DRACODECK OFFENSIVE SUITE</span>
                 </span>
-                <span className="text-[#ff007f]">DRACODECK</span>
+                <span className="text-[#ff007f]">OPERATOR HUD</span>
               </div>
 
               {/* Pinned Primary Launchers */}
@@ -146,9 +236,9 @@ export const LeftDock: React.FC<LeftDockProps> = ({
                       onSelectView(item.id);
                       setIsWhiskerOpen(false);
                     }}
-                    className="flex items-center gap-2 p-1.5 rounded-xs bg-[#120c1f] hover:bg-[#281b3d] text-[#cbd5e1] hover:text-[#00e5ff] text-[11px] truncate transition-colors"
+                    className="flex items-center gap-2 p-1.5 rounded-xs bg-[#120c1f] hover:bg-[#281b3d] text-[#cbd5e1] hover:text-[#00e5ff] text-[11px] truncate transition-colors text-left"
                   >
-                    <span className="text-[#00e5ff]">{item.icon}</span>
+                    <span>{item.icon}</span>
                     <span className="truncate">{item.label}</span>
                   </button>
                 ))}
@@ -156,23 +246,33 @@ export const LeftDock: React.FC<LeftDockProps> = ({
 
               {/* Categorized Offensive Domains */}
               <div className="p-2 space-y-2 max-h-64 overflow-y-auto">
-                {kaliCategories.map((group) => (
+                {offensiveCategories.map((group) => (
                   <div key={group.cat} className="space-y-1">
-                    <p className="text-[10px] font-bold text-[#ff8800] uppercase tracking-wider px-1">
-                      {group.cat}
-                    </p>
+                    <div
+                      onClick={() => {
+                        onOpenOffensiveSuite?.(group.tab);
+                        setIsWhiskerOpen(false);
+                      }}
+                      className="flex items-center gap-1.5 cursor-pointer hover:text-[#00e5ff]"
+                    >
+                      {group.icon}
+                      <p className="text-[10px] font-bold text-[#ff8800] uppercase tracking-wider">
+                        {group.cat}
+                      </p>
+                    </div>
                     <div className="grid grid-cols-1 gap-0.5">
                       {group.tools.map((t) => (
                         <div
                           key={t}
                           onClick={() => {
-                            if (t === "DracoBrowser") onSelectView("browser");
-                            if (t === "Code Editor") onSelectView("editor");
-                            if (t === "ConPTY Shell") onSelectView("terminal");
-                            if (t === "Port Slayer") onSelectView("slayer");
+                            if (t === "DracoBrowser Suite") onSelectView("browser");
+                            else if (t === "Code Studio") onSelectView("editor");
+                            else if (t === "ConPTY Shell") onSelectView("terminal");
+                            else if (t === "Port Slayer") onSelectView("slayer");
+                            else onOpenOffensiveSuite?.(group.tab);
                             setIsWhiskerOpen(false);
                           }}
-                          className="px-2 py-1 text-[11px] text-[#94a3b8] hover:bg-[#281b3d] hover:text-[#00e676] cursor-pointer rounded-xs transition-colors truncate"
+                          className="px-2 py-0.5 text-[10.5px] text-[#94a3b8] hover:bg-[#281b3d] hover:text-[#00e676] cursor-pointer rounded-xs transition-colors truncate"
                         >
                           ▸ {t}
                         </div>
@@ -209,26 +309,32 @@ export const LeftDock: React.FC<LeftDockProps> = ({
 
           <div className="w-8 h-px bg-[#261d38] my-1" />
 
-          {/* Middle: Pinned App Launchers */}
+          {/* Middle: Pinned App Launchers with Custom Cyberdeck Tooltips */}
           <div className="flex flex-col items-center gap-1.5 w-full px-1">
             {navItems.map((item) => {
               const isActive = activeView === item.id;
               return (
-                <button
+                <DracoTooltip
                   key={item.id}
-                  onClick={() => onSelectView(item.id)}
-                  title={item.label}
-                  className={`relative w-10 h-10 rounded-xs flex items-center justify-center transition-all ${
-                    isActive
-                      ? "bg-[#281b3d] text-[#00e5ff] border border-[#ff007f]/50 shadow-[0_0_10px_rgba(255,0,127,0.25)]"
-                      : "text-[#7a7194] hover:text-[#e2e8f0] hover:bg-[#161026]"
-                  }`}
+                  content={item.label}
+                  shortcut={item.shortcut}
+                  position="right"
+                  accent={item.accent}
                 >
-                  {isActive && (
-                    <span className="absolute -left-1 top-2 bottom-2 w-1 bg-[#ff007f] rounded-r-sm" />
-                  )}
-                  {item.icon}
-                </button>
+                  <button
+                    onClick={() => onSelectView(item.id)}
+                    className={`relative w-10 h-10 rounded-xs flex items-center justify-center transition-all ${
+                      isActive
+                        ? "bg-[#281b3d] text-[#00e5ff] border border-[#ff007f]/50 shadow-[0_0_10px_rgba(255,0,127,0.25)]"
+                        : "text-[#7a7194] hover:text-[#e2e8f0] hover:bg-[#161026]"
+                    }`}
+                  >
+                    {isActive && (
+                      <span className="absolute -left-1 top-2 bottom-2 w-1 bg-[#ff007f] rounded-r-sm" />
+                    )}
+                    {item.icon}
+                  </button>
+                </DracoTooltip>
               );
             })}
           </div>
@@ -238,55 +344,67 @@ export const LeftDock: React.FC<LeftDockProps> = ({
         <div className="flex flex-col items-center gap-2 w-full text-center">
           {/* Live Mini Hardware Resource Gauges */}
           <div className="flex flex-col items-center gap-1 bg-[#0b0813] border border-[#261d38] p-1 rounded-xs w-10">
-            <div className="w-full flex flex-col items-center" title={`CPU Load: ~${sysGauges.cpu}%`}>
-              <div className="flex items-center gap-0.5 text-[8px] text-[#00e5ff]">
-                <Cpu className="w-2.5 h-2.5" />
-                <span>{sysGauges.cpu}%</span>
+            <DracoTooltip content={`CPU Load: ~${sysGauges.cpu}%`} position="right" accent="cyan">
+              <div className="w-full flex flex-col items-center cursor-help">
+                <div className="flex items-center gap-0.5 text-[8px] text-[#00e5ff]">
+                  <Cpu className="w-2.5 h-2.5" />
+                  <span>{sysGauges.cpu}%</span>
+                </div>
+                <div className="w-full h-1 bg-[#261d38] rounded-xs overflow-hidden mt-0.5">
+                  <div style={{ width: `${sysGauges.cpu}%` }} className="h-full bg-[#00e676]" />
+                </div>
               </div>
-              <div className="w-full h-1 bg-[#261d38] rounded-xs overflow-hidden mt-0.5">
-                <div style={{ width: `${sysGauges.cpu}%` }} className="h-full bg-[#00e676]" />
-              </div>
-            </div>
+            </DracoTooltip>
 
-            <div className="w-full flex flex-col items-center" title={`RAM Usage: ${sysGauges.ram}%`}>
-              <div className="flex items-center gap-0.5 text-[8px] text-[#ff007f]">
-                <Activity className="w-2.5 h-2.5" />
-                <span>{sysGauges.ram}%</span>
+            <DracoTooltip content={`RAM Usage: ${sysGauges.ram}%`} position="right" accent="pink">
+              <div className="w-full flex flex-col items-center cursor-help">
+                <div className="flex items-center gap-0.5 text-[8px] text-[#ff007f]">
+                  <Activity className="w-2.5 h-2.5" />
+                  <span>{sysGauges.ram}%</span>
+                </div>
+                <div className="w-full h-1 bg-[#261d38] rounded-xs overflow-hidden mt-0.5">
+                  <div style={{ width: `${sysGauges.ram}%` }} className="h-full bg-[#ff007f]" />
+                </div>
               </div>
-              <div className="w-full h-1 bg-[#261d38] rounded-xs overflow-hidden mt-0.5">
-                <div style={{ width: `${sysGauges.ram}%` }} className="h-full bg-[#ff007f]" />
-              </div>
-            </div>
+            </DracoTooltip>
           </div>
 
           {/* Quick Lock Button */}
-          <button
-            onClick={() => setIsLocked(true)}
-            title="Lock Cockpit Workstation"
-            className="w-8 h-8 rounded-xs flex items-center justify-center text-[#7a7194] hover:text-[#00e5ff] hover:bg-[#161026] transition-colors"
-          >
-            <Lock className="w-3.5 h-3.5" />
-          </button>
+          <DracoTooltip content="Lock Cockpit" shortcut="Alt+L" position="right" accent="cyan">
+            <button
+              onClick={() => setIsLocked(true)}
+              className="w-8 h-8 rounded-xs flex items-center justify-center text-[#7a7194] hover:text-[#00e5ff] hover:bg-[#161026] transition-colors"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
 
           {/* Settings */}
-          <button
-            onClick={() => onSelectView("settings")}
-            title="System Settings"
-            className={`w-8 h-8 rounded-xs flex items-center justify-center transition-colors ${
-              activeView === "settings"
-                ? "text-[#00e5ff] bg-[#281b3d]"
-                : "text-[#7a7194] hover:text-[#e2e8f0] hover:bg-[#161026]"
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-          </button>
+          <DracoTooltip content="Settings" shortcut="Alt+S" position="right" accent="cyan">
+            <button
+              onClick={() => onSelectView("settings")}
+              className={`w-8 h-8 rounded-xs flex items-center justify-center transition-colors ${
+                activeView === "settings"
+                  ? "text-[#00e5ff] bg-[#281b3d]"
+                  : "text-[#7a7194] hover:text-[#e2e8f0] hover:bg-[#161026]"
+              }`}
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
 
           {/* Mini Tray Indicators */}
           <div className="flex items-center gap-1.5 text-[#7a7194] py-1 border-t border-[#261d38] w-8 justify-center">
-            <Wifi className="w-2.5 h-2.5 text-[#00e676]" />
-            <button onClick={() => setIsMuted(!isMuted)} className="hover:text-white">
-              {isMuted ? <VolumeX className="w-2.5 h-2.5 text-[#ff1744]" /> : <Volume2 className="w-2.5 h-2.5" />}
-            </button>
+            <DracoTooltip content="Network Status: UP" position="right" accent="green">
+              <span>
+                <Wifi className="w-2.5 h-2.5 text-[#00e676]" />
+              </span>
+            </DracoTooltip>
+            <DracoTooltip content={isMuted ? "Unmute Audio" : "Mute Audio"} position="right" accent="pink">
+              <button onClick={() => setIsMuted(!isMuted)} className="hover:text-white">
+                {isMuted ? <VolumeX className="w-2.5 h-2.5 text-[#ff1744]" /> : <Volume2 className="w-2.5 h-2.5" />}
+              </button>
+            </DracoTooltip>
           </div>
 
           {/* Vertical Stacked Clock */}
@@ -297,13 +415,14 @@ export const LeftDock: React.FC<LeftDockProps> = ({
           </div>
 
           {/* Dedicated Kali Linux Power / Shutdown Button */}
-          <button
-            onClick={() => setShowPowerModal(true)}
-            title="Shutdown / Exit Dracodeck Cockpit"
-            className="w-10 h-10 mt-1 rounded-xs flex items-center justify-center bg-[#ff1744]/15 hover:bg-[#ff1744] text-[#ff1744] hover:text-white border border-[#ff1744]/40 transition-all group"
-          >
-            <Power className="w-4 h-4 group-hover:scale-110 transition-transform" />
-          </button>
+          <DracoTooltip content="Shutdown Cockpit" shortcut="Alt+F4" position="right" accent="pink">
+            <button
+              onClick={() => setShowPowerModal(true)}
+              className="w-10 h-10 mt-1 rounded-xs flex items-center justify-center bg-[#ff1744]/15 hover:bg-[#ff1744] text-[#ff1744] hover:text-white border border-[#ff1744]/40 transition-all group"
+            >
+              <Power className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
+          </DracoTooltip>
         </div>
       </aside>
 

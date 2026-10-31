@@ -27,6 +27,7 @@ import type {
   TelemetrySessionItem,
 } from "../../vite-env";
 import { DiffViewer } from "./DiffViewer";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 export const TelemetryPane: React.FC = () => {
   const [sessions, setSessions] = useState<TelemetrySessionItem[]>([]);
@@ -231,50 +232,54 @@ export const TelemetryPane: React.FC = () => {
           </div>
 
           {/* Refresh Sessions */}
-          <button
-            onClick={refreshSessions}
-            title="Scan Brain Sessions"
-            className="p-1 text-[#7a7194] hover:text-[#00e5ff] hover:bg-[#161026] border border-transparent hover:border-[#261d38] transition-colors"
-          >
-            <RotateCw className="w-3.5 h-3.5" />
-          </button>
+          <DracoTooltip content="Scan Brain Sessions" shortcut="Ctrl+R" position="bottom" accent="cyan">
+            <button
+              onClick={refreshSessions}
+              className="p-1 text-[#7a7194] hover:text-[#00e5ff] hover:bg-[#161026] border border-transparent hover:border-[#261d38] transition-colors"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
 
           {/* Pause / Resume Button */}
-          <button
-            onClick={togglePause}
-            title={isPaused ? "Resume Live Tailer" : "Pause Live Tailer"}
-            className={`px-2 py-0.5 border text-[10px] font-semibold flex items-center gap-1 transition-colors ${
-              isPaused
-                ? "bg-[#00e676]/10 border-[#00e676]/40 text-[#00e676] hover:bg-[#00e676]/20"
-                : "bg-[#ffea00]/10 border-[#ffea00]/40 text-[#ffea00] hover:bg-[#ffea00]/20"
-            }`}
-          >
-            {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-            <span className="hidden sm:inline">{isPaused ? "Resume" : "Pause"}</span>
-          </button>
+          <DracoTooltip content={isPaused ? "Resume Live Tailer" : "Pause Live Tailer"} position="bottom" accent="amber">
+            <button
+              onClick={togglePause}
+              className={`px-2 py-0.5 border text-[10px] font-semibold flex items-center gap-1 transition-colors ${
+                isPaused
+                  ? "bg-[#00e676]/10 border-[#00e676]/40 text-[#00e676] hover:bg-[#00e676]/20"
+                  : "bg-[#ffea00]/10 border-[#ffea00]/40 text-[#ffea00] hover:bg-[#ffea00]/20"
+              }`}
+            >
+              {isPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+              <span className="hidden sm:inline">{isPaused ? "Resume" : "Pause"}</span>
+            </button>
+          </DracoTooltip>
 
           {/* Auto Scroll Toggle */}
-          <button
-            onClick={() => setAutoScroll(!autoScroll)}
-            title="Auto-scroll on new events"
-            className={`px-1.5 py-0.5 border text-[10px] flex items-center gap-1 transition-colors ${
-              autoScroll
-                ? "bg-[#00e5ff]/20 border-[#00e5ff]/50 text-[#00e5ff]"
-                : "bg-[#161026] border-[#261d38] text-[#7a7194] hover:text-[#cbd5e1]"
-            }`}
-          >
-            <ArrowDownCircle className="w-3 h-3" />
-            <span className="hidden sm:inline">Auto-Scroll</span>
-          </button>
+          <DracoTooltip content="Toggle Auto-Scroll" position="bottom" accent="cyan">
+            <button
+              onClick={() => setAutoScroll(!autoScroll)}
+              className={`px-1.5 py-0.5 border text-[10px] flex items-center gap-1 transition-colors ${
+                autoScroll
+                  ? "bg-[#00e5ff]/20 border-[#00e5ff]/50 text-[#00e5ff]"
+                  : "bg-[#161026] border-[#261d38] text-[#7a7194] hover:text-[#cbd5e1]"
+              }`}
+            >
+              <ArrowDownCircle className="w-3 h-3" />
+              <span className="hidden sm:inline">Auto-Scroll</span>
+            </button>
+          </DracoTooltip>
 
           {/* Clear View */}
-          <button
-            onClick={() => setEvents([])}
-            title="Clear Event Timeline View"
-            className="p-1 text-[#7a7194] hover:text-[#ff1744] hover:bg-[#161026] border border-transparent hover:border-[#261d38] transition-colors"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          <DracoTooltip content="Clear Event Stream" position="bottom" accent="pink">
+            <button
+              onClick={() => setEvents([])}
+              className="p-1 text-[#7a7194] hover:text-[#ff1744] hover:bg-[#161026] border border-transparent hover:border-[#261d38] transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </DracoTooltip>
         </div>
       </div>
 
@@ -506,22 +511,23 @@ export const TelemetryPane: React.FC = () => {
                         {tc.durationMs && (
                           <span className="text-[#64748b]">{(tc.durationMs / 1000).toFixed(1)}s</span>
                         )}
-                        <button
-                          onClick={() =>
-                            copyToClipboard(
-                              tc.command || tc.diff?.path || JSON.stringify(tc.args, null, 2),
-                              tc.id
-                            )
-                          }
-                          title="Copy Tool Payload"
-                          className="text-[#7a7194] hover:text-[#00e5ff] p-0.5"
-                        >
-                          {copiedStep === tc.id ? (
-                            <Check className="w-3 h-3 text-[#00e676]" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </button>
+                        <DracoTooltip content="Copy Tool Payload" position="left" accent="cyan">
+                          <button
+                            onClick={() =>
+                              copyToClipboard(
+                                tc.command || tc.diff?.path || JSON.stringify(tc.args, null, 2),
+                                tc.id
+                              )
+                            }
+                            className="text-[#7a7194] hover:text-[#00e5ff] p-0.5"
+                          >
+                            {copiedStep === tc.id ? (
+                              <Check className="w-3 h-3 text-[#00e676]" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </DracoTooltip>
                       </div>
                     </div>
 

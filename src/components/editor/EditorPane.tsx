@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { X, FileCode, Save, Check, FileText, CornerDownLeft, Eye, EyeOff, Layout, Wand2 } from "lucide-react";
 import { highlightCode, Token } from "./syntaxHighlighter";
 import { formatCode } from "./codeFormatter";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 export interface OpenTab {
   path: string;
@@ -300,51 +301,55 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
         {/* Minimap & Syntax Toggles */}
         <div className="ml-auto mr-2 flex items-center gap-2">
-          <button
-            onClick={handleFormat}
-            title="Prettier Auto-Format Code"
-            className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border-[#261d38] hover:border-[#00e676]/50 transition-colors"
-          >
-            <Wand2 className="w-3 h-3 text-[#00e676]" />
-            <span>FORMAT</span>
-          </button>
+          <DracoTooltip content="Auto-Format Code" shortcut="Shift+Alt+F" position="bottom" accent="green">
+            <button
+              onClick={handleFormat}
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border-[#261d38] hover:border-[#00e676]/50 transition-colors"
+            >
+              <Wand2 className="w-3 h-3 text-[#00e676]" />
+              <span>FORMAT</span>
+            </button>
+          </DracoTooltip>
 
-          <button
-            onClick={() => setIsMinimapOn(!isMinimapOn)}
-            title={isMinimapOn ? "Hide Code Minimap" : "Show Code Minimap"}
-            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
-              isMinimapOn
-                ? "bg-[#281b3d] text-[#ff007f] border-[#ff007f]/50"
-                : "bg-[#161026] text-[#7a7194] border-[#261d38]"
-            }`}
-          >
-            <Layout className="w-3 h-3 text-[#ff007f]" />
-            <span>MINIMAP</span>
-          </button>
+          <DracoTooltip content={isMinimapOn ? "Hide Code Minimap" : "Show Code Minimap"} position="bottom" accent="pink">
+            <button
+              onClick={() => setIsMinimapOn(!isMinimapOn)}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
+                isMinimapOn
+                  ? "bg-[#281b3d] text-[#ff007f] border-[#ff007f]/50"
+                  : "bg-[#161026] text-[#7a7194] border-[#261d38]"
+              }`}
+            >
+              <Layout className="w-3 h-3 text-[#ff007f]" />
+              <span>MINIMAP</span>
+            </button>
+          </DracoTooltip>
 
-          <button
-            onClick={() => setIsSyntaxOn(!isSyntaxOn)}
-            title={isSyntaxOn ? "Disable Syntax Colors" : "Enable Syntax Colors"}
-            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
-              isSyntaxOn
-                ? "bg-[#281b3d] text-[#00e5ff] border-[#00e5ff]/50"
-                : "bg-[#161026] text-[#7a7194] border-[#261d38]"
-            }`}
-          >
-            {isSyntaxOn ? <Eye className="w-3 h-3 text-[#00e676]" /> : <EyeOff className="w-3 h-3" />}
-            <span>SYNTAX</span>
-          </button>
+          <DracoTooltip content={isSyntaxOn ? "Disable Syntax Colors" : "Enable Syntax Colors"} position="bottom" accent="cyan">
+            <button
+              onClick={() => setIsSyntaxOn(!isSyntaxOn)}
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
+                isSyntaxOn
+                  ? "bg-[#281b3d] text-[#00e5ff] border-[#00e5ff]/50"
+                  : "bg-[#161026] text-[#7a7194] border-[#261d38]"
+              }`}
+            >
+              {isSyntaxOn ? <Eye className="w-3 h-3 text-[#00e676]" /> : <EyeOff className="w-3 h-3" />}
+              <span>SYNTAX</span>
+            </button>
+          </DracoTooltip>
 
           {/* Save button if dirty */}
           {currentTab && currentTab.isDirty && (
-            <button
-              onClick={handleSave}
-              title="Save file (Ctrl+S)"
-              className="flex items-center gap-1 text-[10px] bg-[#ff007f]/20 hover:bg-[#ff007f] text-[#ff007f] hover:text-white px-2 py-0.5 border border-[#ff007f] transition-colors"
-            >
-              <Save className="w-3 h-3" />
-              <span>SAVE</span>
-            </button>
+            <DracoTooltip content="Save Active File" shortcut="Ctrl+S" position="bottom" accent="pink">
+              <button
+                onClick={handleSave}
+                className="flex items-center gap-1 text-[10px] bg-[#ff007f]/20 hover:bg-[#ff007f] text-[#ff007f] hover:text-white px-2 py-0.5 border border-[#ff007f] transition-colors"
+              >
+                <Save className="w-3 h-3" />
+                <span>SAVE</span>
+              </button>
+            </DracoTooltip>
           )}
 
           {saveStatus && (
@@ -412,12 +417,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
             {/* VS Code Minimap Sidebar */}
             {isMinimapOn && (
-              <div
-                ref={minimapRef}
-                onClick={handleMinimapClick}
-                title="Code Minimap (Click to Jump)"
-                className="w-16 bg-[#0c0817] border-l border-[#261d38] relative overflow-hidden cursor-pointer select-none p-1 font-mono hidden md:block"
-              >
+              <DracoTooltip content="Minimap Viewport Scrubber" position="left" accent="pink">
+                <div
+                  ref={minimapRef}
+                  onClick={handleMinimapClick}
+                  className="w-16 bg-[#0c0817] border-l border-[#261d38] relative overflow-hidden cursor-pointer select-none p-1 font-mono hidden md:block"
+                >
                 {/* Visible Viewport Box Indicator */}
                 <div
                   style={{
@@ -446,7 +451,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   ))}
                 </div>
               </div>
-            )}
+            </DracoTooltip>
+          )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-[#7a7194] gap-2 select-none">

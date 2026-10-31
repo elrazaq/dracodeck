@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { GitBranch, Radio, Check, Bell, X } from "lucide-react";
+import { DracoTooltip } from "../common/DracoTooltip";
 
 interface BottomBarProps {
   workspace: string;
@@ -25,19 +26,19 @@ export const BottomBar: React.FC<BottomBarProps> = ({
   const [lineEnding, setLineEnding] = useState("LF");
   const [formatStatus, setFormatStatus] = useState<string | null>(null);
 
-  const branches = ["main", "dev", "feature/cyberdeck", "hotfix/conpty"];
+  const branches = ["main", "feature/kali-shell", "fix/pty-streaming", "feat/m3-telemetry"];
 
   const systemLogs = [
-    { time: "17:58:12", source: "ConPTY", msg: "PowerShell bridge listening on IPC" },
-    { time: "17:58:14", source: "Chromium", msg: "DracoBrowser webRequest interceptor active" },
-    { time: "17:58:15", source: "Filesystem", msg: "Universal drives (C:, D:) mapped" },
-    { time: "17:58:20", source: "DracoShell", msg: "Custom command dictionary loaded" },
+    { time: "18:40:12", source: "ConPTY", msg: "PowerShell streaming socket initialized [PID: 1420]" },
+    { time: "18:41:05", source: "DracoNet", msg: "TCP port scan completed (0 active zombie listeners)" },
+    { time: "18:42:30", source: "Telemetry", msg: "Attached to Antigravity session 0e47664f..." },
+    { time: "18:44:19", source: "Workspace", msg: `Root mapped: ${wsName}` },
   ];
 
   const handleTriggerFormat = () => {
     onFormatCode?.();
-    setFormatStatus("FORMATTED");
-    setTimeout(() => setFormatStatus(null), 2500);
+    setFormatStatus("Formatted ✓");
+    setTimeout(() => setFormatStatus(null), 1800);
   };
 
   const handleJumpLine = (e: React.FormEvent) => {
@@ -52,34 +53,37 @@ export const BottomBar: React.FC<BottomBarProps> = ({
         {/* Left items */}
         <div className="flex items-center gap-3">
           {/* Git Branch Selector */}
-          <div
-            onClick={() => setShowBranchMenu(!showBranchMenu)}
-            title="Click to Switch Git Branch"
-            className="flex items-center gap-1 hover:bg-[#e0007b] px-1.5 py-0.5 cursor-pointer transition-colors"
-          >
-            <GitBranch className="w-3 h-3 text-[#0b0813]" />
-            <span>{activeBranch}*</span>
-          </div>
+          <DracoTooltip content="Switch Active Git Branch" shortcut="Ctrl+B" position="top" accent="cyan">
+            <div
+              onClick={() => setShowBranchMenu(!showBranchMenu)}
+              className="flex items-center gap-1 hover:bg-[#e0007b] px-1.5 py-0.5 cursor-pointer transition-colors"
+            >
+              <GitBranch className="w-3 h-3 text-[#0b0813]" />
+              <span>{activeBranch}*</span>
+            </div>
+          </DracoTooltip>
 
           {/* Sync Status Button */}
-          <div
-            onClick={() => alert("Git Sync: Workspace working tree up to date with origin/main.")}
-            title="Git Sync Status"
-            className="flex items-center gap-1 hover:bg-[#e0007b] px-1.5 py-0.5 cursor-pointer transition-colors"
-          >
-            <Check className="w-3 h-3 text-[#0b0813]" />
-            <span>synced</span>
-          </div>
+          <DracoTooltip content="Git Sync: Working tree up to date" position="top" accent="green">
+            <div
+              onClick={() => alert("Git Sync: Workspace working tree up to date with origin/main.")}
+              className="flex items-center gap-1 hover:bg-[#e0007b] px-1.5 py-0.5 cursor-pointer transition-colors"
+            >
+              <Check className="w-3 h-3 text-[#0b0813]" />
+              <span>synced</span>
+            </div>
+          </DracoTooltip>
 
           {/* Notification & System Logs Drawer Trigger */}
-          <div
-            onClick={() => setShowLogsDrawer(true)}
-            title="Open Notification & Diagnostic Logs"
-            className="flex items-center gap-1 hover:bg-[#e0007b] px-1.5 py-0.5 cursor-pointer transition-colors"
-          >
-            <Bell className="w-3 h-3 text-[#0b0813]" />
-            <span>4</span>
-          </div>
+          <DracoTooltip content="Diagnostic Logs & Notifications" shortcut="Alt+N" position="top" accent="pink">
+            <div
+              onClick={() => setShowLogsDrawer(true)}
+              className="flex items-center gap-1 hover:bg-[#e0007b] px-1.5 py-0.5 cursor-pointer transition-colors"
+            >
+              <Bell className="w-3 h-3 text-[#0b0813]" />
+              <span>4</span>
+            </div>
+          </DracoTooltip>
 
           {/* Workspace Tag */}
           <span className="opacity-60 hidden sm:inline">|</span>
@@ -91,31 +95,34 @@ export const BottomBar: React.FC<BottomBarProps> = ({
         {/* Right items */}
         <div className="flex items-center gap-2.5 text-[10px]">
           {/* Line/Col Jumper */}
-          <button
-            onClick={() => setShowLineJump(true)}
-            title="Jump to Line (Ctrl+G)"
-            className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer transition-colors"
-          >
-            Ln 1, Col 1
-          </button>
+          <DracoTooltip content="Go to Line / Column" shortcut="Ctrl+G" position="top" accent="cyan">
+            <button
+              onClick={() => setShowLineJump(true)}
+              className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer transition-colors"
+            >
+              Ln 1, Col 1
+            </button>
+          </DracoTooltip>
 
           {/* Encoding Selector */}
-          <button
-            onClick={() => setEncoding(encoding === "UTF-8" ? "ASCII" : "UTF-8")}
-            title="Toggle File Encoding"
-            className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer transition-colors hidden md:inline"
-          >
-            {encoding}
-          </button>
+          <DracoTooltip content="Toggle File Encoding" position="top" accent="cyan">
+            <button
+              onClick={() => setEncoding(encoding === "UTF-8" ? "ASCII" : "UTF-8")}
+              className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer transition-colors hidden md:inline"
+            >
+              {encoding}
+            </button>
+          </DracoTooltip>
 
           {/* Line Ending Selector */}
-          <button
-            onClick={() => setLineEnding(lineEnding === "LF" ? "CRLF" : "LF")}
-            title="Toggle Line Endings"
-            className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer transition-colors hidden md:inline"
-          >
-            {lineEnding}
-          </button>
+          <DracoTooltip content="Toggle Line Endings" position="top" accent="cyan">
+            <button
+              onClick={() => setLineEnding(lineEnding === "LF" ? "CRLF" : "LF")}
+              className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer transition-colors hidden md:inline"
+            >
+              {lineEnding}
+            </button>
+          </DracoTooltip>
 
           <span className="opacity-60 hidden md:inline">|</span>
 
@@ -123,23 +130,25 @@ export const BottomBar: React.FC<BottomBarProps> = ({
           <span className="hover:bg-[#e0007b] px-1 py-0.5 cursor-pointer">{activeLanguage}</span>
 
           {/* Antigravity AI Telemetry Shortcut */}
-          <button
-            onClick={onOpenTelemetry}
-            title="View Live Antigravity Telemetry"
-            className="flex items-center gap-1 bg-[#0b0813] hover:bg-[#161026] text-[#00e5ff] px-2 py-0.5 transition-colors cursor-pointer"
-          >
-            <Radio className="w-2.5 h-2.5 animate-pulse text-[#00e5ff]" />
-            <span>Antigravity</span>
-          </button>
+          <DracoTooltip content="Open Antigravity Live Telemetry" shortcut="Alt+T" position="top" accent="pink">
+            <button
+              onClick={onOpenTelemetry}
+              className="flex items-center gap-1 bg-[#0b0813] hover:bg-[#161026] text-[#00e5ff] px-2 py-0.5 transition-colors cursor-pointer"
+            >
+              <Radio className="w-2.5 h-2.5 animate-pulse text-[#00e5ff]" />
+              <span>Antigravity</span>
+            </button>
+          </DracoTooltip>
 
           {/* Prettier Auto-Format Trigger Button */}
-          <button
-            onClick={handleTriggerFormat}
-            title="Format Code with Prettier"
-            className="flex items-center gap-1 bg-[#0b0813] hover:bg-[#161026] text-[#00e676] px-2 py-0.5 transition-colors cursor-pointer"
-          >
-            <span>{formatStatus || "Prettier ✓"}</span>
-          </button>
+          <DracoTooltip content="Auto-Format Code with Prettier" shortcut="Shift+Alt+F" position="top" accent="green">
+            <button
+              onClick={handleTriggerFormat}
+              className="flex items-center gap-1 bg-[#0b0813] hover:bg-[#161026] text-[#00e676] px-2 py-0.5 transition-colors cursor-pointer"
+            >
+              <span>{formatStatus || "Prettier ✓"}</span>
+            </button>
+          </DracoTooltip>
         </div>
       </footer>
 

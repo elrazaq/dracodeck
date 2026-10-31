@@ -10,6 +10,8 @@ import { TelemetryPane } from "../telemetry/TelemetryPane";
 import { SlayerPane } from "../slayer/SlayerPane";
 import { DracoBrowser } from "../browser/DracoBrowser";
 import { KaliDesktop } from "../desktop/KaliDesktop";
+import { KaliFileManager } from "../desktop/KaliFileManager";
+import { OffensiveSuiteModal } from "../offensive/OffensiveSuiteModal";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
 import { ActiveView } from "../../types";
 
@@ -21,6 +23,7 @@ export const Shell: React.FC = () => {
   const [activeView, setActiveView] = useState<ActiveView>("explorer");
   const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
   const [activeLang, setActiveLang] = useState<string>("Markdown");
+  const [isOffensiveSuiteOpen, setIsOffensiveSuiteOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -35,43 +38,48 @@ export const Shell: React.FC = () => {
     setScopedWorkspace(null);
   };
 
-  const handleChangeWorkspace = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setWorkspace(null);
-    setScopedWorkspace(null);
+  const handleOpenFile = (filePath: string, fileName: string) => {
+    setActiveFile({ path: filePath, name: fileName });
+    setActiveView("editor");
   };
 
-  // Open Scope Here: isolates Explorer and Editor to this subfolder
-  const handleOpenScope = (folderPath: string, _folderName: string) => {
+  const handleOpenScope = (folderPath: string) => {
     setScopedWorkspace(folderPath);
-    setActiveView("explorer");
+    setActiveView("editor");
   };
 
   const handleExitScope = () => {
     setScopedWorkspace(null);
   };
 
-  // If no workspace initialized, display Kali Initializer screen
-  if (!workspace) {
-    return <WorkspaceWelcome onSelectWorkspace={handleSelectWorkspace} />;
-  }
-
-  const handleOpenFile = (filePath: string, fileName: string) => {
-    setActiveFile({ path: filePath, name: fileName });
-    // Switch view to editor/explorer to show the open code
-    if (activeView === "desktop") {
-      setActiveView("explorer");
+  const handleChangeWorkspace = async () => {
+    if (window.dracoAPI) {
+      const selected = await window.dracoAPI.selectFolder();
+      if (selected) {
+        handleSelectWorkspace(selected);
+      }
     }
   };
 
+  // If a scoped workspace is active, override current view root
   const currentEffectiveWorkspace = scopedWorkspace || workspace;
 
   const renderMainWorkspace = () => {
+    if (!currentEffectiveWorkspace && activeView !== "desktop" && activeView !== "browser") {
+      return (
+        <WorkspaceWelcome
+          onSelectWorkspace={handleSelectWorkspace}
+        />
+      );
+    }
+
+    const defaultWs = currentEffectiveWorkspace || "";
+
     switch (activeView) {
       case "desktop":
         return (
           <KaliDesktop
-            workspacePath={workspace}
+            workspacePath={defaultWs}
             onOpenFile={handleOpenFile}
             onOpenScope={handleOpenScope}
             onSelectView={(v) => setActiveView(v)}
@@ -86,16 +94,28 @@ export const Shell: React.FC = () => {
         );
 
       case "explorer":
+        // Dedicated Full File Manager Workstation (Dolphin / Kali style)
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <KaliFileManager
+              workspacePath={defaultWs}
+              onOpenFile={handleOpenFile}
+              onOpenScope={handleOpenScope}
+            />
+          </div>
+        );
+
       case "editor":
+        // Focused Code Studio Workstation
         return (
           <SplitPane
             direction="horizontal"
-            initialSplit={20}
-            minSize={15}
-            maxSize={40}
+            initialSplit={18}
+            minSize={12}
+            maxSize={35}
             left={
               <ExplorerView
-                workspacePath={currentEffectiveWorkspace}
+                workspacePath={defaultWs}
                 selectedFile={activeFile?.path}
                 onOpenFile={handleOpenFile}
                 onOpenScope={handleOpenScope}
@@ -104,7 +124,7 @@ export const Shell: React.FC = () => {
             right={
               <SplitPane
                 direction="vertical"
-                initialSplit={65}
+                initialSplit={70}
                 minSize={30}
                 maxSize={85}
                 left={
@@ -158,36 +178,17 @@ export const Shell: React.FC = () => {
                   {workspace}
                 </div>
                 {scopedWorkspace && (
-                  <div className="mt-2 bg-[#281b3d] p-2 border border-[#ff007f]/50 text-xs">
-                    <span className="text-[#ff007f] font-bold">Currently Scoped To: </span>
-                    <span className="text-[#e2e8f0]">{scopedWorkspace}</span>
+                  <div className="mt-2 text-[#00e676] text-[10px]">
+                    ● Focused Scope: {scopedWorkspace}
                   </div>
                 )}
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={handleChangeWorkspace}
-                    className="text-xs bg-[#ff007f] hover:bg-[#e0007b] text-white px-3 py-1 font-semibold transition-colors"
-                  >
-                    Switch Root Workspace
-                  </button>
-                  {scopedWorkspace && (
-                    <button
-                      onClick={handleExitScope}
-                      className="text-xs bg-[#261d38] hover:bg-[#281b3d] text-[#00e5ff] px-3 py-1 font-semibold border border-[#00e5ff]/40 transition-colors"
-                    >
-                      Exit Subfolder Scope
-                    </button>
-                  )}
-                </div>
               </div>
-              <div className="pt-2 border-t border-[#261d38]">
-                <p className="text-[10px] text-[#7a7194] uppercase tracking-wider mb-1 font-bold">
-                  Color Theme
-                </p>
-                <p className="text-[#00e676]">
-                  VS Code Cyberpunk Violet (Hot Magenta #ff007f / Deep Obsidian #0b0813)
-                </p>
-              </div>
+              <button
+                onClick={handleChangeWorkspace}
+                className="px-3 py-1.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] text-xs font-semibold"
+              >
+                Change Workspace Folder
+              </button>
             </div>
           </div>
         );
@@ -209,6 +210,7 @@ export const Shell: React.FC = () => {
           activeView={activeView}
           onSelectView={(v) => setActiveView(v)}
           onChangeWorkspace={handleChangeWorkspace}
+          onOpenOffensiveSuite={() => setIsOffensiveSuiteOpen(true)}
         />
 
         {/* Dynamic Center Workstation Canvas */}
@@ -219,12 +221,20 @@ export const Shell: React.FC = () => {
 
       {/* Signature Hot Magenta Bottom Status Bar */}
       <BottomBar
-        workspace={currentEffectiveWorkspace}
+        workspace={currentEffectiveWorkspace || ""}
         activeLanguage={activeLang}
         onFormatCode={() => {
           // Triggers format notification
         }}
         onOpenTelemetry={() => setActiveView("telemetry")}
+      />
+
+      {/* Dracodeck Offensive Suite Modal */}
+      <OffensiveSuiteModal
+        isOpen={isOffensiveSuiteOpen}
+        onClose={() => setIsOffensiveSuiteOpen(false)}
+        onSelectView={(v) => setActiveView(v)}
+        workspacePath={currentEffectiveWorkspace || ""}
       />
     </div>
   );

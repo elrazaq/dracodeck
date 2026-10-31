@@ -1,5 +1,7 @@
 # Milestone 3.1: Terminal Engine Hardening, Dracodeck Offensive Suite & Cyberdeck Hacker Polish (M3.1)
 
+> Status: **COMPLETED** (Commit: cc7e7fd -> main)
+
 Dokumen arsitektur dan spesifikasi teknis untuk penyempurnaan terminal ConPTY, diferensiasi navigasi, sistem tooltip hacker kustom, pembersihan badge header, dan modul interaktif **Dracodeck Offensive Suite**.
 
 ---
@@ -150,3 +152,4 @@ flowchart TD
 4. **Dracodeck Offensive Suite Aktif**: 5 domain (Info Gathering, Vuln Analysis, Web Application, Reverse Eng, Cockpit Core) memiliki antarmuka interaktif dan utilitas yang dapat dijalankan.
 5. **Diferensiasi Explorer vs Editor**: Mengklik File Manager membuka Dolphin/FileManager view penuh, mengklik Code Editor membuka ruang koding terfokus.
 6. **Hacker Tooltips di Seluruh Aplikasi**: Semua tombol dan ikon memiliki tooltip custom bernuansa cyberdeck/hacker gelap dengan border neon, monospace font, dan badge shortcut yang elegan.
+
