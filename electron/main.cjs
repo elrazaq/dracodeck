@@ -8,6 +8,8 @@ const telemetry = require('./telemetry.cjs');
 const vulnScanner = require('./vulnScanner.cjs');
 const portSlayer = require('./portSlayer.cjs');
 const sentinelEngine = require('./sentinelEngine.cjs');
+const gitOps = require('./gitOps.cjs');
+const memoryStore = require('./memoryStore.cjs');
 
 let mainWindow = null;
 let terminalProcess = null;
@@ -232,6 +234,29 @@ ipcMain.handle('terminal-clear-history', () => {
 });
 
 // IPC Handlers - DracoShell CLI & System Telemetry
+let prevCpuTicks = null;
+
+function computeRealCpuLoad() {
+  const cpus = os.cpus();
+  let idle = 0;
+  let total = 0;
+  for (const cpu of cpus) {
+    for (const type of Object.keys(cpu.times)) {
+      total += cpu.times[type];
+    }
+    idle += cpu.times.idle;
+  }
+  if (!prevCpuTicks) {
+    prevCpuTicks = { idle, total };
+    return Math.min(100, Math.max(1, Math.round(((total - idle) / total) * 100)));
+  }
+  const idleDiff = idle - prevCpuTicks.idle;
+  const totalDiff = total - prevCpuTicks.total;
+  prevCpuTicks = { idle, total };
+  if (totalDiff <= 0) return 1;
+  return Math.min(100, Math.max(1, Math.round((1 - idleDiff / totalDiff) * 100)));
+}
+
 ipcMain.handle('get-net-interfaces', () => {
   return os.networkInterfaces();
 });
@@ -241,6 +266,7 @@ ipcMain.handle('get-sys-info', () => {
   return {
     cpus: cpus.length,
     cpuModel: cpus[0]?.model || 'Generic Processor',
+    cpuLoadPct: computeRealCpuLoad(),
     totalMem: os.totalmem(),
     freeMem: os.freemem(),
     uptime: os.uptime(),
@@ -592,6 +618,137 @@ ipcMain.handle('sentinel-test-concurrency', async (event, targetUrl, endpointPat
       latencies: [],
       error: err.message,
     };
+  }
+});
+
+// DracoDeck GitOps & Memory Store IPC Handlers (Milestone M5)
+ipcMain.handle('git-status', async (event, cwd) => {
+  try {
+    return await gitOps.getGitStatus(cwd || activeAppCwd);
+  } catch (err) {
+    return {
+      isRepo: false,
+      branch: 'no-repo',
+      staged: [],
+      unstaged: [],
+      untracked: [],
+      ahead: 0,
+      behind: 0,
+      totalDirty: 0,
+      error: err.message,
+    };
+  }
+});
+
+ipcMain.handle('git-branches', async (event, cwd) => {
+  try {
+    return await gitOps.getGitBranches(cwd || activeAppCwd);
+  } catch (err) {
+    return { current: 'main', local: [], remote: [], error: err.message };
+  }
+});
+
+ipcMain.handle('git-checkout', async (event, cwd, branchName, createNew = false) => {
+  try {
+    return await gitOps.switchBranch(cwd || activeAppCwd, branchName, createNew);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-stage', async (event, cwd, filePath) => {
+  try {
+    return await gitOps.stageFile(cwd || activeAppCwd, filePath);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-unstage', async (event, cwd, filePath) => {
+  try {
+    return await gitOps.unstageFile(cwd || activeAppCwd, filePath);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-discard', async (event, cwd, filePath) => {
+  try {
+    return await gitOps.discardFile(cwd || activeAppCwd, filePath);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-diff', async (event, cwd, filePath, staged = false) => {
+  try {
+    return await gitOps.getFileDiff(cwd || activeAppCwd, filePath, staged);
+  } catch (err) {
+    return { ok: false, diff: '', error: err.message };
+  }
+});
+
+ipcMain.handle('git-sync', async (event, cwd, options) => {
+  try {
+    return await gitOps.commitAndSync(cwd || activeAppCwd, options);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-log', async (event, cwd, limit = 25) => {
+  try {
+    return await gitOps.getGitLog(cwd || activeAppCwd, limit);
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('memory-list-notes', async (event, cwd) => {
+  try {
+    return await memoryStore.listNotes(cwd || activeAppCwd);
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('memory-read-note', async (event, cwd, filename) => {
+  try {
+    return await memoryStore.readNote(cwd || activeAppCwd, filename);
+  } catch (err) {
+    return { ok: false, name: filename, content: '', error: err.message };
+  }
+});
+
+ipcMain.handle('memory-save-note', async (event, cwd, filename, content) => {
+  try {
+    return await memoryStore.saveNote(cwd || activeAppCwd, filename, content);
+  } catch (err) {
+    return { ok: false, name: filename, error: err.message };
+  }
+});
+
+ipcMain.handle('memory-delete-note', async (event, cwd, filename) => {
+  try {
+    return await memoryStore.deleteNote(cwd || activeAppCwd, filename);
+  } catch (err) {
+    return { ok: false, name: filename, error: err.message };
+  }
+});
+
+ipcMain.handle('memory-get-tasks', async (event, cwd) => {
+  try {
+    return await memoryStore.getTasks(cwd || activeAppCwd);
+  } catch {
+    return [];
+  }
+});
+
+ipcMain.handle('memory-save-tasks', async (event, cwd, tasks) => {
+  try {
+    return await memoryStore.saveTasks(cwd || activeAppCwd, tasks);
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 });
 

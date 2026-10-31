@@ -1,4 +1,4 @@
-export type ActiveView = 'desktop' | 'explorer' | 'editor' | 'terminal' | 'telemetry' | 'slayer' | 'browser' | 'settings' | 'offensive';
+export type ActiveView = 'desktop' | 'explorer' | 'editor' | 'terminal' | 'telemetry' | 'slayer' | 'browser' | 'settings' | 'offensive' | 'gitops';
 
 export interface PortInfo {
   port: number;

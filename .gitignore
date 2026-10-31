@@ -27,5 +27,6 @@ dist-ssr
 
 # Internal architecture & specification docs (Local PC only, do not push to public GitHub)
 docs/
+.draco/
 *.md
 !README.md

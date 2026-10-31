@@ -22,6 +22,7 @@ import {
   Activity,
   Search,
   Binary,
+  GitBranch,
 } from "lucide-react";
 import { ActiveView } from "../../types";
 import { DracoTooltip } from "../common/DracoTooltip";
@@ -74,7 +75,7 @@ export const LeftDock: React.FC<LeftDockProps> = ({
           const info = await window.dracoAPI.getSysInfo();
           const usedMemPct = Math.round(((info.totalMem - info.freeMem) / info.totalMem) * 100);
           setSysGauges({
-            cpu: Math.floor(Math.random() * 8) + 8, // ConPTY core load estimate
+            cpu: info.cpuLoadPct ?? 10,
             ram: usedMemPct,
           });
         } catch {}
@@ -147,6 +148,13 @@ export const LeftDock: React.FC<LeftDockProps> = ({
       shortcut: "Alt+P",
       accent: "amber",
       icon: <Zap className="w-4 h-4 text-[#ff8800]" />,
+    },
+    {
+      id: "gitops",
+      label: "DracoOps Git & Memory",
+      shortcut: "Alt+G",
+      accent: "green",
+      icon: <GitBranch className="w-4 h-4 text-[#00e676]" />,
     },
   ];
 

@@ -22,6 +22,7 @@ export interface DriveItem {
 export interface SysInfo {
   cpus: number;
   cpuModel: string;
+  cpuLoadPct?: number;
   totalMem: number;
   freeMem: number;
   uptime: number;
@@ -180,6 +181,61 @@ export interface ConcurrencyRaceResult {
   error?: string;
 }
 
+export interface GitFileStatus {
+  path: string;
+  status: string;
+  code: string;
+}
+
+export interface GitStatusResult {
+  isRepo: boolean;
+  branch: string;
+  staged: GitFileStatus[];
+  unstaged: GitFileStatus[];
+  untracked: GitFileStatus[];
+  ahead: number;
+  behind: number;
+  totalDirty: number;
+  error?: string;
+}
+
+export interface GitBranchesResult {
+  current: string;
+  local: string[];
+  remote: string[];
+  error?: string;
+}
+
+export interface GitCommitLog {
+  hash: string;
+  author: string;
+  date: string;
+  message: string;
+  refs: string[];
+}
+
+export interface DracoNoteItem {
+  name: string;
+  path: string;
+  size: number;
+  mtime: string;
+}
+
+export type KanbanColumn = 'BACKLOG' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+export type KanbanPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type KanbanTag = 'SECURITY' | 'BUG' | 'FEATURE' | 'REFACTOR';
+
+export interface KanbanTask {
+  id: string;
+  title: string;
+  description: string;
+  column: KanbanColumn;
+  priority: KanbanPriority;
+  tag: KanbanTag;
+  createdAt: string;
+  dueDate?: string;
+}
+
 declare global {
   interface Window {
     dracoAPI?: {
@@ -209,6 +265,21 @@ declare global {
       sentinelCrawlShadow: (targetUrl: string) => Promise<ShadowApiScanResult>;
       sentinelTestTiming: (targetUrl: string, endpointPath?: string, testUser?: string) => Promise<TimingDiscrepancyResult>;
       sentinelTestConcurrency: (targetUrl: string, endpointPath?: string) => Promise<ConcurrencyRaceResult>;
+      gitStatus: (cwd?: string) => Promise<GitStatusResult>;
+      gitBranches: (cwd?: string) => Promise<GitBranchesResult>;
+      gitCheckout: (cwd: string, branchName: string, createNew?: boolean) => Promise<{ ok: boolean; branch?: string; output?: string; error?: string | null }>;
+      gitStage: (cwd: string, filePath: string) => Promise<{ ok: boolean; error?: string | null }>;
+      gitUnstage: (cwd: string, filePath: string) => Promise<{ ok: boolean; error?: string | null }>;
+      gitDiscard: (cwd: string, filePath: string) => Promise<{ ok: boolean; error?: string | null }>;
+      gitDiff: (cwd: string, filePath?: string, staged?: boolean) => Promise<{ ok: boolean; diff: string; error?: string }>;
+      gitSync: (cwd: string, options: { message?: string; action: 'commit' | 'commit-push' | 'push' | 'pull' }) => Promise<{ ok: boolean; output?: string; error?: string | null }>;
+      gitLog: (cwd?: string, limit?: number) => Promise<GitCommitLog[]>;
+      memoryListNotes: (cwd?: string) => Promise<DracoNoteItem[]>;
+      memoryReadNote: (cwd: string, filename: string) => Promise<{ ok: boolean; name: string; content: string; path?: string; error?: string }>;
+      memorySaveNote: (cwd: string, filename: string, content: string) => Promise<{ ok: boolean; name: string; path?: string; size?: number; mtime?: string; error?: string }>;
+      memoryDeleteNote: (cwd: string, filename: string) => Promise<{ ok: boolean; name: string; error?: string }>;
+      memoryGetTasks: (cwd?: string) => Promise<KanbanTask[]>;
+      memorySaveTasks: (cwd: string, tasks: KanbanTask[]) => Promise<{ ok: boolean; count?: number; path?: string; error?: string }>;
       getNetInterfaces: () => Promise<Record<string, any[]>>;
       getSysInfo: () => Promise<SysInfo>;
       checkUpdate: () => Promise<UpdateInfo>;

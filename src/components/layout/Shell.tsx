@@ -12,6 +12,7 @@ import { DracoBrowser } from "../browser/DracoBrowser";
 import { KaliDesktop } from "../desktop/KaliDesktop";
 import { KaliFileManager } from "../desktop/KaliFileManager";
 import { OffensiveWorkstation } from "../offensive/OffensiveWorkstation";
+import { GitMemoryWorkstation } from "../gitops/GitMemoryWorkstation";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
 import { ActiveView } from "../../types";
 
@@ -25,12 +26,15 @@ export const Shell: React.FC = () => {
   const [activeLang, setActiveLang] = useState<string>("Markdown");
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
 
-  // Keyboard shortcut Ctrl+` to toggle terminal
+  // Keyboard shortcut Ctrl+` to toggle terminal, Alt+G to open GitOps & Memory
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "`") {
         e.preventDefault();
         setIsTerminalOpen((prev) => !prev);
+      } else if (e.altKey && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        setActiveView("gitops");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -209,6 +213,13 @@ export const Shell: React.FC = () => {
           </div>
         );
 
+      case "gitops":
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <GitMemoryWorkstation workspacePath={defaultWs} />
+          </div>
+        );
+
       case "settings":
         return (
           <div className="h-full w-full bg-[#0b0813] p-6 text-xs font-mono space-y-4">
@@ -274,6 +285,7 @@ export const Shell: React.FC = () => {
           // Triggers format notification
         }}
         onOpenTelemetry={() => setActiveView("telemetry")}
+        onOpenGitOps={() => setActiveView("gitops")}
       />
     </div>
   );
