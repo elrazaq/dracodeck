@@ -71,12 +71,13 @@ Roadmap resmi pengembangan **DRACODECK** (*The Offensive-Grade Developer Cockpit
 
 ## Milestone 3: Antigravity & Multi-Agent Telemetry Hub
 > Dokumen Spesifikasi: [m3-telemetry-engine.md](m3-telemetry-engine.md)
-- Main Process: File watcher non-blocking (`fs.watch`) memantau `transcript.jsonl`.
-- Main Process: Incremental byte-offset tailer streaming event ke renderer.
-- Renderer: Live tool call cards (`run_command`, `edit_file`, dsb.).
-- Renderer: Live diff viewer (visualisasi hijau/merah perubahan kode).
-- Renderer: Cognitive flow accordion (penalaran alur pikir model).
-- Multi-Agent Adapter: Interface untuk GitHub Copilot & OpenAI Codex.
+- Main Process: Auto-discovery folder sesi Antigravity di `%USERPROFILE%\.gemini\antigravity\brain\`.
+- Main Process: Safe non-blocking byte-offset tailer (`transcript.jsonl` & `transcript_full.jsonl`) bebas dari konflik file-lock Windows.
+- Renderer: Live tool call visualizer cards (`run_command` output/elapsed, `edit_file`, dsb.).
+- Renderer: Live Code Diff Inspector interaktif (visualisasi baris merah/hijau patch).
+- Renderer: Cognitive flow accordion (penalaran alur pikir chain-of-thought model).
+- Renderer: Quick filter per tool (`RUN_COMMAND`, `EDIT_FILE`, `ERRORS`) & instant log search.
+- Multi-Agent Adapter: Interface terpadu untuk Antigravity, GitHub Copilot, dan OpenAI Codex.
 
 ---
 
