@@ -2,32 +2,37 @@
 
 @theme {
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --color-void: #0a0e17;
-  --color-slate-surface: #111726;
-  --color-slate-border: #1b253b;
-  --color-slate-hover: #1e293b;
+  --color-void: #0b0813;
+  --color-dock: #120c1f;
+  --color-surface: #161026;
+  --color-border: #261d38;
+  --color-active: #281b3d;
+  --color-magenta: #ff007f;
   --color-kali-cyan: #00e5ff;
   --color-dragon-blue: #2979ff;
+  --color-mint: #00e676;
+  --color-amber: #ff8800;
   --color-attack-red: #ff1744;
-  --color-matrix-green: #00e676;
 }
 
 :root {
   color-scheme: dark;
   font-family: var(--font-mono);
+  background-color: #0b0813;
+  color: #cbd5e1;
 }
 
-/* Kali Cyberdeck Minimal Flat Scrollbar */
+/* Kali Cyberdeck Violet Scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0e17;
+  background: #0b0813;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1b253b;
+  background: #261d38;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #00e5ff;
+  background: #ff007f;
 }

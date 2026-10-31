@@ -2,9 +2,9 @@ import React, { useState, useRef, useCallback } from "react";
 
 interface SplitPaneProps {
   direction?: "horizontal" | "vertical";
-  initialSplit?: number; // percentage (e.g. 50)
-  minSize?: number; // min percentage (e.g. 20)
-  maxSize?: number; // max percentage (e.g. 80)
+  initialSplit?: number; // percentage
+  minSize?: number;
+  maxSize?: number;
   left: React.ReactNode;
   right: React.ReactNode;
 }
@@ -12,8 +12,8 @@ interface SplitPaneProps {
 export const SplitPane: React.FC<SplitPaneProps> = ({
   direction = "horizontal",
   initialSplit = 50,
-  minSize = 20,
-  maxSize = 80,
+  minSize = 15,
+  maxSize = 85,
   left,
   right,
 }) => {
@@ -69,14 +69,14 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
         {left}
       </div>
 
-      {/* Resizer Handle */}
+      {/* Resizer Handle with Cyberpunk Violet styling */}
       <div
         onMouseDown={handleMouseDown}
         className={`${
           isHoriz
-            ? "w-1 cursor-col-resize hover:bg-[#00e5ff] active:bg-[#00e5ff]"
-            : "h-1 cursor-row-resize hover:bg-[#00e5ff] active:bg-[#00e5ff]"
-        } bg-[#1b253b] transition-colors z-20 flex-shrink-0 select-none`}
+            ? "w-1 cursor-col-resize hover:bg-[#ff007f] active:bg-[#ff007f]"
+            : "h-1 cursor-row-resize hover:bg-[#ff007f] active:bg-[#ff007f]"
+        } bg-[#261d38] transition-colors z-20 flex-shrink-0 select-none`}
       />
 
       {/* Pane 2 */}
@@ -89,4 +89,3 @@ export const SplitPane: React.FC<SplitPaneProps> = ({
     </div>
   );
 };
-

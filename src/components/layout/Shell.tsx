@@ -1,23 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { TopBar } from "./TopBar";
-import { ActivityBar } from "./ActivityBar";
+import { LeftDock } from "./LeftDock";
+import { BottomBar } from "./BottomBar";
 import { SplitPane } from "./SplitPane";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { EditorPane } from "../editor/EditorPane";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { TelemetryPane } from "../telemetry/TelemetryPane";
 import { SlayerPane } from "../slayer/SlayerPane";
+import { KaliFileManager } from "../desktop/KaliFileManager";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
-import { ActivePanel } from "../../types";
+import { ActiveView } from "../../types";
 
 const STORAGE_KEY = "dracodex_workspace";
 
 export const Shell: React.FC = () => {
   const [workspace, setWorkspace] = useState<string | null>(null);
-  const [activePanel, setActivePanel] = useState<ActivePanel>("explorer");
+  const [activeView, setActiveView] = useState<ActiveView>("explorer");
   const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
+  const [activeLang, setActiveLang] = useState<string>("Markdown");
 
-  // Load persisted workspace on boot
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -35,98 +36,49 @@ export const Shell: React.FC = () => {
     setWorkspace(null);
   };
 
-  // If no workspace initialized yet, display the Kali Linux Welcome Initializer screen
+  // If no workspace initialized, display Kali Initializer screen
   if (!workspace) {
     return <WorkspaceWelcome onSelectWorkspace={handleSelectWorkspace} />;
   }
 
-  const renderSideDrawer = () => {
-    switch (activePanel) {
-      case "explorer":
-        return (
-          <ExplorerView
-            workspacePath={workspace}
-            selectedFile={activeFile?.path}
-            onOpenFile={(path, name) => setActiveFile({ path, name })}
-          />
-        );
-      case "telemetry":
-        return <TelemetryPane />;
-      case "slayer":
-        return <SlayerPane />;
-      case "terminal":
-        return (
-          <div className="h-full bg-[#0a0e17] p-3 text-xs font-mono text-[#64748b]">
-            <p className="text-[#00e5ff] font-semibold mb-2">CONPTY TERMINAL INFO</p>
-            <p>Active Console: Windows PowerShell</p>
-            <p>Mode: ConPTY Virtual Terminal</p>
-            <p className="mt-4 text-[#94a3b8]">Focusing lower canvas...</p>
-          </div>
-        );
-      case "settings":
-        return (
-          <div className="h-full bg-[#0a0e17] p-4 text-xs font-mono space-y-4">
-            <h3 className="text-[#00e5ff] font-bold text-sm">DRACODEX CONFIGURATION</h3>
-            <div className="space-y-1 text-[#94a3b8]">
-              <p className="text-[#64748b] text-[10px] uppercase">Active Workspace:</p>
-              <p className="bg-[#111726] p-2 border border-[#1b253b] text-[11px] font-mono break-all text-[#e2e8f0]">
-                {workspace}
-              </p>
-              <button
-                onClick={handleChangeWorkspace}
-                className="mt-2 text-xs bg-[#2979ff] hover:bg-[#00e5ff] text-white hover:text-[#0a0e17] px-3 py-1 font-semibold transition-colors"
-              >
-                Change Workspace Folder
-              </button>
-            </div>
-            <div className="space-y-1 text-[#94a3b8] pt-2 border-t border-[#1b253b]">
-              <p className="text-[#64748b] text-[10px] uppercase">Telemetry Path:</p>
-              <p className="bg-[#111726] p-2 border border-[#1b253b] text-[11px] truncate">
-                %USERPROFILE%\.gemini\antigravity\brain
-              </p>
-            </div>
-            <div className="space-y-1 text-[#94a3b8]">
-              <p className="text-[#64748b] text-[10px] uppercase">Active Theme:</p>
-              <p className="bg-[#111726] p-2 border border-[#1b253b] text-[11px] text-[#00e676]">
-                Kali Dark-Slate Cyberdeck (#0a0e17)
-              </p>
-            </div>
-          </div>
-        );
-      default:
-        return null;
+  const handleOpenFile = (filePath: string, fileName: string) => {
+    setActiveFile({ path: filePath, name: fileName });
+    // Switch view to editor/explorer to show the open code
+    if (activeView === "desktop") {
+      setActiveView("explorer");
     }
   };
 
-  return (
-    <div className="h-screen w-screen flex flex-col bg-[#0a0e17] text-[#cbd5e1] font-mono overflow-hidden">
-      {/* Top Status Bar (Kali XFCE Style) */}
-      <TopBar
-        activePanel={activePanel}
-        workspacePath={workspace}
-        onChangeWorkspace={handleChangeWorkspace}
-        onSelectPanel={(panel) => setActivePanel(panel)}
-      />
+  const renderMainWorkspace = () => {
+    switch (activeView) {
+      case "desktop":
+        return (
+          <div className="h-full w-full bg-[#0b0813] p-4 flex flex-col relative overflow-hidden">
+            {/* Kali Desktop Wallpaper Accent */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1f1538] via-[#0b0813] to-[#07050a] opacity-60 pointer-events-none" />
+            <div className="relative z-10 h-full w-full">
+              <KaliFileManager
+                workspacePath={workspace}
+                onOpenFile={handleOpenFile}
+              />
+            </div>
+          </div>
+        );
 
-      {/* Main Body */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Activity Rail */}
-        <ActivityBar
-          activePanel={activePanel}
-          onSelectPanel={(panel) => setActivePanel(panel)}
-        />
-
-        {/* Resizable Side Drawer + Main Cockpit Grid */}
-        <div className="flex-1 overflow-hidden">
+      case "explorer":
+      case "editor":
+        return (
           <SplitPane
             direction="horizontal"
-            initialSplit={22}
+            initialSplit={20}
             minSize={15}
             maxSize={40}
             left={
-              <div className="h-full border-r border-[#1b253b] overflow-hidden">
-                {renderSideDrawer()}
-              </div>
+              <ExplorerView
+                workspacePath={workspace}
+                selectedFile={activeFile?.path}
+                onOpenFile={handleOpenFile}
+              />
             }
             right={
               <SplitPane
@@ -134,13 +86,100 @@ export const Shell: React.FC = () => {
                 initialSplit={65}
                 minSize={30}
                 maxSize={85}
-                left={<EditorPane activeFile={activeFile} />}
+                left={
+                  <EditorPane
+                    activeFile={activeFile}
+                    onLanguageChange={(lang) => setActiveLang(lang)}
+                  />
+                }
                 right={<TerminalPane />}
               />
             }
           />
-        </div>
+        );
+
+      case "terminal":
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <TerminalPane />
+          </div>
+        );
+
+      case "telemetry":
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <TelemetryPane />
+          </div>
+        );
+
+      case "slayer":
+        return (
+          <div className="h-full w-full bg-[#0b0813]">
+            <SlayerPane />
+          </div>
+        );
+
+      case "settings":
+        return (
+          <div className="h-full w-full bg-[#0b0813] p-6 text-xs font-mono space-y-4">
+            <h2 className="text-lg font-bold text-[#e2e8f0] flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#ff007f]" />
+              <span>DRACODECK SYSTEM CONFIGURATION</span>
+            </h2>
+            <div className="max-w-xl space-y-3 bg-[#120c1f] p-4 border border-[#261d38]">
+              <div>
+                <p className="text-[10px] text-[#7a7194] uppercase tracking-wider mb-1 font-bold">
+                  Active Workspace Directory
+                </p>
+                <div className="bg-[#0b0813] p-2 border border-[#261d38] text-[#00e5ff] font-mono break-all text-xs">
+                  {workspace}
+                </div>
+                <button
+                  onClick={handleChangeWorkspace}
+                  className="mt-2 text-xs bg-[#ff007f] hover:bg-[#e0007b] text-white px-3 py-1 font-semibold transition-colors"
+                >
+                  Switch Workspace Folder
+                </button>
+              </div>
+              <div className="pt-2 border-t border-[#261d38]">
+                <p className="text-[10px] text-[#7a7194] uppercase tracking-wider mb-1 font-bold">
+                  Color Theme
+                </p>
+                <p className="text-[#00e676]">
+                  VS Code Cyberpunk Violet (Hot Magenta #ff007f / Deep Obsidian #0b0813)
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="h-screen w-screen flex flex-col bg-[#0b0813] text-[#cbd5e1] font-mono overflow-hidden select-none">
+      {/* Main Body (Left Dock + Workstation Canvas) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Vertical Dock (56px) */}
+        <LeftDock
+          activeView={activeView}
+          onSelectView={(v) => setActiveView(v)}
+          onChangeWorkspace={handleChangeWorkspace}
+        />
+
+        {/* Dynamic Center Workstation Canvas */}
+        <main className="flex-1 overflow-hidden relative">
+          {renderMainWorkspace()}
+        </main>
       </div>
+
+      {/* Signature Hot Magenta Bottom Status Bar */}
+      <BottomBar
+        workspace={workspace}
+        activeLanguage={activeLang}
+      />
     </div>
   );
 };

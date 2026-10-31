@@ -10,14 +10,17 @@ export interface OpenTab {
 
 interface EditorPaneProps {
   activeFile?: { path: string; name: string };
+  onLanguageChange?: (lang: string) => void;
 }
 
-export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
+export const EditorPane: React.FC<EditorPaneProps> = ({
+  activeFile,
+  onLanguageChange,
+}) => {
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string>("");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  // When activeFile prop changes from Explorer, open or switch to it
   useEffect(() => {
     if (!activeFile) return;
 
@@ -27,17 +30,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
       return;
     }
 
-    // Load file content
     const load = async () => {
       let content = "";
       if (window.dracoAPI?.readFile) {
         try {
           content = await window.dracoAPI.readFile(activeFile.path);
         } catch {
-          content = `// Error reading ${activeFile.name}`;
+          content = `// Error loading ${activeFile.name}`;
         }
       } else {
-        content = `// ${activeFile.name}\n// Running in browser preview mode\n\nconsole.log("Dracodex Cockpit");`;
+        content = `# ${activeFile.name}\n\n// Running in preview mode`;
       }
 
       const newTab: OpenTab = {
@@ -53,7 +55,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
     load();
   }, [activeFile]);
 
-  // If no tab opened yet, open default README
+  // Default initial tab
   useEffect(() => {
     if (tabs.length === 0 && !activeFile) {
       const defaultPath = "README.md";
@@ -63,10 +65,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
           try {
             content = await window.dracoAPI.readFile(defaultPath);
           } catch {
-            content = "# DRACODEX\nThe Offensive-Grade Developer Cockpit for Windows";
+            content = "# DRACODECK\nThe Offensive-Grade Developer Cockpit for Windows";
           }
         } else {
-          content = "# DRACODEX\nThe Offensive-Grade Developer Cockpit for Windows";
+          content = "# DRACODECK\nThe Offensive-Grade Developer Cockpit for Windows";
         }
         setTabs([
           {
@@ -83,6 +85,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
   }, [tabs.length, activeFile]);
 
   const currentTab = tabs.find((t) => t.path === activeTabPath);
+
+  // Update active language for BottomBar
+  useEffect(() => {
+    if (currentTab && onLanguageChange) {
+      const ext = currentTab.name.split(".").pop()?.toUpperCase() || "PLAINTEXT";
+      onLanguageChange(ext === "MD" ? "Markdown" : ext);
+    }
+  }, [currentTab, onLanguageChange]);
 
   const handleContentChange = (newContent: string) => {
     setTabs((prev) =>
@@ -121,24 +131,12 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
     }
   };
 
-  // Detect language from extension
-  const getLanguage = (fileName?: string) => {
-    if (!fileName) return "Plain Text";
-    if (fileName.endsWith(".ts") || fileName.endsWith(".tsx")) return "TypeScript";
-    if (fileName.endsWith(".js") || fileName.endsWith(".jsx") || fileName.endsWith(".cjs")) return "JavaScript";
-    if (fileName.endsWith(".json")) return "JSON";
-    if (fileName.endsWith(".md")) return "Markdown";
-    if (fileName.endsWith(".css")) return "CSS";
-    if (fileName.endsWith(".rs")) return "Rust";
-    return "Plain Text";
-  };
-
   const lines = currentTab ? currentTab.content.split("\n") : [];
 
   return (
-    <div className="h-full bg-[#0a0e17] flex flex-col overflow-hidden font-mono text-xs">
+    <div className="h-full bg-[#0b0813] flex flex-col overflow-hidden font-mono text-xs">
       {/* Editor Tab Bar */}
-      <div className="h-8 bg-[#0d131f] border-b border-[#1b253b] flex items-center overflow-x-auto select-none">
+      <div className="h-8 bg-[#120c1f] border-b border-[#261d38] flex items-center overflow-x-auto select-none">
         {tabs.map((tab) => {
           const isActive = tab.path === activeTabPath;
           const isMarkdown = tab.name.endsWith(".md");
@@ -146,24 +144,24 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
             <div
               key={tab.path}
               onClick={() => setActiveTabPath(tab.path)}
-              className={`h-full flex items-center gap-2 px-3 border-r border-[#1b253b] text-xs font-mono cursor-pointer transition-colors max-w-xs truncate ${
+              className={`h-full flex items-center gap-2 px-3 border-r border-[#261d38] text-xs font-mono cursor-pointer transition-colors max-w-xs truncate ${
                 isActive
-                  ? "bg-[#0a0e17] text-[#00e5ff] border-t-2 border-t-[#00e5ff]"
-                  : "bg-[#0d131f] text-[#64748b] hover:bg-[#111726] hover:text-[#cbd5e1]"
+                  ? "bg-[#0b0813] text-[#e2e8f0] border-t-2 border-t-[#ff007f] font-semibold"
+                  : "bg-[#120c1f] text-[#7a7194] hover:bg-[#161026] hover:text-[#cbd5e1]"
               }`}
             >
               {isMarkdown ? (
-                <FileText className="w-3.5 h-3.5 text-[#64748b]" />
+                <FileText className="w-3.5 h-3.5 text-[#ff8800]" />
               ) : (
                 <FileCode className="w-3.5 h-3.5 text-[#00e5ff]" />
               )}
               <span className="truncate">{tab.name}</span>
               {tab.isDirty && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#ff007f] animate-pulse" />
               )}
               <button
                 onClick={(e) => closeTab(e, tab.path)}
-                className="hover:text-[#ff1744] hover:bg-[#1b253b]/40 p-0.5 rounded-none"
+                className="hover:text-[#ff1744] hover:bg-[#261d38] p-0.5 rounded-none"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -171,31 +169,31 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
           );
         })}
 
-        {/* Save indicator & action */}
+        {/* Save button if dirty */}
         {currentTab && currentTab.isDirty && (
           <button
             onClick={handleSave}
             title="Save file (Ctrl+S)"
-            className="ml-auto mr-2 flex items-center gap-1 text-[10px] bg-[#00e5ff]/20 hover:bg-[#00e5ff] text-[#00e5ff] hover:text-[#0a0e17] px-2 py-0.5 border border-[#00e5ff] transition-colors"
+            className="ml-auto mr-2 flex items-center gap-1 text-[10px] bg-[#ff007f]/20 hover:bg-[#ff007f] text-[#ff007f] hover:text-white px-2 py-0.5 border border-[#ff007f] transition-colors"
           >
             <Save className="w-3 h-3" />
             <span>SAVE</span>
           </button>
         )}
         {saveStatus && (
-          <span className="ml-auto mr-3 text-[10px] text-[#00e676] flex items-center gap-1">
+          <span className="ml-auto mr-3 text-[10px] text-[#00e676] flex items-center gap-1 font-semibold">
             <Check className="w-3 h-3" />
             <span>SAVED</span>
           </span>
         )}
       </div>
 
-      {/* Editor Content Canvas (VS Code Style Kali Dark) */}
-      <div className="flex-1 bg-[#0a0e17] flex overflow-hidden">
+      {/* Code Editor Body */}
+      <div className="flex-1 bg-[#0b0813] flex overflow-hidden">
         {currentTab ? (
           <div className="flex-1 flex overflow-hidden">
             {/* Line Numbers Gutter */}
-            <div className="w-12 bg-[#090d14] text-[#334155] select-none text-right pr-2 pt-3 border-r border-[#1b253b] font-mono overflow-hidden">
+            <div className="w-12 bg-[#0e0a19] text-[#443a57] select-none text-right pr-2 pt-3 border-r border-[#261d38] font-mono overflow-hidden">
               {lines.map((_, i) => (
                 <div key={i} className="leading-5 text-[11px]">
                   {i + 1}
@@ -203,7 +201,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
               ))}
             </div>
 
-            {/* Editable Code Canvas */}
+            {/* Editor Canvas */}
             <textarea
               value={currentTab.content}
               onChange={(e) => handleContentChange(e.target.value)}
@@ -214,30 +212,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFile }) => {
                 }
               }}
               spellCheck={false}
-              className="flex-1 bg-[#0a0e17] text-[#cbd5e1] p-3 pl-3 font-mono text-[11px] leading-5 resize-none outline-none overflow-auto border-none selection:bg-[#1b253b] selection:text-[#00e5ff]"
+              className="flex-1 bg-[#0b0813] text-[#cbd5e1] p-3 pl-3 font-mono text-[11px] leading-5 resize-none outline-none overflow-auto border-none selection:bg-[#281b3d] selection:text-[#ff007f]"
             />
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-[#64748b] gap-2 select-none">
-            <FileCode className="w-8 h-8 text-[#1b253b]" />
-            <p>No file selected. Choose a file from the explorer.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-[#7a7194] gap-2 select-none">
+            <FileCode className="w-8 h-8 text-[#261d38]" />
+            <p>No file open. Select a file from the explorer to inspect.</p>
           </div>
         )}
-      </div>
-
-      {/* Editor Footer Status Bar (VS Code Style) */}
-      <div className="h-6 bg-[#0d131f] border-t border-[#1b253b] px-3 flex items-center justify-between text-[10px] text-[#64748b] font-mono select-none">
-        <div className="flex items-center gap-3">
-          <span>Ln {lines.length}, Col 1</span>
-          <span>Spaces: 2</span>
-          <span>UTF-8</span>
-          <span>LF</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[#00e5ff]">{getLanguage(currentTab?.name)}</span>
-          <span className="text-[#1b253b]">|</span>
-          <span className="text-[#00e676]">KALI DARK SYNTAX</span>
-        </div>
       </div>
     </div>
   );
