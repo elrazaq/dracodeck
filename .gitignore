@@ -24,3 +24,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Internal architecture & specification docs (Local PC only, do not push to public GitHub)
+docs/
+*.md
+!README.md

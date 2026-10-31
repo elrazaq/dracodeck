@@ -20,6 +20,12 @@
   font-family: var(--font-mono);
   background-color: #0b0813;
   color: #cbd5e1;
+  /* Custom macOS Cyberdeck Neon Cursor */
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 3.5L18.5 13.5L11.5 14.5L8.5 20.5L6.5 19.5L9.5 13.5L4.5 12.5L4.5 3.5Z' fill='%230b0813' stroke='%2300e5ff' stroke-width='1.5' stroke-linejoin='round' filter='drop-shadow(0 0 2px %2300e5ff)'/%3E%3C/svg%3E") 4 3, auto;
+}
+
+button, a, [role="button"], select, .cursor-pointer {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M4.5 3.5L18.5 13.5L11.5 14.5L8.5 20.5L6.5 19.5L9.5 13.5L4.5 12.5L4.5 3.5Z' fill='%230b0813' stroke='%23ff007f' stroke-width='1.5' stroke-linejoin='round' filter='drop-shadow(0 0 2px %23ff007f)'/%3E%3C/svg%3E") 4 3, pointer !important;
 }
 
 /* Kali Cyberdeck Violet Scrollbar */

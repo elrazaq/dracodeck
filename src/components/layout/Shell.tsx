@@ -24,6 +24,19 @@ export const Shell: React.FC = () => {
   const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
   const [activeLang, setActiveLang] = useState<string>("Markdown");
   const [isOffensiveSuiteOpen, setIsOffensiveSuiteOpen] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+
+  // Keyboard shortcut Ctrl+` to toggle terminal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "`") {
+        e.preventDefault();
+        setIsTerminalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -122,21 +135,34 @@ export const Shell: React.FC = () => {
               />
             }
             right={
-              <SplitPane
-                direction="vertical"
-                initialSplit={70}
-                minSize={30}
-                maxSize={85}
-                left={
-                  <EditorPane
-                    activeFile={activeFile}
-                    onLanguageChange={(lang) => setActiveLang(lang)}
-                    scopedWorkspace={scopedWorkspace}
-                    onExitScope={handleExitScope}
-                  />
-                }
-                right={<TerminalPane />}
-              />
+              isTerminalOpen ? (
+                <SplitPane
+                  direction="vertical"
+                  initialSplit={70}
+                  minSize={30}
+                  maxSize={85}
+                  left={
+                    <EditorPane
+                      activeFile={activeFile}
+                      onLanguageChange={(lang) => setActiveLang(lang)}
+                      scopedWorkspace={scopedWorkspace}
+                      onExitScope={handleExitScope}
+                      isTerminalOpen={isTerminalOpen}
+                      onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
+                    />
+                  }
+                  right={<TerminalPane />}
+                />
+              ) : (
+                <EditorPane
+                  activeFile={activeFile}
+                  onLanguageChange={(lang) => setActiveLang(lang)}
+                  scopedWorkspace={scopedWorkspace}
+                  onExitScope={handleExitScope}
+                  isTerminalOpen={isTerminalOpen}
+                  onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
+                />
+              )
             }
           />
         );

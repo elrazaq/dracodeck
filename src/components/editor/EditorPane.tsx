@@ -1,5 +1,24 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { X, FileCode, Save, Check, FileText, CornerDownLeft, Eye, EyeOff, Layout, Wand2 } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  X,
+  FileCode,
+  Save,
+  Check,
+  FileText,
+  CornerDownLeft,
+  Eye,
+  EyeOff,
+  Layout,
+  Wand2,
+  Terminal,
+  Search,
+  Replace,
+  ChevronUp,
+  ChevronDown,
+  Copy,
+  Scissors,
+  ClipboardPaste,
+} from "lucide-react";
 import { highlightCode, Token } from "./syntaxHighlighter";
 import { formatCode } from "./codeFormatter";
 import { DracoTooltip } from "../common/DracoTooltip";
@@ -16,6 +35,8 @@ interface EditorPaneProps {
   onLanguageChange?: (lang: string) => void;
   scopedWorkspace?: string | null;
   onExitScope?: () => void;
+  isTerminalOpen?: boolean;
+  onToggleTerminal?: () => void;
 }
 
 export const EditorPane: React.FC<EditorPaneProps> = ({
@@ -23,6 +44,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   onLanguageChange,
   scopedWorkspace,
   onExitScope,
+  isTerminalOpen = true,
+  onToggleTerminal,
 }) => {
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string>("");
@@ -34,10 +57,26 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     height: 0.2,
   });
 
+  // Find & Replace State
+  const [isFindOpen, setIsFindOpen] = useState(false);
+  const [isReplaceMode, setIsReplaceMode] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [replaceQuery, setReplaceQuery] = useState("");
+  const [matchCase, setMatchCase] = useState(false);
+  const [useRegex, setUseRegex] = useState(false);
+  const [currentMatchIdx, setCurrentMatchIdx] = useState(0);
+
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  // Minimap Dragging State
+  const isDraggingMinimap = useRef(false);
+
   const gutterRef = useRef<HTMLDivElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const minimapRef = useRef<HTMLDivElement>(null);
+  const findInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!activeFile) return;
@@ -185,13 +224,199 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   };
 
-  const handleMinimapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!textareaRef.current || !minimapRef.current) return;
-    const rect = minimapRef.current.getBoundingClientRect();
-    const clickY = e.clientY - rect.top;
-    const ratio = Math.max(0, Math.min(1, clickY / rect.height));
-    const targetScroll = ratio * textareaRef.current.scrollHeight - textareaRef.current.clientHeight / 2;
-    textareaRef.current.scrollTop = Math.max(0, targetScroll);
+  // Minimap Dragging & Smooth Scrolling Handlers
+  const scrollToMinimapY = useCallback(
+    (clientY: number, smooth: boolean = false) => {
+      if (!textareaRef.current || !minimapRef.current) return;
+      const rect = minimapRef.current.getBoundingClientRect();
+      const clickY = clientY - rect.top;
+      const ratio = Math.max(0, Math.min(1, clickY / rect.height));
+      const maxScroll = textareaRef.current.scrollHeight - textareaRef.current.clientHeight;
+      const targetScroll = ratio * maxScroll;
+
+      if (smooth) {
+        textareaRef.current.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
+      } else {
+        textareaRef.current.scrollTop = Math.max(0, targetScroll);
+      }
+    },
+    []
+  );
+
+  const handleMinimapMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    isDraggingMinimap.current = true;
+    scrollToMinimapY(e.clientY, true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingMinimap.current) return;
+      scrollToMinimapY(moveEvent.clientY, false);
+    };
+
+    const onMouseUp = () => {
+      isDraggingMinimap.current = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  // Find & Replace Logic
+  const matches = useMemo(() => {
+    if (!findQuery || !currentTab) return [];
+    const text = currentTab.content;
+    const results: { start: number; end: number }[] = [];
+
+    try {
+      if (useRegex) {
+        const flags = matchCase ? "g" : "gi";
+        const re = new RegExp(findQuery, flags);
+        let match;
+        while ((match = re.exec(text)) !== null) {
+          results.push({ start: match.index, end: match.index + match[0].length });
+          if (!re.global) break;
+        }
+      } else {
+        const query = matchCase ? findQuery : findQuery.toLowerCase();
+        const src = matchCase ? text : text.toLowerCase();
+        let idx = 0;
+        while ((idx = src.indexOf(query, idx)) !== -1) {
+          results.push({ start: idx, end: idx + query.length });
+          idx += query.length;
+        }
+      }
+    } catch {
+      // Invalid regex, ignore safely
+    }
+
+    return results;
+  }, [findQuery, currentTab?.content, matchCase, useRegex]);
+
+  const scrollToMatch = (idx: number) => {
+    if (!textareaRef.current || matches.length === 0) return;
+    const boundedIdx = (idx + matches.length) % matches.length;
+    setCurrentMatchIdx(boundedIdx);
+    const m = matches[boundedIdx];
+
+    textareaRef.current.focus();
+    textareaRef.current.setSelectionRange(m.start, m.end);
+
+    // Calculate approx line scroll
+    const textBefore = currentTab?.content.substring(0, m.start) || "";
+    const lineIndex = textBefore.split("\n").length - 1;
+    const approxLineHeight = 20;
+    const targetScroll = Math.max(0, lineIndex * approxLineHeight - textareaRef.current.clientHeight / 2);
+    textareaRef.current.scrollTo({ top: targetScroll, behavior: "smooth" });
+  };
+
+  const handleNextMatch = () => scrollToMatch(currentMatchIdx + 1);
+  const handlePrevMatch = () => scrollToMatch(currentMatchIdx - 1);
+
+  const handleReplaceCurrent = () => {
+    if (!currentTab || matches.length === 0) return;
+    const m = matches[currentMatchIdx];
+    const before = currentTab.content.substring(0, m.start);
+    const after = currentTab.content.substring(m.end);
+    const updated = before + replaceQuery + after;
+    handleContentChange(updated);
+  };
+
+  const handleReplaceAll = () => {
+    if (!currentTab || matches.length === 0) return;
+    let updated = "";
+    if (useRegex) {
+      try {
+        const flags = matchCase ? "g" : "gi";
+        const re = new RegExp(findQuery, flags);
+        updated = currentTab.content.replace(re, replaceQuery);
+      } catch {
+        return;
+      }
+    } else {
+      if (matchCase) {
+        updated = currentTab.content.split(findQuery).join(replaceQuery);
+      } else {
+        const re = new RegExp(findQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+        updated = currentTab.content.replace(re, replaceQuery);
+      }
+    }
+    handleContentChange(updated);
+  };
+
+  // Global Keyboard Shortcuts (Ctrl+F, Ctrl+H, Ctrl+S, Ctrl+`)
+  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+      e.preventDefault();
+      setIsFindOpen(true);
+      setIsReplaceMode(false);
+      setTimeout(() => findInputRef.current?.focus(), 50);
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "h") {
+      e.preventDefault();
+      setIsFindOpen(true);
+      setIsReplaceMode(true);
+      setTimeout(() => findInputRef.current?.focus(), 50);
+    } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      handleSave();
+    } else if ((e.ctrlKey || e.metaKey) && e.key === "`") {
+      e.preventDefault();
+      onToggleTerminal?.();
+    }
+  };
+
+  // Context Menu Handlers
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleCut = () => {
+    if (!textareaRef.current) return;
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    const selected = textareaRef.current.value.substring(start, end);
+    if (selected) {
+      navigator.clipboard.writeText(selected);
+      const updated =
+        textareaRef.current.value.substring(0, start) + textareaRef.current.value.substring(end);
+      handleContentChange(updated);
+    }
+    setContextMenu(null);
+  };
+
+  const handleCopy = () => {
+    if (!textareaRef.current) return;
+    const selected = textareaRef.current.value.substring(
+      textareaRef.current.selectionStart,
+      textareaRef.current.selectionEnd
+    );
+    if (selected) {
+      navigator.clipboard.writeText(selected);
+    }
+    setContextMenu(null);
+  };
+
+  const handlePaste = async () => {
+    if (!textareaRef.current) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      const start = textareaRef.current.selectionStart;
+      const end = textareaRef.current.selectionEnd;
+      const updated =
+        textareaRef.current.value.substring(0, start) + text + textareaRef.current.value.substring(end);
+      handleContentChange(updated);
+    } catch {
+      // Ignore
+    }
+    setContextMenu(null);
+  };
+
+  const handleSelectAll = () => {
+    if (!textareaRef.current) return;
+    textareaRef.current.select();
+    setContextMenu(null);
   };
 
   const renderToken = (tok: Token, idx: number) => {
@@ -242,7 +467,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     : null;
 
   return (
-    <div className="h-full bg-[#0b0813] flex flex-col overflow-hidden font-mono text-xs">
+    <div
+      onClick={() => setContextMenu(null)}
+      className="h-full bg-[#0b0813] flex flex-col overflow-hidden font-mono text-xs relative select-none"
+    >
       {/* Subfolder Scoping Banner (When scoped) */}
       {scopedWorkspace && (
         <div className="h-6 bg-[#281b3d] border-b border-[#ff007f]/50 px-3 flex items-center justify-between text-[11px] select-none text-[#00e5ff]">
@@ -256,7 +484,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           {onExitScope && (
             <button
               onClick={onExitScope}
-              className="flex items-center gap-1 text-[10px] bg-[#ff007f] hover:bg-[#e0007b] text-white px-2 py-0.5 font-bold transition-colors"
+              className="flex items-center gap-1 text-[10px] bg-[#ff007f] hover:bg-[#e0007b] text-white px-2 py-0.5 font-bold transition-colors cursor-pointer"
             >
               <CornerDownLeft className="w-3 h-3" />
               <span>EXIT SCOPE</span>
@@ -291,7 +519,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               )}
               <button
                 onClick={(e) => closeTab(e, tab.path)}
-                className="hover:text-[#ff1744] hover:bg-[#261d38] p-0.5"
+                className="hover:text-[#ff1744] hover:bg-[#261d38] p-0.5 cursor-pointer"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -299,52 +527,87 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           );
         })}
 
-        {/* Minimap & Syntax Toggles */}
+        {/* Toolbar Toggles: Format, Minimap, Syntax, Terminal, Save */}
         <div className="ml-auto mr-2 flex items-center gap-2">
+          <DracoTooltip content="Find & Replace" shortcut="Ctrl+H" position="bottom" accent="cyan">
+            <button
+              onClick={() => {
+                setIsFindOpen(!isFindOpen);
+                setIsReplaceMode(true);
+              }}
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border-[#261d38] hover:border-[#00e5ff]/50 transition-colors cursor-pointer"
+            >
+              <Search className="w-3 h-3 text-[#00e5ff]" />
+              <span className="hidden sm:inline">FIND</span>
+            </button>
+          </DracoTooltip>
+
           <DracoTooltip content="Auto-Format Code" shortcut="Shift+Alt+F" position="bottom" accent="green">
             <button
               onClick={handleFormat}
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border-[#261d38] hover:border-[#00e676]/50 transition-colors"
+              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border-[#261d38] hover:border-[#00e676]/50 transition-colors cursor-pointer"
             >
               <Wand2 className="w-3 h-3 text-[#00e676]" />
-              <span>FORMAT</span>
+              <span className="hidden sm:inline">FORMAT</span>
             </button>
           </DracoTooltip>
 
           <DracoTooltip content={isMinimapOn ? "Hide Code Minimap" : "Show Code Minimap"} position="bottom" accent="pink">
             <button
               onClick={() => setIsMinimapOn(!isMinimapOn)}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors cursor-pointer ${
                 isMinimapOn
                   ? "bg-[#281b3d] text-[#ff007f] border-[#ff007f]/50"
                   : "bg-[#161026] text-[#7a7194] border-[#261d38]"
               }`}
             >
               <Layout className="w-3 h-3 text-[#ff007f]" />
-              <span>MINIMAP</span>
+              <span className="hidden sm:inline">MINIMAP</span>
             </button>
           </DracoTooltip>
 
           <DracoTooltip content={isSyntaxOn ? "Disable Syntax Colors" : "Enable Syntax Colors"} position="bottom" accent="cyan">
             <button
               onClick={() => setIsSyntaxOn(!isSyntaxOn)}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
+              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors cursor-pointer ${
                 isSyntaxOn
                   ? "bg-[#281b3d] text-[#00e5ff] border-[#00e5ff]/50"
                   : "bg-[#161026] text-[#7a7194] border-[#261d38]"
               }`}
             >
               {isSyntaxOn ? <Eye className="w-3 h-3 text-[#00e676]" /> : <EyeOff className="w-3 h-3" />}
-              <span>SYNTAX</span>
+              <span className="hidden sm:inline">SYNTAX</span>
             </button>
           </DracoTooltip>
+
+          {/* Integrated Terminal Toggle Button */}
+          {onToggleTerminal && (
+            <DracoTooltip
+              content={isTerminalOpen ? "Collapse Integrated Terminal (Expand Editor to 100%)" : "Open Integrated Terminal"}
+              shortcut="Ctrl+`"
+              position="bottom"
+              accent="amber"
+            >
+              <button
+                onClick={onToggleTerminal}
+                className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors cursor-pointer ${
+                  isTerminalOpen
+                    ? "bg-[#281b3d] text-[#ff8800] border-[#ff8800]/50"
+                    : "bg-[#161026] text-[#7a7194] border-[#261d38] hover:text-[#e2e8f0]"
+                }`}
+              >
+                <Terminal className="w-3 h-3 text-[#ff8800]" />
+                <span>{isTerminalOpen ? "TERM ⏷" : "TERM ⏶"}</span>
+              </button>
+            </DracoTooltip>
+          )}
 
           {/* Save button if dirty */}
           {currentTab && currentTab.isDirty && (
             <DracoTooltip content="Save Active File" shortcut="Ctrl+S" position="bottom" accent="pink">
               <button
                 onClick={handleSave}
-                className="flex items-center gap-1 text-[10px] bg-[#ff007f]/20 hover:bg-[#ff007f] text-[#ff007f] hover:text-white px-2 py-0.5 border border-[#ff007f] transition-colors"
+                className="flex items-center gap-1 text-[10px] bg-[#ff007f]/20 hover:bg-[#ff007f] text-[#ff007f] hover:text-white px-2 py-0.5 border border-[#ff007f] transition-colors cursor-pointer"
               >
                 <Save className="w-3 h-3" />
                 <span>SAVE</span>
@@ -360,6 +623,116 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           )}
         </div>
       </div>
+
+      {/* Floating Cyberdeck Find & Replace Bar */}
+      {isFindOpen && (
+        <div className="absolute top-10 right-4 z-40 bg-[#120c1f] border border-[#ff007f]/50 shadow-[0_10px_30px_rgba(0,0,0,0.9)] p-2.5 rounded-xs flex flex-col gap-2 w-80 text-xs backdrop-blur-md">
+          {/* Find Row */}
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 bg-[#0b0813] border border-[#261d38] focus-within:border-[#00e5ff] px-2 py-1 flex items-center gap-1">
+              <Search className="w-3 h-3 text-[#00e5ff]" />
+              <input
+                ref={findInputRef}
+                type="text"
+                value={findQuery}
+                onChange={(e) => setFindQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.shiftKey ? handlePrevMatch() : handleNextMatch();
+                  } else if (e.key === "Escape") {
+                    setIsFindOpen(false);
+                  }
+                }}
+                placeholder="Find in file..."
+                className="w-full bg-transparent text-[#e2e8f0] outline-none text-[11px] font-mono"
+              />
+            </div>
+
+            {/* Case Sensitive & Regex Toggles */}
+            <button
+              onClick={() => setMatchCase(!matchCase)}
+              className={`px-1.5 py-0.5 border text-[10px] font-bold cursor-pointer transition-colors ${
+                matchCase ? "bg-[#ff007f]/20 text-[#ff007f] border-[#ff007f]" : "bg-[#161026] text-[#7a7194] border-[#261d38]"
+              }`}
+              title="Match Case"
+            >
+              Aa
+            </button>
+            <button
+              onClick={() => setUseRegex(!useRegex)}
+              className={`px-1.5 py-0.5 border text-[10px] font-bold cursor-pointer transition-colors ${
+                useRegex ? "bg-[#00e5ff]/20 text-[#00e5ff] border-[#00e5ff]" : "bg-[#161026] text-[#7a7194] border-[#261d38]"
+              }`}
+              title="Use Regular Expression"
+            >
+              .*
+            </button>
+
+            {/* Match Counter & Prev/Next */}
+            <span className="text-[10px] text-[#7a7194] min-w-[50px] text-center">
+              {matches.length > 0 ? `${currentMatchIdx + 1} of ${matches.length}` : findQuery ? "0 results" : ""}
+            </span>
+
+            <button
+              onClick={handlePrevMatch}
+              disabled={matches.length === 0}
+              className="p-1 hover:bg-[#281b3d] text-[#cbd5e1] disabled:opacity-30 cursor-pointer"
+              title="Previous Match (Shift+Enter)"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleNextMatch}
+              disabled={matches.length === 0}
+              className="p-1 hover:bg-[#281b3d] text-[#cbd5e1] disabled:opacity-30 cursor-pointer"
+              title="Next Match (Enter)"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setIsFindOpen(false)}
+              className="p-1 hover:bg-[#281b3d] text-[#ff1744] cursor-pointer"
+              title="Close (Esc)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Replace Row */}
+          {isReplaceMode && (
+            <div className="flex items-center gap-1.5">
+              <div className="flex-1 bg-[#0b0813] border border-[#261d38] focus-within:border-[#ff007f] px-2 py-1 flex items-center gap-1">
+                <Replace className="w-3 h-3 text-[#ff007f]" />
+                <input
+                  type="text"
+                  value={replaceQuery}
+                  onChange={(e) => setReplaceQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleReplaceCurrent();
+                  }}
+                  placeholder="Replace with..."
+                  className="w-full bg-transparent text-[#e2e8f0] outline-none text-[11px] font-mono"
+                />
+              </div>
+
+              <button
+                onClick={handleReplaceCurrent}
+                disabled={matches.length === 0}
+                className="px-2 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border border-[#261d38] text-[10px] font-bold disabled:opacity-30 cursor-pointer"
+              >
+                Replace
+              </button>
+              <button
+                onClick={handleReplaceAll}
+                disabled={matches.length === 0}
+                className="px-2 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#ff007f] border border-[#261d38] text-[10px] font-bold disabled:opacity-30 cursor-pointer"
+              >
+                All
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Code Editor Body */}
       <div className="flex-1 bg-[#0b0813] flex overflow-hidden">
@@ -378,7 +751,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             </div>
 
             {/* Synchronized Editor Canvas */}
-            <div className="flex-1 relative overflow-hidden bg-[#0b0813]">
+            <div
+              onContextMenu={handleContextMenu}
+              className="flex-1 relative overflow-hidden bg-[#0b0813]"
+            >
               {/* Syntax Highlighted Underlay */}
               {isSyntaxOn && (
                 <pre
@@ -400,12 +776,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 value={currentTab.content}
                 onChange={(e) => handleContentChange(e.target.value)}
                 onScroll={handleScroll}
-                onKeyDown={(e) => {
-                  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-                    e.preventDefault();
-                    handleSave();
-                  }
-                }}
+                onKeyDown={handleEditorKeyDown}
                 spellCheck={false}
                 className={`absolute inset-0 p-3 pt-3 font-mono text-[11px] leading-5 resize-none outline-none overflow-auto border-none whitespace-pre selection:bg-[#ff007f]/35 selection:text-white ${
                   isSyntaxOn
@@ -415,44 +786,44 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               />
             </div>
 
-            {/* VS Code Minimap Sidebar */}
+            {/* Interactive VS Code Style Minimap with Drag & Smooth Scroll */}
             {isMinimapOn && (
-              <DracoTooltip content="Minimap Viewport Scrubber" position="left" accent="pink">
+              <DracoTooltip content="Minimap Viewport Scrubber (Drag or Click to Scroll)" position="left" accent="pink">
                 <div
                   ref={minimapRef}
-                  onClick={handleMinimapClick}
-                  className="w-16 bg-[#0c0817] border-l border-[#261d38] relative overflow-hidden cursor-pointer select-none p-1 font-mono hidden md:block"
+                  onMouseDown={handleMinimapMouseDown}
+                  className="w-16 bg-[#0c0817] border-l border-[#261d38] relative overflow-hidden cursor-pointer select-none p-1 font-mono hidden md:block hover:bg-[#120c1f] transition-colors"
                 >
-                {/* Visible Viewport Box Indicator */}
-                <div
-                  style={{
-                    top: `${viewportRatio.top * 100}%`,
-                    height: `${Math.max(10, viewportRatio.height * 100)}%`,
-                  }}
-                  className="absolute left-0 right-0 bg-[#ff007f]/15 border-y border-[#ff007f]/40 pointer-events-none transition-all duration-75"
-                />
+                  {/* Viewport Scrubber Slider Box */}
+                  <div
+                    style={{
+                      top: `${viewportRatio.top * 100}%`,
+                      height: `${Math.max(10, viewportRatio.height * 100)}%`,
+                    }}
+                    className="absolute left-0 right-0 bg-[#00e5ff]/15 border-y-2 border-[#00e5ff]/70 shadow-[0_0_10px_rgba(0,229,255,0.3)] pointer-events-none transition-all duration-75"
+                  />
 
-                {/* Micro Code Representation */}
-                <div className="space-y-[1px] opacity-40 leading-none">
-                  {lines.slice(0, 80).map((l, i) => (
-                    <div
-                      key={i}
-                      style={{ width: `${Math.min(100, Math.max(15, l.length * 2))}%` }}
-                      className={`h-[2px] rounded-xs ${
-                        l.trim().startsWith("//") || l.trim().startsWith("#")
-                          ? "bg-[#64748b]"
-                          : l.includes("function") || l.includes("const")
-                          ? "bg-[#00e5ff]"
-                          : l.includes("import") || l.includes("export")
-                          ? "bg-[#00e676]"
-                          : "bg-[#7a7194]"
-                      }`}
-                    />
-                  ))}
+                  {/* Micro Code Representation */}
+                  <div className="space-y-[1px] opacity-40 leading-none">
+                    {lines.slice(0, 100).map((l, i) => (
+                      <div
+                        key={i}
+                        style={{ width: `${Math.min(100, Math.max(15, l.length * 2))}%` }}
+                        className={`h-[2px] rounded-xs ${
+                          l.trim().startsWith("//") || l.trim().startsWith("#")
+                            ? "bg-[#64748b]"
+                            : l.includes("function") || l.includes("const")
+                            ? "bg-[#00e5ff]"
+                            : l.includes("import") || l.includes("export")
+                            ? "bg-[#00e676]"
+                            : "bg-[#7a7194]"
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </DracoTooltip>
-          )}
+              </DracoTooltip>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-[#7a7194] gap-2 select-none">
@@ -461,6 +832,110 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           </div>
         )}
       </div>
+
+      {/* Cyberdeck Right-Click Context Menu */}
+      {contextMenu && (
+        <div
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 w-56 bg-[#120c1f] border border-[#ff007f]/50 shadow-[0_15px_45px_rgba(0,0,0,0.9)] py-1.5 text-xs font-mono select-none"
+        >
+          <div
+            onClick={handleCut}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#ff007f] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Scissors className="w-3.5 h-3.5 text-[#ff007f]" />
+              <span>Cut</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+X</span>
+          </div>
+          <div
+            onClick={handleCopy}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#00e5ff] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Copy className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Copy</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+C</span>
+          </div>
+          <div
+            onClick={handlePaste}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#00e676] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <ClipboardPaste className="w-3.5 h-3.5 text-[#00e676]" />
+              <span>Paste</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+V</span>
+          </div>
+          <div
+            onClick={handleSelectAll}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-white cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span>Select All</span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+A</span>
+          </div>
+
+          <div className="my-1 border-t border-[#261d38]" />
+
+          <div
+            onClick={() => {
+              setIsFindOpen(true);
+              setIsReplaceMode(true);
+              setContextMenu(null);
+            }}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#00e5ff] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Search className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Find & Replace...</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+H</span>
+          </div>
+          <div
+            onClick={() => {
+              handleFormat();
+              setContextMenu(null);
+            }}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#00e676] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Wand2 className="w-3.5 h-3.5 text-[#00e676]" />
+              <span>Format Document</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Shift+Alt+F</span>
+          </div>
+          <div
+            onClick={() => {
+              setIsMinimapOn(!isMinimapOn);
+              setContextMenu(null);
+            }}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#ff007f] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Layout className="w-3.5 h-3.5 text-[#ff007f]" />
+              <span>Toggle Minimap</span>
+            </span>
+          </div>
+          {onToggleTerminal && (
+            <div
+              onClick={() => {
+                onToggleTerminal();
+                setContextMenu(null);
+              }}
+              className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#ff8800] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+            >
+              <span className="flex items-center gap-2">
+                <Terminal className="w-3.5 h-3.5 text-[#ff8800]" />
+                <span>Toggle Terminal</span>
+              </span>
+              <span className="text-[10px] text-[#7a7194]">Ctrl+`</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

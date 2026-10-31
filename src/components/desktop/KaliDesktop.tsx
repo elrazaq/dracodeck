@@ -16,6 +16,7 @@ import {
   Image as ImageIcon,
   Palette,
   Check,
+  Maximize2,
 } from "lucide-react";
 import { ActiveView } from "../../types";
 
@@ -35,6 +36,7 @@ interface WindowState {
   height: number;
   isOpen: boolean;
   isMaximized: boolean;
+  isMinimized: boolean;
 }
 
 export const KaliDesktop: React.FC<KaliDesktopProps> = ({
@@ -50,7 +52,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
   const [showWallpaperMenu, setShowWallpaperMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
-  // Floating Windows States (macOS style)
+  // Floating Windows States (macOS style with Minimize & Dock animations)
   const [fileWin, setFileWin] = useState<WindowState>({
     x: 100,
     y: 40,
@@ -58,6 +60,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     height: 540,
     isOpen: true,
     isMaximized: false,
+    isMinimized: false,
   });
 
   const [termWin, setTermWin] = useState<WindowState>({
@@ -67,6 +70,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     height: 480,
     isOpen: false,
     isMaximized: false,
+    isMinimized: false,
   });
 
   const [browserWin, setBrowserWin] = useState<WindowState>({
@@ -76,6 +80,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     height: 560,
     isOpen: false,
     isMaximized: false,
+    isMinimized: false,
   });
 
   const [telemetryWin, setTelemetryWin] = useState<WindowState>({
@@ -85,6 +90,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     height: 560,
     isOpen: false,
     isMaximized: false,
+    isMinimized: false,
   });
 
   // Dragging & Resizing References
@@ -206,16 +212,16 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
       <DracoTooltip content="Close Window" shortcut="Ctrl+W" position="bottom" accent="pink">
         <button
           onClick={onClose}
-          className="w-3 h-3 rounded-full bg-[#ff5f56] hover:brightness-110 border border-[#e0443e] flex items-center justify-center group"
+          className="w-3 h-3 rounded-full bg-[#ff5f56] hover:brightness-110 border border-[#e0443e] flex items-center justify-center group cursor-pointer"
         >
           <span className="text-[8px] text-[#4a0002] opacity-0 group-hover:opacity-100 font-bold leading-none">×</span>
         </button>
       </DracoTooltip>
 
-      <DracoTooltip content="Minimize" shortcut="Ctrl+M" position="bottom" accent="amber">
+      <DracoTooltip content="Minimize (macOS Zoom Effect)" shortcut="Ctrl+M" position="bottom" accent="amber">
         <button
           onClick={onMin}
-          className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:brightness-110 border border-[#dea123] flex items-center justify-center group"
+          className="w-3 h-3 rounded-full bg-[#ffbd2e] hover:brightness-110 border border-[#dea123] flex items-center justify-center group cursor-pointer"
         >
           <span className="text-[8px] text-[#543500] opacity-0 group-hover:opacity-100 font-bold leading-none">-</span>
         </button>
@@ -224,7 +230,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
       <DracoTooltip content="Maximize / Restore" shortcut="Ctrl+F" position="bottom" accent="green">
         <button
           onClick={onMax}
-          className="w-3 h-3 rounded-full bg-[#27c93f] hover:brightness-110 border border-[#1aab29] flex items-center justify-center group"
+          className="w-3 h-3 rounded-full bg-[#27c93f] hover:brightness-110 border border-[#1aab29] flex items-center justify-center group cursor-pointer"
         >
           <span className="text-[7px] text-[#004d11] opacity-0 group-hover:opacity-100 font-bold leading-none">⤢</span>
         </button>
@@ -368,7 +374,11 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
             width: fileWin.isMaximized ? "100%" : `${fileWin.width}px`,
             height: fileWin.isMaximized ? "100%" : `${fileWin.height}px`,
           }}
-          className="absolute z-20 shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-[#261d38] rounded-xs flex flex-col bg-[#161026] overflow-hidden"
+          className={`absolute shadow-[0_20px_60px_rgba(0,0,0,0.9)] border border-[#261d38] rounded-xs flex flex-col bg-[#161026] overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-bottom ${
+            fileWin.isMinimized
+              ? "scale-0 translate-y-[350px] opacity-0 pointer-events-none"
+              : "scale-100 translate-y-0 opacity-100 z-20"
+          }`}
         >
           {/* macOS Title Bar */}
           <div
@@ -377,14 +387,24 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
           >
             {renderMacTrafficLights(
               () => setFileWin((prev) => ({ ...prev, isOpen: false })),
-              () => setFileWin((prev) => ({ ...prev, isOpen: false })),
-              () => setFileWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized }))
+              () => setFileWin((prev) => ({ ...prev, isMinimized: true })),
+              () => setFileWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))
             )}
             <div className="flex items-center gap-2 text-[#e2e8f0] font-bold text-[11px]">
               <Folder className="w-3.5 h-3.5 text-[#00e5ff]" />
               <span>Dolphin // File Manager</span>
             </div>
-            <div className="w-12" />
+            <div className="flex items-center gap-2">
+              <DracoTooltip content="Tempel di Layar Utama (Dock to Workstation Canvas)" position="bottom" accent="cyan">
+                <button
+                  onClick={() => setFileWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))}
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] hover:border-[#00e5ff]/50 text-[10px] font-bold cursor-pointer transition-colors"
+                >
+                  <Maximize2 className="w-2.5 h-2.5 text-[#00e5ff]" />
+                  <span>TEMPEL</span>
+                </button>
+              </DracoTooltip>
+            </div>
           </div>
 
           {/* Window Content */}
@@ -393,6 +413,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
               workspacePath={workspacePath}
               onOpenFile={onOpenFile}
               onOpenScope={onOpenScope}
+              onPinToMain={() => onSelectView?.("explorer")}
             />
           </div>
 
@@ -417,7 +438,11 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
             width: termWin.isMaximized ? "100%" : `${termWin.width}px`,
             height: termWin.isMaximized ? "100%" : `${termWin.height}px`,
           }}
-          className="absolute z-25 shadow-[0_20px_60px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden"
+          className={`absolute shadow-[0_20px_60px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-bottom ${
+            termWin.isMinimized
+              ? "scale-0 translate-y-[350px] opacity-0 pointer-events-none"
+              : "scale-100 translate-y-0 opacity-100 z-25"
+          }`}
         >
           <div
             onMouseDown={(e) => startDrag("term", e, termWin)}
@@ -425,14 +450,24 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
           >
             {renderMacTrafficLights(
               () => setTermWin((prev) => ({ ...prev, isOpen: false })),
-              () => setTermWin((prev) => ({ ...prev, isOpen: false })),
-              () => setTermWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized }))
+              () => setTermWin((prev) => ({ ...prev, isMinimized: true })),
+              () => setTermWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))
             )}
             <div className="flex items-center gap-2 text-[#00e676] font-bold text-[11px]">
               <Terminal className="w-3.5 h-3.5" />
               <span>ConPTY // PowerShell Terminal</span>
             </div>
-            <div className="w-12" />
+            <div className="flex items-center gap-2">
+              <DracoTooltip content="Tempel di Layar Utama (Dock to Workstation Canvas)" position="bottom" accent="green">
+                <button
+                  onClick={() => setTermWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))}
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border border-[#261d38] hover:border-[#00e676]/50 text-[10px] font-bold cursor-pointer transition-colors"
+                >
+                  <Maximize2 className="w-2.5 h-2.5 text-[#00e676]" />
+                  <span>TEMPEL</span>
+                </button>
+              </DracoTooltip>
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
@@ -459,7 +494,11 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
             width: browserWin.isMaximized ? "100%" : `${browserWin.width}px`,
             height: browserWin.isMaximized ? "100%" : `${browserWin.height}px`,
           }}
-          className="absolute z-30 shadow-[0_20px_70px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden"
+          className={`absolute shadow-[0_20px_70px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-bottom ${
+            browserWin.isMinimized
+              ? "scale-0 translate-y-[350px] opacity-0 pointer-events-none"
+              : "scale-100 translate-y-0 opacity-100 z-30"
+          }`}
         >
           <div
             onMouseDown={(e) => startDrag("browser", e, browserWin)}
@@ -467,18 +506,31 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
           >
             {renderMacTrafficLights(
               () => setBrowserWin((prev) => ({ ...prev, isOpen: false })),
-              () => setBrowserWin((prev) => ({ ...prev, isOpen: false })),
-              () => setBrowserWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized }))
+              () => setBrowserWin((prev) => ({ ...prev, isMinimized: true })),
+              () => setBrowserWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))
             )}
             <div className="flex items-center gap-2 text-[#00e5ff] font-bold text-[11px]">
               <Globe className="w-3.5 h-3.5" />
               <span>DracoBrowser // Chromium Web Suite</span>
             </div>
-            <div className="w-12" />
+            <div className="flex items-center gap-2">
+              <DracoTooltip content="Tempel di Layar Utama (Dock to Workstation Canvas)" position="bottom" accent="cyan">
+                <button
+                  onClick={() => setBrowserWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))}
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] hover:border-[#00e5ff]/50 text-[10px] font-bold cursor-pointer transition-colors"
+                >
+                  <Maximize2 className="w-2.5 h-2.5 text-[#00e5ff]" />
+                  <span>TEMPEL</span>
+                </button>
+              </DracoTooltip>
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
-            <DracoBrowser onClose={() => setBrowserWin((prev) => ({ ...prev, isOpen: false }))} />
+            <DracoBrowser
+              onClose={() => setBrowserWin((prev) => ({ ...prev, isOpen: false }))}
+              onPinToMain={() => onSelectView?.("browser")}
+            />
           </div>
 
           {!browserWin.isMaximized && (
@@ -501,7 +553,11 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
             width: telemetryWin.isMaximized ? "100%" : `${telemetryWin.width}px`,
             height: telemetryWin.isMaximized ? "100%" : `${telemetryWin.height}px`,
           }}
-          className="absolute z-35 shadow-[0_20px_70px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden"
+          className={`absolute shadow-[0_20px_70px_rgba(0,0,0,0.95)] border border-[#261d38] rounded-xs flex flex-col bg-[#0b0813] overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] origin-bottom ${
+            telemetryWin.isMinimized
+              ? "scale-0 translate-y-[350px] opacity-0 pointer-events-none"
+              : "scale-100 translate-y-0 opacity-100 z-35"
+          }`}
         >
           <div
             onMouseDown={(e) => startDrag("telemetry", e, telemetryWin)}
@@ -509,14 +565,24 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
           >
             {renderMacTrafficLights(
               () => setTelemetryWin((prev) => ({ ...prev, isOpen: false })),
-              () => setTelemetryWin((prev) => ({ ...prev, isOpen: false })),
-              () => setTelemetryWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized }))
+              () => setTelemetryWin((prev) => ({ ...prev, isMinimized: true })),
+              () => setTelemetryWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))
             )}
             <div className="flex items-center gap-2 text-[#ff007f] font-bold text-[11px]">
               <Radio className="w-3.5 h-3.5" />
               <span>Antigravity Telemetry // Cognitive Stream</span>
             </div>
-            <div className="w-12" />
+            <div className="flex items-center gap-2">
+              <DracoTooltip content="Tempel di Layar Utama (Dock to Workstation Canvas)" position="bottom" accent="pink">
+                <button
+                  onClick={() => setTelemetryWin((prev) => ({ ...prev, isMaximized: !prev.isMaximized, isMinimized: false }))}
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#ff007f] border border-[#261d38] hover:border-[#ff007f]/50 text-[10px] font-bold cursor-pointer transition-colors"
+                >
+                  <Maximize2 className="w-2.5 h-2.5 text-[#ff007f]" />
+                  <span>TEMPEL</span>
+                </button>
+              </DracoTooltip>
+            </div>
           </div>
 
           <div className="flex-1 overflow-hidden">
@@ -530,6 +596,95 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
             >
               <div className="w-2 h-2 border-r-2 border-b-2 border-current" />
             </div>
+          )}
+        </div>
+      )}
+
+      {/* macOS Cyberdeck Floating Dock Tray (Restore Minimized / Open Windows) */}
+      {(fileWin.isOpen || termWin.isOpen || browserWin.isOpen || telemetryWin.isOpen) && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#120c1f]/95 border border-[#261d38] backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 shadow-[0_12px_40px_rgba(0,0,0,0.9)]">
+          {fileWin.isOpen && (
+            <DracoTooltip
+              content={fileWin.isMinimized ? "Restore Dolphin File Manager (macOS Zoom)" : "Minimize Dolphin"}
+              position="top"
+              accent={fileWin.isMinimized ? "amber" : "cyan"}
+            >
+              <button
+                onClick={() => setFileWin((prev) => ({ ...prev, isMinimized: !prev.isMinimized }))}
+                className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full transition-all cursor-pointer ${
+                  fileWin.isMinimized
+                    ? "bg-[#ffbd2e]/20 text-[#ffbd2e] border border-[#ffbd2e] animate-pulse"
+                    : "bg-[#161026] text-[#00e5ff] hover:bg-[#281b3d] border border-[#261d38]"
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <span>Dolphin</span>
+                {fileWin.isMinimized && <span className="text-[9px] text-[#ffbd2e] font-mono">(MIN)</span>}
+              </button>
+            </DracoTooltip>
+          )}
+
+          {termWin.isOpen && (
+            <DracoTooltip
+              content={termWin.isMinimized ? "Restore ConPTY Shell (macOS Zoom)" : "Minimize ConPTY Shell"}
+              position="top"
+              accent={termWin.isMinimized ? "amber" : "green"}
+            >
+              <button
+                onClick={() => setTermWin((prev) => ({ ...prev, isMinimized: !prev.isMinimized }))}
+                className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full transition-all cursor-pointer ${
+                  termWin.isMinimized
+                    ? "bg-[#ffbd2e]/20 text-[#ffbd2e] border border-[#ffbd2e] animate-pulse"
+                    : "bg-[#161026] text-[#00e676] hover:bg-[#281b3d] border border-[#261d38]"
+                }`}
+              >
+                <Terminal className="w-3.5 h-3.5 text-[#00e676]" />
+                <span>ConPTY</span>
+                {termWin.isMinimized && <span className="text-[9px] text-[#ffbd2e] font-mono">(MIN)</span>}
+              </button>
+            </DracoTooltip>
+          )}
+
+          {browserWin.isOpen && (
+            <DracoTooltip
+              content={browserWin.isMinimized ? "Restore DracoBrowser (macOS Zoom)" : "Minimize DracoBrowser"}
+              position="top"
+              accent={browserWin.isMinimized ? "amber" : "cyan"}
+            >
+              <button
+                onClick={() => setBrowserWin((prev) => ({ ...prev, isMinimized: !prev.isMinimized }))}
+                className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full transition-all cursor-pointer ${
+                  browserWin.isMinimized
+                    ? "bg-[#ffbd2e]/20 text-[#ffbd2e] border border-[#ffbd2e] animate-pulse"
+                    : "bg-[#161026] text-[#00e5ff] hover:bg-[#281b3d] border border-[#261d38]"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <span>Browser</span>
+                {browserWin.isMinimized && <span className="text-[9px] text-[#ffbd2e] font-mono">(MIN)</span>}
+              </button>
+            </DracoTooltip>
+          )}
+
+          {telemetryWin.isOpen && (
+            <DracoTooltip
+              content={telemetryWin.isMinimized ? "Restore AI Telemetry (macOS Zoom)" : "Minimize AI Telemetry"}
+              position="top"
+              accent={telemetryWin.isMinimized ? "amber" : "pink"}
+            >
+              <button
+                onClick={() => setTelemetryWin((prev) => ({ ...prev, isMinimized: !prev.isMinimized }))}
+                className={`flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full transition-all cursor-pointer ${
+                  telemetryWin.isMinimized
+                    ? "bg-[#ffbd2e]/20 text-[#ffbd2e] border border-[#ffbd2e] animate-pulse"
+                    : "bg-[#161026] text-[#ff007f] hover:bg-[#281b3d] border border-[#261d38]"
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5 text-[#ff007f]" />
+                <span>Telemetry</span>
+                {telemetryWin.isMinimized && <span className="text-[9px] text-[#ffbd2e] font-mono">(MIN)</span>}
+              </button>
+            </DracoTooltip>
           )}
         </div>
       )}

@@ -12,6 +12,7 @@ import {
   List as ListIcon,
   Search,
   Folder,
+  Maximize2,
 } from "lucide-react";
 import { FileEntry, sortEntries } from "../../types";
 import { FileIcon } from "../common/FileIcon";
@@ -23,12 +24,14 @@ interface KaliFileManagerProps {
   workspacePath: string;
   onOpenFile: (filePath: string, fileName: string) => void;
   onOpenScope?: (folderPath: string, folderName: string) => void;
+  onPinToMain?: () => void;
 }
 
 export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
   workspacePath,
   onOpenFile,
   onOpenScope,
+  onPinToMain,
 }) => {
   const [currentDir, setCurrentDir] = useState<string>(workspacePath);
   const [dirInput, setDirInput] = useState<string>(workspacePath);
@@ -244,6 +247,18 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
               <ListIcon className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {onPinToMain && (
+            <DracoTooltip content="Tempel di Layar Utama (Dock to Workstation Canvas)" position="bottom" accent="cyan">
+              <button
+                onClick={onPinToMain}
+                className="flex items-center gap-1 px-2 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] hover:border-[#00e5ff]/50 text-[10px] font-bold transition-colors cursor-pointer"
+              >
+                <Maximize2 className="w-3 h-3 text-[#00e5ff]" />
+                <span className="hidden sm:inline">TEMPEL</span>
+              </button>
+            </DracoTooltip>
+          )}
         </div>
       </div>
 
