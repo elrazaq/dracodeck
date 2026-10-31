@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const telemetry = require('./telemetry.cjs');
 const vulnScanner = require('./vulnScanner.cjs');
 const portSlayer = require('./portSlayer.cjs');
+const sentinelEngine = require('./sentinelEngine.cjs');
 
 let mainWindow = null;
 let terminalProcess = null;
@@ -530,6 +531,67 @@ ipcMain.handle('vuln-cert-inspect', async (event, hostname, port = 443) => {
     return await vulnScanner.inspectTlsCert(hostname, port);
   } catch (err) {
     return { valid: false, error: err.message };
+  }
+});
+
+// DracoDeck Sentinel Engine IPC Handlers (Milestone M4.1)
+ipcMain.handle('sentinel-run-pov', async (event, targetUrl) => {
+  try {
+    return await sentinelEngine.runProofOfVerification(targetUrl);
+  } catch (err) {
+    return {
+      targetUrl,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+      verifiedFindings: [],
+      totalVerified: 0,
+      error: err.message,
+    };
+  }
+});
+
+ipcMain.handle('sentinel-crawl-shadow', async (event, targetUrl) => {
+  try {
+    return await sentinelEngine.crawlShadowApis(targetUrl);
+  } catch (err) {
+    return {
+      targetUrl,
+      scannedScripts: 0,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+      shadowEndpoints: [],
+      hiddenParameters: [],
+      leakedSecrets: [],
+      error: err.message,
+    };
+  }
+});
+
+ipcMain.handle('sentinel-test-timing', async (event, targetUrl, endpointPath, testUser) => {
+  try {
+    return await sentinelEngine.testSideChannelTiming(targetUrl, endpointPath, testUser);
+  } catch (err) {
+    return {
+      endpoint: endpointPath,
+      testUser,
+      error: err.message,
+      isVulnerable: false,
+    };
+  }
+});
+
+ipcMain.handle('sentinel-test-concurrency', async (event, targetUrl, endpointPath) => {
+  try {
+    return await sentinelEngine.testConcurrencyRace(targetUrl, endpointPath);
+  } catch (err) {
+    return {
+      targetEndpoint: endpointPath,
+      burstCount: 0,
+      totalWindowMs: 0,
+      statusCodes: [],
+      latencies: [],
+      error: err.message,
+    };
   }
 });
 

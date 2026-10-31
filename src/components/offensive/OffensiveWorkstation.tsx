@@ -10,16 +10,29 @@ import {
   Check,
   RefreshCw,
   Terminal,
+  Zap,
+  Code2,
+  Clock,
+  Key,
+  Layers,
+  Compass,
 } from "lucide-react";
 import { DracoTooltip } from "../common/DracoTooltip";
 import { ActiveView, VulnFinding, CertInfo } from "../../types";
+import {
+  PoVScanResult,
+  ShadowApiScanResult,
+  TimingDiscrepancyResult,
+  ConcurrencyRaceResult,
+} from "../../vite-env";
+import { ProofCard } from "./ProofCard";
 
 interface OffensiveWorkstationProps {
   workspacePath: string;
   onSelectView?: (view: ActiveView) => void;
 }
 
-type WorkstationTab = "vuln" | "cert" | "recon" | "watchdog";
+type WorkstationTab = "vuln" | "pov" | "shadow" | "sidechannel" | "cert" | "recon" | "watchdog";
 
 export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
   workspacePath: _workspacePath,
@@ -31,7 +44,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<VulnFinding | null>(null);
 
-  // Real scan state
+  // M4 Core scan state
   const [scanResult, setScanResult] = useState<{
     targetUrl: string;
     timestamp: string;
@@ -41,6 +54,21 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
     summary: { critical: number; high: number; medium: number; low: number; pass: number };
   } | null>(null);
 
+  // M4.1 Sentinel Engine State
+  const [povResult, setPovResult] = useState<PoVScanResult | null>(null);
+  const [isTestingPoV, setIsTestingPoV] = useState(false);
+
+  const [shadowResult, setShadowResult] = useState<ShadowApiScanResult | null>(null);
+  const [isCrawlingShadow, setIsCrawlingShadow] = useState(false);
+
+  const [timingResult, setTimingResult] = useState<TimingDiscrepancyResult | null>(null);
+  const [isTestingTiming, setIsTestingTiming] = useState(false);
+  const [timingEndpoint, setTimingEndpoint] = useState("/login");
+  const [timingUser, setTimingUser] = useState("admin");
+
+  const [concurrencyResult, setConcurrencyResult] = useState<ConcurrencyRaceResult | null>(null);
+  const [isTestingConcurrency, setIsTestingConcurrency] = useState(false);
+
   // Watchdog state
   const [watchdogTargets, setWatchdogTargets] = useState<Array<{ url: string; label: string; status: string; lastCheck: string }>>([
     { url: "https://www.kali.org", label: "Kali Linux Official", status: "SECURE", lastCheck: "Live Ready" },
@@ -48,6 +76,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
   ]);
   const [newWatchdogUrl, setNewWatchdogUrl] = useState("");
 
+  // Handler: Run Baseline Vulnerability Audit (M4)
   const handleRunAudit = async () => {
     if (!targetUrl.trim() || isAuditing) return;
     setIsAuditing(true);
@@ -60,28 +89,75 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
         if (result.findings && result.findings.length > 0) {
           setSelectedFinding(result.findings[0]);
         }
-      } else {
-        // Fallback info if API missing
-        setScanResult({
-          targetUrl,
-          timestamp: new Date().toISOString(),
-          durationMs: 10,
-          findings: [{
-            id: "API_UNAVAILABLE",
-            category: "SYSTEM",
-            severity: "MEDIUM",
-            title: "DracoAPI Vuln Scanner Unavailable",
-            evidence: "window.dracoAPI.vulnScan not registered",
-            description: "Main process IPC handler is initializing.",
-            remediation: "Restart Dracodeck to bind IPC channel.",
-          }],
-          summary: { critical: 0, high: 0, medium: 1, low: 0, pass: 0 },
-        });
       }
     } catch (err: any) {
       console.error("Audit error:", err);
     } finally {
       setIsAuditing(false);
+    }
+  };
+
+  // Handler: Run Verified Proof-of-Verification Suite (M4.1)
+  const handleRunPoV = async () => {
+    if (!targetUrl.trim() || isTestingPoV) return;
+    setIsTestingPoV(true);
+    try {
+      if (window.dracoAPI?.sentinelRunPoV) {
+        const res = await window.dracoAPI.sentinelRunPoV(targetUrl.trim());
+        setPovResult(res);
+      }
+    } catch (err) {
+      console.error("PoV error:", err);
+    } finally {
+      setIsTestingPoV(false);
+    }
+  };
+
+  // Handler: Mine Shadow APIs & AST Miner (M4.1)
+  const handleCrawlShadow = async () => {
+    if (!targetUrl.trim() || isCrawlingShadow) return;
+    setIsCrawlingShadow(true);
+    try {
+      if (window.dracoAPI?.sentinelCrawlShadow) {
+        const res = await window.dracoAPI.sentinelCrawlShadow(targetUrl.trim());
+        setShadowResult(res);
+      }
+    } catch (err) {
+      console.error("Shadow crawler error:", err);
+    } finally {
+      setIsCrawlingShadow(false);
+    }
+  };
+
+  // Handler: Test Side-Channel Timing Discrepancy (M4.1)
+  const handleTestTiming = async () => {
+    if (!targetUrl.trim() || isTestingTiming) return;
+    setIsTestingTiming(true);
+    try {
+      if (window.dracoAPI?.sentinelTestTiming) {
+        const res = await window.dracoAPI.sentinelTestTiming(targetUrl.trim(), timingEndpoint, timingUser);
+        setTimingResult(res);
+      }
+    } catch (err) {
+      console.error("Timing error:", err);
+    } finally {
+      setIsTestingTiming(false);
+    }
+  };
+
+  // Handler: Test Concurrency Race Burst (M4.1)
+  const handleTestConcurrency = async () => {
+    if (!targetUrl.trim() || isTestingConcurrency) return;
+    setIsTestingConcurrency(true);
+    try {
+      if (window.dracoAPI?.sentinelTestConcurrency) {
+        const res = await window.dracoAPI.sentinelTestConcurrency(targetUrl.trim(), timingEndpoint);
+        setConcurrencyResult(res);
+      }
+    } catch (err) {
+      console.error("Concurrency error:", err);
+    } finally {
+      setIsTestingConcurrency(false);
     }
   };
 
@@ -99,8 +175,8 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
         ...watchdogTargets,
         { url: clean, label: clean.replace(/^https?:\/\//, ""), status: "MONITORED", lastCheck: "Just added" },
       ]);
+      setNewWatchdogUrl("");
     }
-    setNewWatchdogUrl("");
   };
 
   const handleExportReport = () => {
@@ -127,6 +203,29 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
       md += `- **Security Impact**: ${f.description}\n`;
       md += `\n**Remediation Steps**:\n\`\`\`\n${f.remediation}\n\`\`\`\n\n---\n\n`;
     });
+
+    if (povResult && povResult.verifiedFindings.length > 0) {
+      md += `## VERIFIED PROOF-OF-VERIFICATION (PoV) FINDINGS (100% MATHEMATICAL PROOF)\n\n`;
+      povResult.verifiedFindings.forEach((p, idx) => {
+        md += `### PoV ${idx + 1}: ${p.title} [${p.severity}]\n`;
+        md += `- **Certainty Score**: ${p.certaintyScore}%\n`;
+        md += `- **Reproducible cURL Command**:\n\`\`\`bash\n${p.reproducibleCurl}\n\`\`\`\n`;
+        md += `- **Technical Evidence Dump**:\n\`\`\`\n${p.evidenceExcerpt}\n\`\`\`\n`;
+        md += `- **Remediation**: ${p.remediation}\n\n`;
+      });
+    }
+
+    if (shadowResult && shadowResult.shadowEndpoints.length > 0) {
+      md += `## SHADOW APIS & CLIENT-SIDE DISCOVERIES\n\n`;
+      md += `- **Scanned JS Bundles**: ${shadowResult.scannedScripts}\n`;
+      md += `- **Hidden Endpoints Discovered**:\n`;
+      shadowResult.shadowEndpoints.forEach((ep) => {
+        md += `  - \`${ep.path}\` -> Status ${ep.statusCode} (${ep.contentLength} bytes)\n`;
+      });
+      if (shadowResult.hiddenParameters.length > 0) {
+        md += `- **Hidden Query Parameters**: \`${shadowResult.hiddenParameters.join(", ")}\`\n`;
+      }
+    }
 
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -166,7 +265,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
             </span>
           </div>
           <span className="text-[#261d38]">|</span>
-          <span className="text-[10px] text-[#7a7194]">GOV-GRADE DEFENSIVE VULNERABILITY AUDITOR</span>
+          <span className="text-[10px] text-[#7a7194]">GOV-GRADE DEFENSIVE PENTEST & ANOMALY SENTINEL (M4.1)</span>
         </div>
 
         {/* Action Controls */}
@@ -206,7 +305,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleRunAudit()}
-              placeholder="https://target-portal.go.id or http://localhost:3000"
+              placeholder="https://target-portal.com or http://localhost:3000"
               className="flex-1 bg-transparent text-[#e2e8f0] outline-none font-mono text-xs"
             />
           </div>
@@ -220,7 +319,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
             }`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isAuditing ? "animate-spin text-[#ff007f]" : ""}`} />
-            <span>{isAuditing ? "AUDITING (CORS-FREE)..." : "START AUDIT"}</span>
+            <span>{isAuditing ? "AUDITING..." : "START AUDIT"}</span>
           </button>
         </div>
 
@@ -228,49 +327,83 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
         <div className="flex items-center gap-1 bg-[#120c1f] p-0.5 border border-[#261d38]">
           <button
             onClick={() => setActiveTab("vuln")}
-            className={`px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
               activeTab === "vuln"
                 ? "bg-[#161026] text-[#00e5ff] border-b-2 border-[#00e5ff]"
                 : "text-[#7a7194] hover:text-[#cbd5e1]"
             }`}
           >
-            01. WEB VULN AUDIT
+            01. VULN AUDIT
+          </button>
+          <button
+            onClick={() => setActiveTab("pov")}
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+              activeTab === "pov"
+                ? "bg-[#161026] text-[#00e676] border-b-2 border-[#00e676]"
+                : "text-[#7a7194] hover:text-[#cbd5e1]"
+            }`}
+          >
+            <Zap className="w-3 h-3 text-[#00e676]" />
+            <span>02. VERIFIED PoV</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("shadow")}
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+              activeTab === "shadow"
+                ? "bg-[#161026] text-[#ff8800] border-b-2 border-[#ff8800]"
+                : "text-[#7a7194] hover:text-[#cbd5e1]"
+            }`}
+          >
+            <Compass className="w-3 h-3 text-[#ff8800]" />
+            <span>03. SHADOW APIS</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("sidechannel")}
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+              activeTab === "sidechannel"
+                ? "bg-[#161026] text-[#ff007f] border-b-2 border-[#ff007f]"
+                : "text-[#7a7194] hover:text-[#cbd5e1]"
+            }`}
+          >
+            <Clock className="w-3 h-3 text-[#ff007f]" />
+            <span>04. RADAR & RACE</span>
           </button>
           <button
             onClick={() => setActiveTab("cert")}
-            className={`px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
               activeTab === "cert"
                 ? "bg-[#161026] text-[#00e5ff] border-b-2 border-[#00e5ff]"
                 : "text-[#7a7194] hover:text-[#cbd5e1]"
             }`}
           >
-            02. SSL / TLS CHAIN
+            05. SSL / TLS
           </button>
           <button
             onClick={() => setActiveTab("recon")}
-            className={`px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
               activeTab === "recon"
                 ? "bg-[#161026] text-[#00e5ff] border-b-2 border-[#00e5ff]"
                 : "text-[#7a7194] hover:text-[#cbd5e1]"
             }`}
           >
-            03. PORT & RECON
+            06. PORTS
           </button>
           <button
             onClick={() => setActiveTab("watchdog")}
-            className={`px-2.5 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+            className={`px-2.5 py-1 text-[10.5px] font-bold transition-colors cursor-pointer ${
               activeTab === "watchdog"
                 ? "bg-[#161026] text-[#00e5ff] border-b-2 border-[#00e5ff]"
                 : "text-[#7a7194] hover:text-[#cbd5e1]"
             }`}
           >
-            04. WATCHDOG
+            07. WATCHDOG
           </button>
         </div>
       </div>
 
       {/* Main Workstation Body */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Tab 1: Standard Vulnerability Audit */}
         {activeTab === "vuln" && (
           <>
             {/* Left Column: Finding List (380px) */}
@@ -308,9 +441,9 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
                 {!scanResult && !isAuditing && (
                   <div className="p-6 text-center text-[#7a7194] space-y-2">
                     <Shield className="w-8 h-8 text-[#261d38] mx-auto" />
-                    <p className="text-xs">Masukkan target URL dan klik "START AUDIT".</p>
+                    <p className="text-xs">Enter target URL and click "START AUDIT".</p>
                     <p className="text-[10px] text-[#443a57]">
-                      Proses audit dijalankan via Node.js Main Process tanpa restriksi CORS browser.
+                      Audit processes execute directly via Node.js Main Process with zero browser CORS restrictions.
                     </p>
                   </div>
                 )}
@@ -318,9 +451,9 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
                 {isAuditing && (
                   <div className="p-6 text-center space-y-3">
                     <RefreshCw className="w-6 h-6 text-[#ff007f] animate-spin mx-auto" />
-                    <p className="text-xs text-[#00e5ff] font-bold">MENGIRIMKAN PROBE OWASP REAL-TIME...</p>
+                    <p className="text-xs text-[#00e5ff] font-bold">DISPATCHING REAL-TIME SECURITY PROBES...</p>
                     <p className="text-[10px] text-[#7a7194]">
-                      Memeriksa /.git/HEAD, /.env, HSTS, CSP, SSL X.509, dan CORS refleksi.
+                      Auditing /.git/HEAD, /.env, HSTS, CSP, SSL X.509, and CORS reflection.
                     </p>
                   </div>
                 )}
@@ -350,68 +483,49 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
             <div className="flex-1 bg-[#0b0813] flex flex-col overflow-y-auto p-4 space-y-4">
               {selectedFinding ? (
                 <>
-                  {/* Finding Title & Badges */}
-                  <div className="bg-[#120c1f] p-4 border border-[#261d38] space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#261d38]">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
                         {getSeverityBadge(selectedFinding.severity)}
-                        <span className="text-[10px] text-[#00e5ff] uppercase font-bold tracking-wider">
-                          KATEGORI: {selectedFinding.category}
-                        </span>
+                        <span className="text-[10px] text-[#7a7194] font-mono">{selectedFinding.category}</span>
+                        {selectedFinding.cwe && (
+                          <span className="text-[10px] text-[#00e5ff] font-mono">[{selectedFinding.cwe}]</span>
+                        )}
                       </div>
-                      {selectedFinding.cwe && (
-                        <span className="text-[10px] bg-[#161026] text-[#cbd5e1] px-2 py-0.5 border border-[#261d38]">
-                          {selectedFinding.cwe}
-                        </span>
-                      )}
+                      <h2 className="text-sm font-bold text-[#e2e8f0]">{selectedFinding.title}</h2>
                     </div>
-                    <h2 className="text-base font-bold text-[#e2e8f0]">{selectedFinding.title}</h2>
-                    <p className="text-xs text-[#cbd5e1] leading-relaxed">{selectedFinding.description}</p>
+
+                    <button
+                      onClick={() => handleCopy(selectedFinding.evidence, "ev")}
+                      className="flex items-center gap-1 px-2.5 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] text-[10px] font-bold transition-colors cursor-pointer"
+                    >
+                      {copiedId === "ev" ? <Check className="w-3 h-3 text-[#00e676]" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedId === "ev" ? "COPIED" : "COPY EVIDENCE"}</span>
+                    </button>
                   </div>
 
-                  {/* Technical Evidence Raw Dump */}
-                  <div className="bg-[#120c1f] p-4 border border-[#261d38] space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-[#00e5ff] font-bold flex items-center gap-1">
-                        <Activity className="w-3.5 h-3.5" />
-                        <span>BUKTI TEKNIS FORENSIK (RAW HTTP EVIDENCE)</span>
-                      </span>
-                      <button
-                        onClick={() => handleCopy(selectedFinding.evidence, `ev-${selectedFinding.id}`)}
-                        className="text-[#7a7194] hover:text-[#00e5ff] flex items-center gap-1 transition-colors"
-                      >
-                        {copiedId === `ev-${selectedFinding.id}` ? (
-                          <Check className="w-3.5 h-3.5 text-[#00e676]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                        <span>{copiedId === `ev-${selectedFinding.id}` ? "Copied" : "Copy"}</span>
-                      </button>
-                    </div>
-                    <pre className="p-3 bg-[#08050e] border border-[#261d38] text-[11px] text-[#00e676] overflow-x-auto whitespace-pre-wrap font-mono select-text">
+                  <div>
+                    <h3 className="text-xs font-bold text-[#7a7194] uppercase tracking-wider mb-1">Security Impact</h3>
+                    <p className="text-xs text-[#cbd5e1] leading-relaxed bg-[#120c1f] p-3 border border-[#261d38]">
+                      {selectedFinding.description}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-bold text-[#ff007f] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <Terminal className="w-3.5 h-3.5 text-[#ff007f]" />
+                      <span>Forensic Technical Evidence (Raw HTTP Dump)</span>
+                    </h3>
+                    <pre className="p-3 bg-[#08050e] border border-[#261d38] text-[11px] text-[#00e5ff] overflow-x-auto whitespace-pre-wrap font-mono select-text">
                       {selectedFinding.evidence}
                     </pre>
                   </div>
 
-                  {/* Remediation Guide */}
-                  <div className="bg-[#120c1f] p-4 border border-[#261d38] space-y-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-[#ff007f] font-bold flex items-center gap-1">
-                        <Lock className="w-3.5 h-3.5" />
-                        <span>LANGKAH REMEDIASI & KONFIGURASI PENGAMANAN</span>
-                      </span>
-                      <button
-                        onClick={() => handleCopy(selectedFinding.remediation, `rem-${selectedFinding.id}`)}
-                        className="text-[#7a7194] hover:text-[#ff007f] flex items-center gap-1 transition-colors"
-                      >
-                        {copiedId === `rem-${selectedFinding.id}` ? (
-                          <Check className="w-3.5 h-3.5 text-[#00e676]" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                        <span>{copiedId === `rem-${selectedFinding.id}` ? "Copied" : "Copy"}</span>
-                      </button>
-                    </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-[#00e676] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <Code2 className="w-3.5 h-3.5 text-[#00e676]" />
+                      <span>Remediation & Security Configuration</span>
+                    </h3>
                     <pre className="p-3 bg-[#08050e] border border-[#261d38] text-[11px] text-[#cbd5e1] overflow-x-auto whitespace-pre-wrap font-mono select-text">
                       {selectedFinding.remediation}
                     </pre>
@@ -427,7 +541,314 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
           </>
         )}
 
-        {/* Tab 2: Real SSL / TLS Certificate Chain */}
+        {/* Tab 2: Verified Proof-of-Verification (PoV) Suite (M4.1) */}
+        {activeTab === "pov" && (
+          <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#261d38]">
+              <div>
+                <h3 className="text-sm font-bold text-[#00e676] flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#00e676]" />
+                  <span>NON-DESTRUCTIVE PROOF-OF-VERIFICATION (PoV) SUITE</span>
+                </h3>
+                <p className="text-xs text-[#7a7194] mt-0.5">
+                  Proves vulnerability existence via inert canary reflection and boolean differential arithmetic without brutal exploitation.
+                </p>
+              </div>
+
+              <button
+                onClick={handleRunPoV}
+                disabled={isTestingPoV}
+                className={`px-4 py-1.5 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+                  isTestingPoV
+                    ? "bg-[#281b3d] text-[#7a7194] border border-[#261d38]"
+                    : "bg-[#00e676] hover:bg-[#00c853] text-[#0b0813] shadow-[0_0_12px_#00e676]/30"
+                }`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isTestingPoV ? "animate-spin" : ""}`} />
+                <span>{isTestingPoV ? "VERIFYING PROOFS..." : "EXECUTE VERIFIED PoV"}</span>
+              </button>
+            </div>
+
+            {/* Metrics Ribbon */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                <span className="text-[10px] text-[#7a7194] uppercase font-bold">Total Proven PoVs</span>
+                <p className="text-xl font-bold text-[#00e676]">{povResult?.totalVerified ?? 0}</p>
+              </div>
+              <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                <span className="text-[10px] text-[#7a7194] uppercase font-bold">Verification Certainty</span>
+                <p className="text-xl font-bold text-[#00e5ff]">
+                  {povResult && povResult.totalVerified > 0 ? "100% Mathematical" : "Ready"}
+                </p>
+              </div>
+              <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                <span className="text-[10px] text-[#7a7194] uppercase font-bold">Execution Latency</span>
+                <p className="text-xl font-bold text-[#ff8800]">
+                  {povResult ? `${povResult.durationMs}ms` : "-"}
+                </p>
+              </div>
+            </div>
+
+            {/* Findings List */}
+            {povResult && povResult.verifiedFindings.length > 0 ? (
+              <div className="space-y-3">
+                {povResult.verifiedFindings.map((finding, idx) => (
+                  <ProofCard key={`${finding.type}-${idx}`} finding={finding} index={idx} />
+                ))}
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-[#120c1f] border border-[#261d38] text-[#7a7194] space-y-2">
+                <Shield className="w-10 h-10 text-[#261d38] mx-auto" />
+                <p className="text-xs">
+                  {isTestingPoV
+                    ? "Dispatching canary reflection & boolean differential requests..."
+                    : "Click 'EXECUTE VERIFIED PoV' to generate non-destructive mathematical verification cards."}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: Shadow APIs & AST Miner (M4.1) */}
+        {activeTab === "shadow" && (
+          <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#261d38]">
+              <div>
+                <h3 className="text-sm font-bold text-[#ff8800] flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-[#ff8800]" />
+                  <span>CLIENT-SIDE JS AST & SHADOW API MINER</span>
+                </h3>
+                <p className="text-xs text-[#7a7194] mt-0.5">
+                  Mines bundled JavaScript assets for unadvertised routes, debug parameters, and developer tokens that manual testers miss.
+                </p>
+              </div>
+
+              <button
+                onClick={handleCrawlShadow}
+                disabled={isCrawlingShadow}
+                className={`px-4 py-1.5 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer ${
+                  isCrawlingShadow
+                    ? "bg-[#281b3d] text-[#7a7194] border border-[#261d38]"
+                    : "bg-[#ff8800] hover:bg-[#e67a00] text-[#0b0813] font-bold"
+                }`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCrawlingShadow ? "animate-spin" : ""}`} />
+                <span>{isCrawlingShadow ? "MINING BUNDLES..." : "MINE SHADOW APIS"}</span>
+              </button>
+            </div>
+
+            {shadowResult ? (
+              <div className="space-y-4">
+                {/* Discovery Metrics */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                    <span className="text-[10px] text-[#7a7194] uppercase font-bold">Scanned JS Bundles</span>
+                    <p className="text-xl font-bold text-[#00e5ff]">{shadowResult.scannedScripts}</p>
+                  </div>
+                  <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                    <span className="text-[10px] text-[#7a7194] uppercase font-bold">Uncovered API Routes</span>
+                    <p className="text-xl font-bold text-[#ff8800]">{shadowResult.shadowEndpoints.length}</p>
+                  </div>
+                  <div className="bg-[#120c1f] p-3 border border-[#261d38]">
+                    <span className="text-[10px] text-[#7a7194] uppercase font-bold">Hidden Query Params</span>
+                    <p className="text-xl font-bold text-[#ff007f]">{shadowResult.hiddenParameters.length}</p>
+                  </div>
+                </div>
+
+                {/* Discovered Endpoints Table */}
+                <div className="bg-[#120c1f] border border-[#261d38] p-4 space-y-2">
+                  <h4 className="text-xs font-bold text-[#e2e8f0] flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#00e5ff]" />
+                    <span>Discovered Unadvertised Endpoints & Live Probing</span>
+                  </h4>
+                  <div className="divide-y divide-[#261d38]">
+                    {shadowResult.shadowEndpoints.map((ep) => (
+                      <div key={ep.path} className="py-2 flex items-center justify-between text-xs font-mono">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-1.5 py-0.2 text-[9px] font-bold border ${
+                              ep.statusCode === 200
+                                ? "bg-[#00e676]/15 border-[#00e676] text-[#00e676]"
+                                : ep.isProtected
+                                ? "bg-[#ff8800]/15 border-[#ff8800] text-[#ff8800]"
+                                : "bg-[#161026] border-[#261d38] text-[#7a7194]"
+                            }`}
+                          >
+                            {ep.statusCode || "TIMEOUT"}
+                          </span>
+                          <span className="text-[#00e5ff] font-bold">{ep.path}</span>
+                        </div>
+                        <span className="text-[10px] text-[#7a7194]">{ep.contentLength} bytes</span>
+                      </div>
+                    ))}
+                    {shadowResult.shadowEndpoints.length === 0 && (
+                      <p className="text-xs text-[#7a7194] py-4 text-center">No hidden endpoints detected in current scripts.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Hidden Query Parameters Tags */}
+                {shadowResult.hiddenParameters.length > 0 && (
+                  <div className="bg-[#120c1f] border border-[#261d38] p-4 space-y-2">
+                    <h4 className="text-xs font-bold text-[#ff007f] flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-[#ff007f]" />
+                      <span>Extracted Hidden Query Parameters (Debug & Access Flags)</span>
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      {shadowResult.hiddenParameters.map((param) => (
+                        <span
+                          key={param}
+                          className="px-2 py-0.5 bg-[#161026] border border-[#ff007f]/40 text-[#ff007f] text-[10px] font-bold font-mono"
+                        >
+                          ?{param}=
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-12 text-center bg-[#120c1f] border border-[#261d38] text-[#7a7194] space-y-2">
+                <Compass className="w-10 h-10 text-[#261d38] mx-auto" />
+                <p className="text-xs">Click 'MINE SHADOW APIS' to download and parse client bundle JavaScript files.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Side-Channel Timing & Concurrency Radar (M4.1) */}
+        {activeTab === "sidechannel" && (
+          <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#261d38]">
+              <div>
+                <h3 className="text-sm font-bold text-[#ff007f] flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#ff007f]" />
+                  <span>SIDE-CHANNEL TIMING & MICRO-BURST CONCURRENCY RADAR</span>
+                </h3>
+                <p className="text-xs text-[#7a7194] mt-0.5">
+                  Sub-millisecond latency variance detection for user enumeration and race condition (TOCTOU) windows.
+                </p>
+              </div>
+            </div>
+
+            {/* Timing Controls */}
+            <div className="bg-[#120c1f] border border-[#261d38] p-4 space-y-3">
+              <h4 className="text-xs font-bold text-[#e2e8f0] flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <span>Side-Channel User Enumeration Timing Analysis</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#7a7194] font-bold">Auth Endpoint Path</label>
+                  <input
+                    type="text"
+                    value={timingEndpoint}
+                    onChange={(e) => setTimingEndpoint(e.target.value)}
+                    className="w-full bg-[#0b0813] border border-[#261d38] px-2 py-1 text-xs text-[#00e5ff] font-mono outline-none"
+                    placeholder="/login"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-[#7a7194] font-bold">Target Test Username</label>
+                  <input
+                    type="text"
+                    value={timingUser}
+                    onChange={(e) => setTimingUser(e.target.value)}
+                    className="w-full bg-[#0b0813] border border-[#261d38] px-2 py-1 text-xs text-[#e2e8f0] font-mono outline-none"
+                    placeholder="admin"
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    onClick={handleTestTiming}
+                    disabled={isTestingTiming}
+                    className="flex-1 py-1 px-3 bg-[#00e5ff] hover:bg-[#00b4d8] text-[#0b0813] font-bold text-xs cursor-pointer transition-colors"
+                  >
+                    {isTestingTiming ? "MEASURING..." : "ANALYZE TIMING"}
+                  </button>
+                  <button
+                    onClick={handleTestConcurrency}
+                    disabled={isTestingConcurrency}
+                    className="py-1 px-3 bg-[#ff007f] hover:bg-[#d5006d] text-white font-bold text-xs cursor-pointer transition-colors"
+                  >
+                    {isTestingConcurrency ? "BURSTING..." : "RACE BURST (6x)"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Timing Result Card */}
+              {timingResult && (
+                <div className="mt-3 p-3 bg-[#0b0813] border border-[#261d38] space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#7a7194]">Timing Differential:</span>
+                    <span
+                      className={`font-bold font-mono ${
+                        timingResult.isVulnerable ? "text-[#ff1744]" : "text-[#00e676]"
+                      }`}
+                    >
+                      {timingResult.timingDeltaMs}ms Delta
+                    </span>
+                  </div>
+
+                  {/* Histogram bars */}
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="w-32 text-[#7a7194] truncate">Non-Existent User:</span>
+                      <div className="flex-1 bg-[#161026] h-3 rounded-xs overflow-hidden">
+                        <div
+                          style={{ width: `${Math.min(100, (timingResult.avgNonExistentMs ?? 0) / 4)}%` }}
+                          className="h-full bg-[#00e5ff]"
+                        />
+                      </div>
+                      <span className="w-16 text-right font-mono text-[#00e5ff]">
+                        {timingResult.avgNonExistentMs}ms
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="w-32 text-[#7a7194] truncate">Target '{timingResult.testUser}':</span>
+                      <div className="flex-1 bg-[#161026] h-3 rounded-xs overflow-hidden">
+                        <div
+                          style={{ width: `${Math.min(100, (timingResult.avgTargetMs ?? 0) / 4)}%` }}
+                          className="h-full bg-[#ff007f]"
+                        />
+                      </div>
+                      <span className="w-16 text-right font-mono text-[#ff007f]">
+                        {timingResult.avgTargetMs}ms
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-[#cbd5e1] pt-1 leading-relaxed">{timingResult.verdict}</p>
+                </div>
+              )}
+
+              {/* Concurrency Result Card */}
+              {concurrencyResult && (
+                <div className="mt-3 p-3 bg-[#0b0813] border border-[#261d38] space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#ff007f] font-bold">Micro-Burst Concurrency Window:</span>
+                    <span className="text-[#00e5ff] font-mono">{concurrencyResult.totalWindowMs}ms Total</span>
+                  </div>
+                  <p className="text-[10px] text-[#cbd5e1]">{concurrencyResult.summary}</p>
+                  <div className="flex gap-1">
+                    {concurrencyResult.statusCodes.map((code, i) => (
+                      <span
+                        key={i}
+                        className="px-2 py-0.5 bg-[#161026] border border-[#261d38] text-[9px] font-bold font-mono text-[#00e676]"
+                      >
+                        Req #{i + 1}: {code} ({concurrencyResult.latencies[i]}ms)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab 5: Real SSL / TLS Certificate Chain */}
         {activeTab === "cert" && (
           <div className="flex-1 p-6 space-y-4 overflow-y-auto">
             <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
@@ -472,7 +893,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
           </div>
         )}
 
-        {/* Tab 3: Port & Service Recon */}
+        {/* Tab 6: Port & Service Recon */}
         {activeTab === "recon" && (
           <div className="flex-1 p-6 space-y-4 overflow-y-auto">
             <div className="flex items-center justify-between">
@@ -482,7 +903,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               </h3>
               <button
                 onClick={() => onSelectView?.("slayer")}
-                className="px-3 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#ff8800] border border-[#261d38] font-bold text-xs"
+                className="px-3 py-1 bg-[#161026] hover:bg-[#281b3d] text-[#ff8800] border border-[#261d38] font-bold text-xs cursor-pointer"
               >
                 OPEN WIN32 PORT SLAYER →
               </button>
@@ -493,7 +914,7 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
           </div>
         )}
 
-        {/* Tab 4: Continuous Portal Watchdog */}
+        {/* Tab 7: Continuous Portal Watchdog */}
         {activeTab === "watchdog" && (
           <div className="flex-1 p-6 space-y-4 overflow-y-auto">
             <h3 className="text-sm font-bold text-[#e2e8f0] flex items-center gap-2">
@@ -518,31 +939,19 @@ export const OffensiveWorkstation: React.FC<OffensiveWorkstationProps> = ({
               </button>
             </div>
 
-            {/* List */}
-            <div className="max-w-2xl space-y-2 pt-2">
-              {watchdogTargets.map((w) => (
-                <div
-                  key={w.url}
-                  className="bg-[#120c1f] p-3 border border-[#261d38] flex items-center justify-between"
-                >
+            {/* Watchdog Matrix */}
+            <div className="max-w-2xl bg-[#120c1f] border border-[#261d38] divide-y divide-[#261d38]">
+              {watchdogTargets.map((w, idx) => (
+                <div key={idx} className="p-3 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#e2e8f0]">{w.label}</p>
+                    <p className="font-bold text-[#e2e8f0] text-xs">{w.label}</p>
                     <p className="text-[10px] text-[#7a7194]">{w.url}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <span className="text-[10px] text-[#00e676] bg-[#00e676]/10 px-2 py-0.5 border border-[#00e676]/30 font-bold">
                       {w.status}
                     </span>
-                    <button
-                      onClick={() => {
-                        setTargetUrl(w.url);
-                        setActiveTab("vuln");
-                        handleRunAudit();
-                      }}
-                      className="px-2 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] text-[10px] border border-[#261d38]"
-                    >
-                      AUDIT NOW
-                    </button>
+                    <span className="text-[10px] text-[#7a7194]">{w.lastCheck}</span>
                   </div>
                 </div>
               ))}

@@ -103,6 +103,83 @@ export interface ActiveTelemetrySession {
   logPath?: string;
 }
 
+export interface VerifiedFinding {
+  type: string;
+  title: string;
+  certainty: 'VERIFIED' | 'HEURISTIC';
+  certaintyScore: number;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  targetParam?: string;
+  canaryToken?: string;
+  contextType?: string;
+  evidenceExcerpt: string;
+  reproducibleCurl: string;
+  testedUrl?: string;
+  statusCode?: number;
+  remediation: string;
+  reflectedOrigin?: string;
+  credentialsAllowed?: boolean;
+  baselineLength?: number;
+  trueProbeLength?: number;
+  falseProbeLength?: number;
+  framework?: string;
+}
+
+export interface PoVScanResult {
+  targetUrl: string;
+  timestamp: string;
+  durationMs: number;
+  verifiedFindings: VerifiedFinding[];
+  totalVerified: number;
+  error?: string;
+}
+
+export interface ShadowEndpointItem {
+  path: string;
+  fullUrl: string;
+  statusCode: number;
+  statusMessage: string;
+  contentLength: number;
+  isAccessible: boolean;
+  isProtected: boolean;
+}
+
+export interface ShadowApiScanResult {
+  targetUrl: string;
+  scannedScripts: number;
+  timestamp: string;
+  durationMs: number;
+  shadowEndpoints: ShadowEndpointItem[];
+  hiddenParameters: string[];
+  leakedSecrets: Array<{ type: string; value: string; script: string }>;
+  error?: string;
+}
+
+export interface TimingDiscrepancyResult {
+  endpoint: string;
+  testUser: string;
+  nonExistentUser?: string;
+  nonExistentTimings?: number[];
+  targetTimings?: number[];
+  avgNonExistentMs?: number;
+  avgTargetMs?: number;
+  timingDeltaMs?: number;
+  isVulnerable: boolean;
+  verdict: string;
+  error?: string;
+}
+
+export interface ConcurrencyRaceResult {
+  targetEndpoint: string;
+  burstCount: number;
+  totalWindowMs: number;
+  statusCodes: number[];
+  latencies: number[];
+  uniformity?: string;
+  summary: string;
+  error?: string;
+}
+
 declare global {
   interface Window {
     dracoAPI?: {
@@ -128,6 +205,10 @@ declare global {
       slayerProbePort: (host: string, port: number) => Promise<{ open: boolean; latencyMs: number; banner?: string; error?: string }>;
       vulnScan: (targetUrl: string) => Promise<any>;
       vulnCertInspect: (host: string, port?: number) => Promise<any>;
+      sentinelRunPoV: (targetUrl: string) => Promise<PoVScanResult>;
+      sentinelCrawlShadow: (targetUrl: string) => Promise<ShadowApiScanResult>;
+      sentinelTestTiming: (targetUrl: string, endpointPath?: string, testUser?: string) => Promise<TimingDiscrepancyResult>;
+      sentinelTestConcurrency: (targetUrl: string, endpointPath?: string) => Promise<ConcurrencyRaceResult>;
       getNetInterfaces: () => Promise<Record<string, any[]>>;
       getSysInfo: () => Promise<SysInfo>;
       checkUpdate: () => Promise<UpdateInfo>;
