@@ -121,3 +121,4 @@ Saat pengguna melakukan klik kanan pada direktori mana pun di File Explorer:
 2. **File Icons**: Setiap berkas menampilkan ikon sesuai ekstensinya (.py, .ts, .dart, .html, dsb.).
 3. **Window State**: Aplikasi terbuka dalam mode maximized/fullscreen dengan tombol shutdown berfungsi normal.
 4. **Scoped Workspace**: Klik kanan folder -> `Open Scope Here` mengisolasi tampilan file explorer dan editor hanya ke folder yang dipilih.
+

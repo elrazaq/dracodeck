@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Folder, FolderOpen, FileCode, FileText, ChevronRight, ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronRight, ChevronDown, RefreshCw } from "lucide-react";
 import { FileEntry, sortEntries } from "../../types";
+import { FileIcon } from "../common/FileIcon";
+import { ContextMenu } from "../common/ContextMenu";
 
 export interface ExplorerItem extends FileEntry {
   children?: ExplorerItem[];
@@ -9,17 +11,25 @@ export interface ExplorerItem extends FileEntry {
 interface ExplorerViewProps {
   workspacePath: string;
   onOpenFile: (filePath: string, fileName: string) => void;
+  onOpenScope?: (folderPath: string, folderName: string) => void;
   selectedFile?: string;
 }
 
 export const ExplorerView: React.FC<ExplorerViewProps> = ({
   workspacePath,
   onOpenFile,
+  onOpenScope,
   selectedFile,
 }) => {
   const [items, setItems] = useState<ExplorerItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+    name: string;
+  } | null>(null);
 
   const loadDirectory = useCallback(async (dirPath: string): Promise<ExplorerItem[]> => {
     let raw: FileEntry[] = [];
@@ -39,7 +49,6 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
         { name: "index.html", isDirectory: false, path: `${dirPath}/index.html` },
       ];
     }
-    // Strict folder-first ascending sorting
     return sortEntries(raw);
   }, []);
 
@@ -76,6 +85,19 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
     setOpenDirs((prev) => ({ ...prev, [item.path]: true }));
   };
 
+  const handleContextMenu = (e: React.MouseEvent, item: ExplorerItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (item.isDirectory) {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        path: item.path,
+        name: item.name,
+      });
+    }
+  };
+
   const renderItem = (item: ExplorerItem, depth: number = 0) => {
     const isOpen = !!openDirs[item.path];
     const isSelected = selectedFile === item.path || selectedFile === item.name;
@@ -85,6 +107,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
         <div key={item.path} className="select-none">
           <div
             onClick={() => toggleDirectory(item)}
+            onContextMenu={(e) => handleContextMenu(e, item)}
             style={{ paddingLeft: `${depth * 12 + 8}px` }}
             className="flex items-center gap-1.5 py-1 pr-2 hover:bg-[#281b3d] text-[#cbd5e1] hover:text-[#00e5ff] cursor-pointer text-xs transition-colors"
           >
@@ -93,11 +116,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
             ) : (
               <ChevronRight className="w-3 h-3 text-[#7a7194] flex-shrink-0" />
             )}
-            {isOpen ? (
-              <FolderOpen className="w-3.5 h-3.5 text-[#00e5ff] flex-shrink-0" />
-            ) : (
-              <Folder className="w-3.5 h-3.5 text-[#2979ff] flex-shrink-0" />
-            )}
+            <FileIcon name={item.name} isDirectory={true} isOpen={isOpen} size="sm" />
             <span className="font-mono truncate">{item.name}</span>
           </div>
 
@@ -110,8 +129,6 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
       );
     }
 
-    const isMarkdown = item.name.endsWith(".md");
-
     return (
       <div
         key={item.path}
@@ -123,11 +140,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
             : "text-[#cbd5e1] hover:bg-[#281b3d]/60 hover:text-[#00e5ff]"
         }`}
       >
-        {isMarkdown ? (
-          <FileText className="w-3.5 h-3.5 text-[#ff8800] flex-shrink-0" />
-        ) : (
-          <FileCode className="w-3.5 h-3.5 text-[#00e5ff] flex-shrink-0" />
-        )}
+        <FileIcon name={item.name} isDirectory={false} size="sm" />
         <span className="truncate">{item.name}</span>
       </div>
     );
@@ -161,6 +174,20 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
         )}
         {items.map((item) => renderItem(item, 0))}
       </div>
+
+      {/* Context Menu on Folder */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          targetPath={contextMenu.path}
+          targetName={contextMenu.name}
+          onOpenScope={(path, name) => {
+            onOpenScope?.(path, name);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 };

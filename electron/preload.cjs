@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   readDir: (dirPath) => ipcRenderer.invoke('read-dir', dirPath),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
+  quitApp: () => ipcRenderer.invoke('quit-app'),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {

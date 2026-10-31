@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  Folder,
-  FolderOpen,
-  FileCode,
-  FileText,
-  File,
   ChevronLeft,
   ChevronRight,
   ArrowUp,
@@ -16,17 +11,22 @@ import {
   LayoutGrid,
   List as ListIcon,
   Search,
+  FolderOpen,
 } from "lucide-react";
 import { FileEntry, sortEntries } from "../../types";
+import { FileIcon } from "../common/FileIcon";
+import { ContextMenu } from "../common/ContextMenu";
 
 interface KaliFileManagerProps {
   workspacePath: string;
   onOpenFile: (filePath: string, fileName: string) => void;
+  onOpenScope?: (folderPath: string, folderName: string) => void;
 }
 
 export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
   workspacePath,
   onOpenFile,
+  onOpenScope,
 }) => {
   const [currentDir, setCurrentDir] = useState<string>(workspacePath);
   const [history, setHistory] = useState<string[]>([workspacePath]);
@@ -36,7 +36,14 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Sync when workspacePath prop changes
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    path: string;
+    name: string;
+  } | null>(null);
+
   useEffect(() => {
     setCurrentDir(workspacePath);
     setHistory([workspacePath]);
@@ -50,7 +57,6 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
       if (window.dracoAPI?.readDir) {
         raw = await window.dracoAPI.readDir(dirPath);
       } else {
-        // Fallback demo files if running in browser
         raw = [
           { name: "docs", isDirectory: true, path: `${dirPath}/docs` },
           { name: "electron", isDirectory: true, path: `${dirPath}/electron` },
@@ -66,7 +72,7 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
         ];
       }
 
-      // CRITICAL: Sort folders first ascending, then files ascending
+      // Strict folder-first ascending sorting
       const sorted = sortEntries(raw);
       setEntries(sorted);
     } catch (err) {
@@ -113,6 +119,19 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent, item: FileEntry) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (item.isDirectory) {
+      setContextMenu({
+        x: e.clientX,
+        y: e.clientY,
+        path: item.path,
+        name: item.name,
+      });
+    }
+  };
+
   const filteredEntries = entries.filter((e) =>
     e.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -120,49 +139,10 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
   const folderCount = filteredEntries.filter((e) => e.isDirectory).length;
   const fileCount = filteredEntries.filter((e) => !e.isDirectory).length;
 
-  const renderFileIcon = (item: FileEntry) => {
-    if (item.isDirectory) {
-      return (
-        <div className="relative">
-          <Folder className="w-10 h-10 text-[#00e5ff] fill-[#00e5ff]/15 stroke-[1.5]" />
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-[#ff007f] font-bold">
-            /
-          </span>
-        </div>
-      );
-    }
-
-    if (item.name.endsWith(".md")) {
-      return <FileText className="w-9 h-9 text-[#ff8800] stroke-[1.5]" />;
-    }
-    if (item.name.endsWith(".ts") || item.name.endsWith(".tsx")) {
-      return <FileCode className="w-9 h-9 text-[#00e5ff] stroke-[1.5]" />;
-    }
-    if (item.name.endsWith(".js") || item.name.endsWith(".cjs") || item.name.endsWith(".json")) {
-      return <FileCode className="w-9 h-9 text-[#ffea00] stroke-[1.5]" />;
-    }
-    return <File className="w-9 h-9 text-[#7a7194] stroke-[1.5]" />;
-  };
-
   return (
-    <div className="h-full w-full bg-[#161026] text-[#cbd5e1] font-mono flex flex-col border border-[#261d38] rounded-xs overflow-hidden select-none shadow-2xl">
-      {/* Dolphin / Thunar Title Bar */}
-      <div className="h-8 bg-[#120c1f] border-b border-[#261d38] px-3 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
-          <FolderOpen className="w-4 h-4 text-[#ff007f]" />
-          <span className="font-bold text-[#e2e8f0] tracking-wide">
-            KALI FILE MANAGER // <span className="text-[#00e5ff]">DOLPHIN</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#ffea00]/80 inline-block" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#00e676]/80 inline-block" />
-          <span className="w-2.5 h-2.5 rounded-full bg-[#ff1744]/80 inline-block" />
-        </div>
-      </div>
-
-      {/* Navigation & Toolbar */}
-      <div className="h-10 bg-[#161026] border-b border-[#261d38] px-3 flex items-center justify-between gap-3 text-xs">
+    <div className="h-full w-full bg-[#161026] text-[#cbd5e1] font-mono flex flex-col overflow-hidden select-none">
+      {/* Dolphin / Thunar Title & Nav Toolbar */}
+      <div className="h-9 bg-[#120c1f] border-b border-[#261d38] px-3 flex items-center justify-between gap-3 text-xs">
         {/* History Nav */}
         <div className="flex items-center gap-1">
           <button
@@ -209,20 +189,20 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Filter files..."
-              className="w-36 bg-[#0b0813] border border-[#261d38] focus:border-[#ff007f] pl-7 pr-2 py-1 text-[11px] outline-none text-[#e2e8f0]"
+              placeholder="Filter..."
+              className="w-32 bg-[#0b0813] border border-[#261d38] focus:border-[#ff007f] pl-7 pr-2 py-1 text-[11px] outline-none text-[#e2e8f0]"
             />
           </div>
           <div className="flex border border-[#261d38] rounded-xs overflow-hidden">
             <button
               onClick={() => setViewMode("grid")}
-              className={`p-1.5 ${viewMode === "grid" ? "bg-[#ff007f] text-[#0b0813]" : "bg-[#120c1f] text-[#7a7194] hover:text-white"}`}
+              className={`p-1.5 ${viewMode === "grid" ? "bg-[#ff007f] text-white" : "bg-[#120c1f] text-[#7a7194] hover:text-white"}`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`p-1.5 ${viewMode === "list" ? "bg-[#ff007f] text-[#0b0813]" : "bg-[#120c1f] text-[#7a7194] hover:text-white"}`}
+              className={`p-1.5 ${viewMode === "list" ? "bg-[#ff007f] text-white" : "bg-[#120c1f] text-[#7a7194] hover:text-white"}`}
             >
               <ListIcon className="w-3.5 h-3.5" />
             </button>
@@ -254,22 +234,22 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
                 onClick={() => navigateTo(`${workspacePath}\\docs`)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026] transition-colors"
               >
-                <Folder className="w-3.5 h-3.5 text-[#2979ff]" />
-                <span className="truncate">Docs</span>
+                <FolderOpen className="w-3.5 h-3.5 text-[#2979ff]" />
+                <span className="truncate">docs</span>
               </button>
               <button
                 onClick={() => navigateTo(`${workspacePath}\\src`)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026] transition-colors"
               >
-                <Folder className="w-3.5 h-3.5 text-[#00e676]" />
-                <span className="truncate">Source</span>
+                <FolderOpen className="w-3.5 h-3.5 text-[#00e676]" />
+                <span className="truncate">src</span>
               </button>
               <button
                 onClick={() => navigateTo(`${workspacePath}\\electron`)}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-xs text-left text-[#cbd5e1] hover:bg-[#161026] transition-colors"
               >
-                <Folder className="w-3.5 h-3.5 text-[#ff8800]" />
-                <span className="truncate">Electron</span>
+                <FolderOpen className="w-3.5 h-3.5 text-[#ff8800]" />
+                <span className="truncate">electron</span>
               </button>
             </div>
           </div>
@@ -291,13 +271,14 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
           </div>
         </aside>
 
-        {/* Content Pane (Strict Folder-First Ascending Matrix) */}
+        {/* Content Pane (Folder-First Matrix) */}
         <div className="flex-1 bg-[#0b0813] p-4 overflow-y-auto">
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(105px,1fr))] gap-3">
               {filteredEntries.map((item) => (
                 <div
                   key={item.path}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
                   onClick={() => {
                     if (item.isDirectory) {
                       navigateTo(item.path);
@@ -305,10 +286,10 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
                       onOpenFile(item.path, item.name);
                     }
                   }}
-                  className="group flex flex-col items-center justify-center p-3 rounded-xs border border-transparent hover:border-[#261d38] hover:bg-[#161026] cursor-pointer transition-all text-center"
+                  className="group flex flex-col items-center justify-center p-3 rounded-xs border border-transparent hover:border-[#261d38] hover:bg-[#161026] cursor-pointer transition-all text-center relative"
                 >
-                  <div className="mb-2 group-hover:scale-105 transition-transform">
-                    {renderFileIcon(item)}
+                  <div className="mb-2 group-hover:scale-105 transition-transform flex items-center justify-center">
+                    <FileIcon name={item.name} isDirectory={item.isDirectory} size="lg" />
                   </div>
                   <span className="text-[11px] font-mono text-[#cbd5e1] group-hover:text-[#00e5ff] truncate max-w-full">
                     {item.name}
@@ -317,11 +298,11 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
               ))}
             </div>
           ) : (
-            /* List Mode (Dolphin Detailed View) */
             <div className="space-y-1">
               {filteredEntries.map((item) => (
                 <div
                   key={item.path}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
                   onClick={() => {
                     if (item.isDirectory) {
                       navigateTo(item.path);
@@ -329,14 +310,10 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
                       onOpenFile(item.path, item.name);
                     }
                   }}
-                  className="flex items-center justify-between px-3 py-1.5 rounded-xs hover:bg-[#161026] hover:text-[#00e5ff] cursor-pointer transition-colors border-b border-[#261d38]/40"
+                  className="flex items-center justify-between px-3 py-1.5 rounded-xs hover:bg-[#161026] hover:text-[#00e5ff] cursor-pointer transition-colors border-b border-[#261d38]/30"
                 >
                   <div className="flex items-center gap-2.5 truncate">
-                    {item.isDirectory ? (
-                      <Folder className="w-4 h-4 text-[#00e5ff]" />
-                    ) : (
-                      <FileCode className="w-4 h-4 text-[#7a7194]" />
-                    )}
+                    <FileIcon name={item.name} isDirectory={item.isDirectory} size="sm" />
                     <span className="text-xs truncate">{item.name}</span>
                   </div>
                   <span className="text-[10px] text-[#7a7194]">
@@ -349,13 +326,13 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
 
           {filteredEntries.length === 0 && (
             <div className="h-full flex items-center justify-center text-[#7a7194] text-xs">
-              No matching folders or files found.
+              No matching files or folders.
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Status Bar (Dolphin Metrics) */}
+      {/* Bottom Status Bar */}
       <div className="h-7 bg-[#120c1f] border-t border-[#261d38] px-3 flex items-center justify-between text-[11px] text-[#7a7194]">
         <div className="flex items-center gap-3">
           <span className="text-[#00e5ff] font-semibold">{folderCount} Folders</span>
@@ -366,6 +343,20 @@ export const KaliFileManager: React.FC<KaliFileManagerProps> = ({
           <span>Local Storage: Connected</span>
         </div>
       </div>
+
+      {/* Right-click Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          targetPath={contextMenu.path}
+          targetName={contextMenu.name}
+          onOpenScope={(path, name) => {
+            onOpenScope?.(path, name);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 };

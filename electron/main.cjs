@@ -10,9 +10,9 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 640,
-    show: true,
-    backgroundColor: '#0a0e17',
-    title: 'Dracodex // Offensive Developer Cockpit',
+    show: false,
+    backgroundColor: '#0b0813',
+    title: 'Dracodeck // Offensive Developer Cockpit',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -29,6 +29,8 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
+    // Open maximized / fullscreen on boot
+    mainWindow.maximize();
     mainWindow.show();
     mainWindow.focus();
   });
@@ -39,9 +41,13 @@ function createWindow() {
 }
 
 // IPC Handlers
+ipcMain.handle('quit-app', () => {
+  app.quit();
+});
+
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Select Dracodex Workspace Directory',
+    title: 'Select Dracodeck Workspace Directory',
     properties: ['openDirectory', 'createDirectory'],
   });
   if (result.canceled || !result.filePaths.length) {

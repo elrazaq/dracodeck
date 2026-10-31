@@ -15,6 +15,7 @@ declare global {
       readDir: (dirPath: string) => Promise<FileItem[]>;
       readFile: (filePath: string) => Promise<string>;
       writeFile: (filePath: string, content: string) => Promise<boolean>;
+      quitApp: () => Promise<void>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => void;
     };

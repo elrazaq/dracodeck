@@ -7,7 +7,7 @@ import { EditorPane } from "../editor/EditorPane";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { TelemetryPane } from "../telemetry/TelemetryPane";
 import { SlayerPane } from "../slayer/SlayerPane";
-import { KaliFileManager } from "../desktop/KaliFileManager";
+import { KaliDesktop } from "../desktop/KaliDesktop";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
 import { ActiveView } from "../../types";
 
@@ -15,6 +15,7 @@ const STORAGE_KEY = "dracodex_workspace";
 
 export const Shell: React.FC = () => {
   const [workspace, setWorkspace] = useState<string | null>(null);
+  const [scopedWorkspace, setScopedWorkspace] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("explorer");
   const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
   const [activeLang, setActiveLang] = useState<string>("Markdown");
@@ -29,11 +30,23 @@ export const Shell: React.FC = () => {
   const handleSelectWorkspace = (path: string) => {
     localStorage.setItem(STORAGE_KEY, path);
     setWorkspace(path);
+    setScopedWorkspace(null);
   };
 
   const handleChangeWorkspace = () => {
     localStorage.removeItem(STORAGE_KEY);
     setWorkspace(null);
+    setScopedWorkspace(null);
+  };
+
+  // Open Scope Here: isolates Explorer and Editor to this subfolder
+  const handleOpenScope = (folderPath: string, _folderName: string) => {
+    setScopedWorkspace(folderPath);
+    setActiveView("explorer");
+  };
+
+  const handleExitScope = () => {
+    setScopedWorkspace(null);
   };
 
   // If no workspace initialized, display Kali Initializer screen
@@ -49,20 +62,17 @@ export const Shell: React.FC = () => {
     }
   };
 
+  const currentEffectiveWorkspace = scopedWorkspace || workspace;
+
   const renderMainWorkspace = () => {
     switch (activeView) {
       case "desktop":
         return (
-          <div className="h-full w-full bg-[#0b0813] p-4 flex flex-col relative overflow-hidden">
-            {/* Kali Desktop Wallpaper Accent */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1f1538] via-[#0b0813] to-[#07050a] opacity-60 pointer-events-none" />
-            <div className="relative z-10 h-full w-full">
-              <KaliFileManager
-                workspacePath={workspace}
-                onOpenFile={handleOpenFile}
-              />
-            </div>
-          </div>
+          <KaliDesktop
+            workspacePath={workspace}
+            onOpenFile={handleOpenFile}
+            onOpenScope={handleOpenScope}
+          />
         );
 
       case "explorer":
@@ -75,9 +85,10 @@ export const Shell: React.FC = () => {
             maxSize={40}
             left={
               <ExplorerView
-                workspacePath={workspace}
+                workspacePath={currentEffectiveWorkspace}
                 selectedFile={activeFile?.path}
                 onOpenFile={handleOpenFile}
+                onOpenScope={handleOpenScope}
               />
             }
             right={
@@ -90,6 +101,8 @@ export const Shell: React.FC = () => {
                   <EditorPane
                     activeFile={activeFile}
                     onLanguageChange={(lang) => setActiveLang(lang)}
+                    scopedWorkspace={scopedWorkspace}
+                    onExitScope={handleExitScope}
                   />
                 }
                 right={<TerminalPane />}
@@ -134,12 +147,28 @@ export const Shell: React.FC = () => {
                 <div className="bg-[#0b0813] p-2 border border-[#261d38] text-[#00e5ff] font-mono break-all text-xs">
                   {workspace}
                 </div>
-                <button
-                  onClick={handleChangeWorkspace}
-                  className="mt-2 text-xs bg-[#ff007f] hover:bg-[#e0007b] text-white px-3 py-1 font-semibold transition-colors"
-                >
-                  Switch Workspace Folder
-                </button>
+                {scopedWorkspace && (
+                  <div className="mt-2 bg-[#281b3d] p-2 border border-[#ff007f]/50 text-xs">
+                    <span className="text-[#ff007f] font-bold">Currently Scoped To: </span>
+                    <span className="text-[#e2e8f0]">{scopedWorkspace}</span>
+                  </div>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleChangeWorkspace}
+                    className="text-xs bg-[#ff007f] hover:bg-[#e0007b] text-white px-3 py-1 font-semibold transition-colors"
+                  >
+                    Switch Root Workspace
+                  </button>
+                  {scopedWorkspace && (
+                    <button
+                      onClick={handleExitScope}
+                      className="text-xs bg-[#261d38] hover:bg-[#281b3d] text-[#00e5ff] px-3 py-1 font-semibold border border-[#00e5ff]/40 transition-colors"
+                    >
+                      Exit Subfolder Scope
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="pt-2 border-t border-[#261d38]">
                 <p className="text-[10px] text-[#7a7194] uppercase tracking-wider mb-1 font-bold">
@@ -177,7 +206,7 @@ export const Shell: React.FC = () => {
 
       {/* Signature Hot Magenta Bottom Status Bar */}
       <BottomBar
-        workspace={workspace}
+        workspace={currentEffectiveWorkspace}
         activeLanguage={activeLang}
       />
     </div>
