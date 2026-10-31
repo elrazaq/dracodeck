@@ -1,57 +1,253 @@
-import React from "react";
-import { Terminal, Plus } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Terminal, Plus, Trash2, RotateCw, XCircle } from "lucide-react";
+
+interface TerminalTab {
+  id: string;
+  name: string;
+  history: string[];
+}
 
 export const TerminalPane: React.FC = () => {
+  const [tabs, setTabs] = useState<TerminalTab[]>([
+    { id: "1", name: "pwsh.exe:1", history: [] },
+  ]);
+  const [activeTabId, setActiveTabId] = useState<string>("1");
+  const [outputLines, setOutputLines] = useState<string[]>([
+    "DRACODECK ConPTY PseudoConsole Bridge [Version 1.0.0]",
+    "Windows PowerShell Interactive Session Connected.",
+    "Type any PowerShell / Win32 command and press Enter.",
+    "",
+  ]);
+  const [currentInput, setCurrentInput] = useState<string>("");
+  const [cmdHistory, setCmdHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+
+  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-scroll to bottom on new output
+  useEffect(() => {
+    terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [outputLines]);
+
+  // Hook into Electron IPC terminal stream
+  useEffect(() => {
+    if (window.dracoAPI?.receive) {
+      window.dracoAPI.receive("terminal-output", (data: string) => {
+        const rawLines = data.split(/\r?\n/);
+        setOutputLines((prev) => [...prev, ...rawLines]);
+      });
+    }
+  }, []);
+
+  const handleSendCommand = (cmd: string) => {
+    if (!cmd.trim()) return;
+
+    // Send to native ConPTY process via IPC
+    if (window.dracoAPI?.send) {
+      window.dracoAPI.send("terminal-input", cmd + "\r\n");
+    } else {
+      // Browser preview mock execution
+      setOutputLines((prev) => [
+        ...prev,
+        `PS D:\\dracodex> ${cmd}`,
+        `[mock-execution] Command "${cmd}" processed.`,
+      ]);
+    }
+
+    setCmdHistory((prev) => [...prev, cmd]);
+    setHistoryIndex(-1);
+    setCurrentInput("");
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSendCommand(currentInput);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (cmdHistory.length > 0) {
+        const nextIdx = historyIndex === -1 ? cmdHistory.length - 1 : Math.max(0, historyIndex - 1);
+        setHistoryIndex(nextIdx);
+        setCurrentInput(cmdHistory[nextIdx]);
+      }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (historyIndex !== -1) {
+        const nextIdx = historyIndex + 1;
+        if (nextIdx < cmdHistory.length) {
+          setHistoryIndex(nextIdx);
+          setCurrentInput(cmdHistory[nextIdx]);
+        } else {
+          setHistoryIndex(-1);
+          setCurrentInput("");
+        }
+      }
+    } else if (e.ctrlKey && e.key === "c") {
+      // Send SIGINT / Interrupt
+      if (window.dracoAPI?.send) {
+        window.dracoAPI.send("terminal-input", "\x03");
+      }
+      setOutputLines((prev) => [...prev, `^C`]);
+      setCurrentInput("");
+    } else if (e.ctrlKey && e.key === "l") {
+      e.preventDefault();
+      handleClear();
+    }
+  };
+
+  const handleClear = () => {
+    setOutputLines([]);
+  };
+
+  const handleRestart = async () => {
+    setOutputLines(["[Restarting ConPTY session...]", ""]);
+    if (window.dracoAPI?.terminalInit) {
+      await window.dracoAPI.terminalInit();
+    }
+  };
+
+  const handleKill = async () => {
+    if (window.dracoAPI?.terminalKill) {
+      await window.dracoAPI.terminalKill();
+      setOutputLines((prev) => [...prev, "[ConPTY process terminated.]"]);
+    }
+  };
+
+  const handleNewTab = () => {
+    const newId = (tabs.length + 1).toString();
+    setTabs([...tabs, { id: newId, name: `pwsh.exe:${newId}`, history: [] }]);
+    setActiveTabId(newId);
+  };
+
+  // Basic ANSI color strip/render helper
+  const parseAnsiLine = (line: string) => {
+    // Strip standard ANSI escape codes for crisp readability
+    const clean = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+    if (!clean) return <div className="h-4" />;
+
+    // Highlight error or warning patterns
+    if (/error|failed|exception/i.test(clean)) {
+      return <div className="text-[#ff1744]">{clean}</div>;
+    }
+    if (/warning|warn/i.test(clean)) {
+      return <div className="text-[#ff8800]">{clean}</div>;
+    }
+    if (/success|ready|done|connected/i.test(clean)) {
+      return <div className="text-[#00e676]">{clean}</div>;
+    }
+    if (/PS\s+[A-Z]:\\/i.test(clean) || clean.startsWith(">")) {
+      return <div className="text-[#00e5ff] font-semibold">{clean}</div>;
+    }
+    return <div className="text-[#cbd5e1]">{clean}</div>;
+  };
+
   return (
-    <div className="h-full bg-[#0b0813] flex flex-col font-mono text-xs overflow-hidden border-t border-[#261d38]">
+    <div
+      onClick={() => inputRef.current?.focus()}
+      className="h-full bg-[#0b0813] flex flex-col font-mono text-xs overflow-hidden border-t border-[#261d38] select-none"
+    >
       {/* Terminal Tab Bar */}
-      <div className="h-7 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between px-2 select-none">
+      <div className="h-7 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between px-2">
         <div className="flex items-center gap-1">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#0b0813] border border-[#261d38] text-[#00e5ff] text-[11px] font-semibold border-b-2 border-b-[#ff007f]">
-            <Terminal className="w-3 h-3 text-[#ff007f]" />
-            <span>pwsh.exe:1</span>
-          </div>
+          {tabs.map((tab) => {
+            const isActive = tab.id === activeTabId;
+            return (
+              <div
+                key={tab.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTabId(tab.id);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold cursor-pointer transition-colors border-r border-[#261d38] ${
+                  isActive
+                    ? "bg-[#0b0813] text-[#00e5ff] border-t-2 border-t-[#ff007f]"
+                    : "bg-[#120c1f] text-[#7a7194] hover:bg-[#161026] hover:text-[#cbd5e1]"
+                }`}
+              >
+                <Terminal className="w-3 h-3 text-[#ff007f]" />
+                <span>{tab.name}</span>
+              </div>
+            );
+          })}
+
           <button
-            title="New Terminal"
-            className="p-1 hover:bg-[#161026] text-[#7a7194] hover:text-[#e2e8f0]"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNewTab();
+            }}
+            title="Open New Terminal Shell"
+            className="p-1 hover:bg-[#161026] text-[#7a7194] hover:text-[#e2e8f0] transition-colors"
           >
             <Plus className="w-3 h-3" />
           </button>
         </div>
 
+        {/* Terminal Action Tools */}
         <div className="flex items-center gap-2 text-[10px] text-[#7a7194]">
-          <span>ConPTY (Windows 11)</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClear();
+            }}
+            title="Clear Terminal (Ctrl+L)"
+            className="flex items-center gap-1 hover:text-[#00e5ff] p-0.5 transition-colors"
+          >
+            <Trash2 className="w-3 h-3" />
+            <span className="hidden sm:inline">CLEAR</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRestart();
+            }}
+            title="Restart Shell"
+            className="flex items-center gap-1 hover:text-[#00e676] p-0.5 transition-colors"
+          >
+            <RotateCw className="w-3 h-3" />
+            <span className="hidden sm:inline">RESTART</span>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleKill();
+            }}
+            title="Kill Active Shell Process"
+            className="flex items-center gap-1 hover:text-[#ff1744] p-0.5 transition-colors"
+          >
+            <XCircle className="w-3 h-3" />
+            <span className="hidden sm:inline">KILL</span>
+          </button>
+
           <span className="text-[#261d38]">|</span>
-          <span className="text-[#00e676]">POWER-SHELL READY</span>
+          <span className="text-[#00e676] font-semibold">ConPTY LIVE</span>
         </div>
       </div>
 
       {/* Terminal Screen Canvas */}
-      <div className="flex-1 p-3 overflow-y-auto bg-[#0b0813] text-[#cbd5e1] leading-5 space-y-1">
-        <div className="text-[#7a7194]">
-          Windows PowerShell - ConPTY PseudoConsole Bridge [Version 10.0.26100]
+      <div className="flex-1 p-3 overflow-y-auto bg-[#0b0813] text-[#cbd5e1] leading-5 space-y-0.5 cursor-text font-mono text-[11px]">
+        {outputLines.map((line, idx) => (
+          <div key={idx}>{parseAnsiLine(line)}</div>
+        ))}
+
+        {/* Active Command Prompt Line */}
+        <div className="flex items-center gap-2 pt-1">
+          <span className="text-[#ff007f] font-bold">●</span>
+          <span className="text-[#00e5ff] font-bold whitespace-nowrap">PS dracodeck&gt;</span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={currentInput}
+            onChange={(e) => setCurrentInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            spellCheck={false}
+            autoFocus
+            className="flex-1 bg-transparent text-[#e2e8f0] outline-none border-none font-mono text-[11px] caret-[#ff007f]"
+          />
         </div>
-        <div className="text-[#7a7194]">
-          (c) Microsoft Corporation. DRACODECK Terminal Shell v0.1.0.
-        </div>
-        <div className="mt-2 text-[#00e5ff]">
-          <span>[DRACODECK CONSOLE READY FOR M2 xterm.js ATTACH]</span>
-        </div>
-        <div className="flex items-center gap-2 mt-1">
-          <span className="text-[#ff007f] font-semibold">●</span>
-          <span className="text-[#00e5ff] font-semibold">PS D:\dracodex&gt;</span>
-          <span className="text-[#a3e635]">npm run dev</span>
-        </div>
-        <div className="text-[#7a7194] text-[11px] py-1">
-          <pre className="text-[#00e676]">
-            {"[vite] (client) hmr update /src/index.css\n[vite] (client) connected to Dracodeck engine."}
-          </pre>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[#ff007f] font-semibold">●</span>
-          <span className="text-[#00e5ff] font-semibold">PS D:\dracodex&gt;</span>
-          <span className="inline-block w-2 h-4 bg-[#ff007f] animate-pulse"></span>
-        </div>
+
+        <div ref={terminalEndRef} />
       </div>
     </div>
   );

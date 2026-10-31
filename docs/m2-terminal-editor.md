@@ -1,38 +1,40 @@
-# Milestone 2: ConPTY Terminal & Monaco Integration (M2)
+# Milestone 2: ConPTY Terminal & Code Editor Integration (M2)
 
-Dokumen spesifikasi teknis untuk implementasi terminal interaktif native Windows dan code editor Monaco pada **DRACODECK** berbasis Electron.
+Dokumen spesifikasi teknis dan implementasi untuk terminal interaktif native Windows dan code editor pada **DRACODECK** berbasis Electron.
 
 ---
 
 ## 1. Tujuan & Deliverables
 
-1. **ConPTY Terminal Native Windows**: Terminal interaktif tanpa lag yang terhubung ke PowerShell / WSL2 via Node.js PTY bridge.
-2. **Monaco Code Editor**: Editor kode resmi VS Code dengan syntax highlighting, multi-tab, minimap, dan tema Kali Dark.
-3. **Local Filesystem Bridge**: IPC API aman untuk membaca dan menulis berkas workspace.
+1. **ConPTY Terminal Native Windows (Zero Compiler Overhead)**:
+   - Terhubung langsung ke proses interaktif `powershell.exe` / `wsl.exe` melalui IPC streaming Node.js `child_process.spawn`.
+   - Streaming stdout dan stderr real-time ke renderer via `terminal-output`.
+   - Menerima input interaktif keyboard via `terminal-input` dengan command history (Up/Down arrow), SIGINT (`Ctrl+C`), dan clear screen (`Ctrl+L`).
+   - Multi-tab management: `pwsh.exe:1`, `pwsh.exe:2`, dsb.
+   - Tombol kontrol lifecycle: `CLEAR`, `RESTART`, `KILL`.
+
+2. **VS Code-Style Code Editor & Interactive Minimap**:
+   - Editor multi-tab dengan granular syntax highlighting (16+ token semantik).
+   - Minimap interaktif di sisi kanan dengan micro code visualization dan slider viewport region.
+   - Klik pada minimap memicu auto-scroll instan ke posisi file yang dituju.
+   - Toggle button `[ MINIMAP ]` dan `[ SYNTAX ]` pada bar tab editor.
+   - Hotkey `Ctrl+S` untuk penyimpanan instan ke filesystem lokal.
+
+3. **Secure Local Filesystem Bridge (IPC API)**:
+   - `readDir(dirPath)`: List direktori dengan filter aman.
+   - `readFile(filePath)`: Membaca berkas UTF-8.
+   - `writeFile(filePath, content)`: Menyimpan berkas.
+   - `deleteFile(targetPath)`: Menghapus file/folder.
+   - `renameFile(oldPath, newPath)`: Mengubah nama berkas.
+   - `statFile(targetPath)`: Metadata berkas (size, mtime, isDirectory).
 
 ---
 
-## 2. Arsitektur Terminal (Node.js PTY -> xterm.js)
+## 2. Arsitektur IPC Terminal & Process Lifecycle
 
 ```mermaid
 flowchart LR
-    Xterm["xterm.js Canvas\n(Renderer Process)"] <-->|IPC Send / On (UTF-8)| Preload["contextBridge\n(electron/preload.ts)"]
-    Preload <-->|IPC Main Bridge| NodePTY["PTY Bridge\n(electron/pty.ts)"]
-    NodePTY <--> PowerShell["powershell.exe / wsl.exe\n(Windows ConPTY)"]
+    Renderer["TerminalPane Canvas\n(Renderer Process)"] <-->|IPC terminal-input / terminal-output| Preload["contextBridge\n(electron/preload.cjs)"]
+    Preload <-->|IPC Main Bridge| NodeProcess["ChildProcess Spawn Bridge\n(electron/main.cjs)"]
+    NodeProcess <--> PowerShell["powershell.exe (Windows ConPTY)\nCWD: Workspace"]
 ```
-
-### IPC API Contracts:
-- `window.dracoAPI.terminal.send(data: string)`
-- `window.dracoAPI.terminal.onData(callback: (data: string) => void)`
-- `window.dracoAPI.terminal.resize(cols: number, rows: number)`
-
----
-
-## 3. Monaco Editor Integration
-
-- Package: `@monaco-editor/react`.
-- Custom Theme: `dracodeck-dark` (#0a0e17 background, #00e5ff keywords, #00e676 strings).
-- Filesystem IPC:
-  - `window.dracoAPI.fs.readFile(path: string): Promise<string>`
-  - `window.dracoAPI.fs.writeFile(path: string, content: string): Promise<void>`
-  - `window.dracoAPI.fs.listDir(path: string): Promise<FileItem[]>`

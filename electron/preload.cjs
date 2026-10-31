@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   renameFile: (oldPath, newPath) => ipcRenderer.invoke('rename-file', oldPath, newPath),
   statFile: (targetPath) => ipcRenderer.invoke('stat-file', targetPath),
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  terminalInit: (cwd) => ipcRenderer.invoke('terminal-init', cwd),
+  terminalKill: () => ipcRenderer.invoke('terminal-kill'),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {

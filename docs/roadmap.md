@@ -49,12 +49,12 @@ Roadmap resmi pengembangan **DRACODECK** (*The Offensive-Grade Developer Cockpit
 
 ---
 
-## Milestone 2: ConPTY Terminal & Monaco Integration
+## Milestone 2: ConPTY Terminal & Code Editor Integration
 > Dokumen Spesifikasi: [m2-terminal-editor.md](m2-terminal-editor.md)
-- Main Process: ConPTY streaming bridge (`powershell.exe` / `wsl.exe`) via Electron IPC.
-- Renderer: `@xterm/xterm` + `@xterm/addon-fit` terhubung ke stream terminal.
-- Renderer: `@monaco-editor/react` terpasang dengan custom Kali Dark theme.
-- Local filesystem read/write via IPC channel.
+- Main Process: ConPTY streaming bridge (`powershell.exe` / `wsl.exe`) via Electron IPC (`terminal-input` & `terminal-output`).
+- Renderer: Terminal canvas interaktif dengan ANSI parsing, command history (Up/Down arrow), hotkeys (`Ctrl+C`, `Ctrl+L`), multi-tab, serta tombol Clear/Restart/Kill.
+- Renderer: Code editor dilengkapi VS Code Minimap interaktif (micro code preview + clickable viewport scrubber) dan toggle Minimap.
+- Local filesystem read/write/delete/rename/stat via IPC channel.
 
 ---
 

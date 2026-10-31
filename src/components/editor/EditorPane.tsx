@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { X, FileCode, Save, Check, FileText, CornerDownLeft, Eye, EyeOff } from "lucide-react";
+import { X, FileCode, Save, Check, FileText, CornerDownLeft, Eye, EyeOff, Layout } from "lucide-react";
 import { highlightCode, Token } from "./syntaxHighlighter";
 
 export interface OpenTab {
@@ -26,10 +26,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const [activeTabPath, setActiveTabPath] = useState<string>("");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSyntaxOn, setIsSyntaxOn] = useState<boolean>(true);
+  const [isMinimapOn, setIsMinimapOn] = useState<boolean>(true);
+  const [viewportRatio, setViewportRatio] = useState<{ top: number; height: number }>({
+    top: 0,
+    height: 0.2,
+  });
 
   const gutterRef = useRef<HTMLDivElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const minimapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!activeFile) return;
@@ -150,7 +156,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   }, [currentTab?.content, currentTab?.name]);
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    const { scrollTop, scrollLeft } = e.currentTarget;
+    const { scrollTop, scrollLeft, scrollHeight, clientHeight } = e.currentTarget;
     if (gutterRef.current) {
       gutterRef.current.scrollTop = scrollTop;
     }
@@ -158,6 +164,22 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       preRef.current.scrollTop = scrollTop;
       preRef.current.scrollLeft = scrollLeft;
     }
+
+    // Update minimap viewport slider
+    if (scrollHeight > clientHeight) {
+      const top = scrollTop / scrollHeight;
+      const height = clientHeight / scrollHeight;
+      setViewportRatio({ top, height });
+    }
+  };
+
+  const handleMinimapClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!textareaRef.current || !minimapRef.current) return;
+    const rect = minimapRef.current.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const ratio = Math.max(0, Math.min(1, clickY / rect.height));
+    const targetScroll = ratio * textareaRef.current.scrollHeight - textareaRef.current.clientHeight / 2;
+    textareaRef.current.scrollTop = Math.max(0, targetScroll);
   };
 
   const renderToken = (tok: Token, idx: number) => {
@@ -265,8 +287,21 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           );
         })}
 
-        {/* Syntax Highlight Toggle */}
+        {/* Minimap & Syntax Toggles */}
         <div className="ml-auto mr-2 flex items-center gap-2">
+          <button
+            onClick={() => setIsMinimapOn(!isMinimapOn)}
+            title={isMinimapOn ? "Hide Code Minimap" : "Show Code Minimap"}
+            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors ${
+              isMinimapOn
+                ? "bg-[#281b3d] text-[#ff007f] border-[#ff007f]/50"
+                : "bg-[#161026] text-[#7a7194] border-[#261d38]"
+            }`}
+          >
+            <Layout className="w-3 h-3 text-[#ff007f]" />
+            <span>MINIMAP</span>
+          </button>
+
           <button
             onClick={() => setIsSyntaxOn(!isSyntaxOn)}
             title={isSyntaxOn ? "Disable Syntax Colors" : "Enable Syntax Colors"}
@@ -354,6 +389,44 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 }`}
               />
             </div>
+
+            {/* VS Code Minimap Sidebar */}
+            {isMinimapOn && (
+              <div
+                ref={minimapRef}
+                onClick={handleMinimapClick}
+                title="Code Minimap (Click to Jump)"
+                className="w-16 bg-[#0c0817] border-l border-[#261d38] relative overflow-hidden cursor-pointer select-none p-1 font-mono hidden md:block"
+              >
+                {/* Visible Viewport Box Indicator */}
+                <div
+                  style={{
+                    top: `${viewportRatio.top * 100}%`,
+                    height: `${Math.max(10, viewportRatio.height * 100)}%`,
+                  }}
+                  className="absolute left-0 right-0 bg-[#ff007f]/15 border-y border-[#ff007f]/40 pointer-events-none transition-all duration-75"
+                />
+
+                {/* Micro Code Representation */}
+                <div className="space-y-[1px] opacity-40 leading-none">
+                  {lines.slice(0, 80).map((l, i) => (
+                    <div
+                      key={i}
+                      style={{ width: `${Math.min(100, Math.max(15, l.length * 2))}%` }}
+                      className={`h-[2px] rounded-xs ${
+                        l.trim().startsWith("//") || l.trim().startsWith("#")
+                          ? "bg-[#64748b]"
+                          : l.includes("function") || l.includes("const")
+                          ? "bg-[#00e5ff]"
+                          : l.includes("import") || l.includes("export")
+                          ? "bg-[#00e676]"
+                          : "bg-[#7a7194]"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-[#7a7194] gap-2 select-none">

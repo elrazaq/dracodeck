@@ -1,8 +1,52 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 let mainWindow = null;
+let terminalProcess = null;
+
+function initTerminal(cwd) {
+  if (terminalProcess) {
+    try {
+      terminalProcess.kill();
+    } catch {}
+    terminalProcess = null;
+  }
+
+  const isWin = process.platform === 'win32';
+  const shell = isWin ? 'powershell.exe' : 'bash';
+  const args = isWin ? ['-NoLogo', '-ExecutionPolicy', 'Bypass'] : [];
+
+  try {
+    terminalProcess = spawn(shell, args, {
+      cwd: cwd || process.cwd(),
+      env: { ...process.env, TERM: 'xterm-256color' },
+      shell: true,
+    });
+
+    terminalProcess.stdout.on('data', (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-output', chunk.toString());
+      }
+    });
+
+    terminalProcess.stderr.on('data', (chunk) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-output', chunk.toString());
+      }
+    });
+
+    terminalProcess.on('close', (code) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-output', `\r\n[Process terminated with code ${code}]\r\n`);
+      }
+      terminalProcess = null;
+    });
+  } catch (err) {
+    console.error('Failed to spawn terminal:', err);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -37,14 +81,47 @@ function createWindow() {
     mainWindow.setFullScreen(true);
     mainWindow.show();
     mainWindow.focus();
+    // Initialize default terminal in app directory
+    initTerminal(process.cwd());
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    if (terminalProcess) {
+      try {
+        terminalProcess.kill();
+      } catch {}
+      terminalProcess = null;
+    }
   });
 }
 
-// IPC Handlers
+// IPC Handlers - Terminal ConPTY Engine
+ipcMain.on('terminal-input', (event, data) => {
+  if (!terminalProcess) {
+    initTerminal();
+  }
+  if (terminalProcess && terminalProcess.stdin && terminalProcess.stdin.writable) {
+    terminalProcess.stdin.write(data);
+  }
+});
+
+ipcMain.handle('terminal-init', (event, cwd) => {
+  initTerminal(cwd);
+  return true;
+});
+
+ipcMain.handle('terminal-kill', () => {
+  if (terminalProcess) {
+    try {
+      terminalProcess.kill();
+    } catch {}
+    terminalProcess = null;
+  }
+  return true;
+});
+
+// IPC Handlers - Filesystem & System
 ipcMain.handle('quit-app', () => {
   app.quit();
 });
