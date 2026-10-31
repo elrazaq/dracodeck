@@ -81,6 +81,17 @@ Roadmap resmi pengembangan **DRACODECK** (*The Offensive-Grade Developer Cockpit
 
 ---
 
+## Milestone 3.1: Terminal Engine Hardening, Dracodeck Offensive Suite & Cyberdeck Hacker Polish
+> Dokumen Spesifikasi: [m3-1-offensive-suite-hacker-polish.md](m3-1-offensive-suite-hacker-polish.md)
+- Terminal IPC Listener Lifecycle Fix: Hapus listener leak pada `ipcRenderer.on` untuk mencegah duplikasi eksekusi 2x.
+- Pure `draco` CLI Engine: Hapus pembajakan perintah shell Windows (ipconfig/ifconfig); tampilkan ASCII art logo Draco, syntax dictionary, dan signature `OPERATOR: elrazaq`.
+- Header Streamlining: Hapus badge `EXCLUSIVE F11 FULLSCREEN LIVE` dari TopBar.
+- Dracodeck Offensive Suite (5 Domain): Info Gathering (network interfaces), Vuln Analysis (HTTP headers & SSL), Web Application (DracoBrowser & cURL dispatcher), Reverse Eng (binary hex dump, string extractor, file hasher), Cockpit Core (Port Slayer, ConPTY shell).
+- Navigasi File Manager vs Code Editor: Diferensiasi penuh view `explorer` (Dedicated Dolphin/Kali File Workstation) dan `editor` (Focused Code Studio), serta kontras visual di dock kiri.
+- Universal Hacker Custom Tooltip: Sistem tooltip kustom cyberdeck (obsidian backdrop `#0e0a19`, neon cyan/pink micro-borders, monospace 10px, shortcut badges), menggantikan semua tag `title` browser native.
+
+---
+
 ## Milestone 4: DracoNet Kali Networking Suite & Zombie Port Slayer
 > Dokumen Spesifikasi: [m4-port-slayer.md](m4-port-slayer.md)
 - Main Process: Scanner port socket dev (`netstat` / TCP connection table).
