@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * DracoDeck Native Git CLI Engine (Milestone M5)
+ * DracoDeck Native Git CLI Engine (Milestone M5 / M5.2)
  * Zero-dependency execution via child_process.execFile('git', ...).
  * Always bound to active workspace CWD.
  */
@@ -38,12 +38,21 @@ async function getGitStatus(cwd) {
       untracked: [],
       ahead: 0,
       behind: 0,
+      hasRemote: false,
+      remoteUrl: '',
+      upstream: '',
       totalDirty: 0,
     };
   }
 
   const branch = branchRes.stdout.trim() || 'HEAD';
-  const statusRes = await runGit(cwd, ['status', '--porcelain=v1', '-uall']);
+  const [statusRes, abRes, remoteRes, upstreamRes] = await Promise.all([
+    runGit(cwd, ['status', '--porcelain=v1', '-uall']),
+    runGit(cwd, ['rev-list', '--left-right', '--count', 'HEAD...@{u}']),
+    runGit(cwd, ['config', '--get', 'remote.origin.url']),
+    runGit(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']),
+  ]);
+
   const staged = [];
   const unstaged = [];
   const untracked = [];
@@ -56,7 +65,6 @@ async function getGitStatus(cwd) {
     if (filePath.includes(' -> ')) {
       filePath = filePath.split(' -> ').pop().trim();
     }
-    // Strip surrounding quotes if present
     if (filePath.startsWith('"') && filePath.endsWith('"')) {
       filePath = filePath.slice(1, -1);
     }
@@ -85,7 +93,6 @@ async function getGitStatus(cwd) {
 
   let ahead = 0;
   let behind = 0;
-  const abRes = await runGit(cwd, ['rev-list', '--left-right', '--count', 'HEAD...@{u}']);
   if (abRes.ok && abRes.stdout.trim()) {
     const parts = abRes.stdout.trim().split(/\s+/);
     if (parts.length >= 2) {
@@ -93,6 +100,9 @@ async function getGitStatus(cwd) {
       behind = parseInt(parts[1], 10) || 0;
     }
   }
+
+  const remoteUrl = remoteRes.ok ? remoteRes.stdout.trim() : '';
+  const upstream = upstreamRes.ok ? upstreamRes.stdout.trim() : '';
 
   return {
     isRepo: true,
@@ -102,6 +112,9 @@ async function getGitStatus(cwd) {
     untracked,
     ahead,
     behind,
+    hasRemote: Boolean(remoteUrl),
+    remoteUrl,
+    upstream,
     totalDirty: staged.length + unstaged.length + untracked.length,
   };
 }
@@ -194,7 +207,6 @@ async function getFileDiff(cwd, filePath, staged = false) {
     return { ok: true, diff: res.stdout };
   }
 
-  // If untracked file, build synthetic unified diff preview from file contents
   try {
     const full = path.resolve(cwd, filePath);
     if (full.startsWith(path.resolve(cwd)) && fs.existsSync(full)) {
@@ -216,6 +228,15 @@ async function commitAndSync(cwd, { message, action = 'commit' } = {}) {
   const status = await getGitStatus(cwd);
   if (!status.isRepo) {
     return { ok: false, error: 'Current workspace is not a Git repository.' };
+  }
+
+  if (action === 'fetch') {
+    const fetchRes = await runGit(cwd, ['fetch', '--all', '--prune'], 20000);
+    return {
+      ok: fetchRes.ok,
+      output: (fetchRes.stdout + '\n' + fetchRes.stderr).trim() || 'Remote refs fetched.',
+      error: fetchRes.ok ? null : fetchRes.stderr.trim(),
+    };
   }
 
   if (action === 'pull') {
@@ -241,7 +262,6 @@ async function commitAndSync(cwd, { message, action = 'commit' } = {}) {
     return { ok: false, error: 'Commit message cannot be empty.' };
   }
 
-  // If user clicked Commit or 1-Click Commit & Push with 0 staged files, auto-stage modified/untracked (respecting .gitignore)
   if (status.staged.length === 0) {
     const addRes = await runGit(cwd, ['add', '-A']);
     if (!addRes.ok) {
@@ -278,7 +298,7 @@ async function getGitLog(cwd, limit = 25) {
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), 100);
   const res = await runGit(cwd, [
     'log',
-    `-n`,
+    '-n',
     String(safeLimit),
     '--pretty=format:%h|%an|%ar|%s|%D',
   ]);

@@ -23,7 +23,9 @@ export const Shell: React.FC = () => {
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [scopedWorkspace, setScopedWorkspace] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("desktop");
-  const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
+  const [activeFile, setActiveFile] = useState<
+    { path: string; name: string; isPreview?: boolean } | undefined
+  >(undefined);
   const [activeLang, setActiveLang] = useState<string>("DRACODE");
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [isBooting, setIsBooting] = useState(true);
@@ -62,8 +64,8 @@ export const Shell: React.FC = () => {
     }
   };
 
-  const handleOpenFile = (filePath: string, fileName: string) => {
-    setActiveFile({ path: filePath, name: fileName });
+  const handleOpenFile = (filePath: string, fileName: string, isPreview: boolean = true) => {
+    setActiveFile({ path: filePath, name: fileName, isPreview });
     setActiveView("editor");
   };
 
@@ -271,7 +273,17 @@ export const Shell: React.FC = () => {
       )}
 
       {/* Permanent Anti-Clipping Kali Top System Bar */}
-      <TopBar workspace={currentEffectiveWorkspace} />
+      <TopBar
+        workspace={currentEffectiveWorkspace}
+        scopedWorkspace={scopedWorkspace}
+        activeView={activeView}
+        onSelectView={(v) => setActiveView(v)}
+        onChangeWorkspace={handleChangeWorkspace}
+        onExitScope={handleExitScope}
+        onToggleTerminal={() => setIsTerminalOpen((p) => !p)}
+        onOpenFile={handleOpenFile}
+        onRebootSplash={() => setIsBooting(true)}
+      />
 
       {/* Main Body (Left Dock + Workstation Canvas) */}
       <div className="flex-1 flex overflow-hidden">
@@ -294,7 +306,7 @@ export const Shell: React.FC = () => {
         workspace={currentEffectiveWorkspace || ""}
         activeLanguage={activeLang}
         onFormatCode={() => {
-          // Triggers format notification
+          window.dispatchEvent(new CustomEvent("dracode:editor-cmd", { detail: { action: "format" } }));
         }}
         onOpenTelemetry={() => setActiveView("telemetry")}
         onOpenGitOps={() => setActiveView("gitops")}

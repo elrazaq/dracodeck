@@ -11,7 +11,7 @@ export interface ExplorerItem extends FileEntry {
 
 interface ExplorerViewProps {
   workspacePath: string;
-  onOpenFile: (filePath: string, fileName: string) => void;
+  onOpenFile: (filePath: string, fileName: string, isPreview?: boolean) => void;
   onOpenScope?: (folderPath: string, folderName: string) => void;
   selectedFile?: string;
 }
@@ -120,8 +120,10 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
     return (
       <div
         key={item.path}
-        onClick={() => onOpenFile(item.path, item.name)}
+        onClick={() => onOpenFile(item.path, item.name, true)}
+        onDoubleClick={() => onOpenFile(item.path, item.name, false)}
         onContextMenu={(e) => handleContextMenu(e, item)}
+        title="Single-click: Preview Tab | Double-click: Pin Tab"
         style={{ paddingLeft: `${depth * 12 + 20}px` }}
         className={`flex items-center gap-1.5 py-1 pr-2 cursor-pointer text-xs transition-colors font-mono truncate ${
           isSelected
@@ -177,7 +179,7 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
             onOpenScope?.(path, name);
           }}
           onOpenFile={(path, name) => {
-            onOpenFile(path, name);
+            onOpenFile(path, name, false);
           }}
           onRefresh={refreshRoot}
           onClose={() => setContextMenu(null)}

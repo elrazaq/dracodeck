@@ -203,6 +203,9 @@ export interface GitFileStatus {
 export interface GitStatusResult {
   isRepo: boolean;
   branch: string;
+  hasRemote?: boolean;
+  remoteUrl?: string;
+  upstream?: string;
   staged: GitFileStatus[];
   unstaged: GitFileStatus[];
   untracked: GitFileStatus[];
@@ -285,7 +288,7 @@ declare global {
       gitUnstage: (cwd: string, filePath: string) => Promise<{ ok: boolean; error?: string | null }>;
       gitDiscard: (cwd: string, filePath: string) => Promise<{ ok: boolean; error?: string | null }>;
       gitDiff: (cwd: string, filePath?: string, staged?: boolean) => Promise<{ ok: boolean; diff: string; error?: string }>;
-      gitSync: (cwd: string, options: { message?: string; action: 'commit' | 'commit-push' | 'push' | 'pull' }) => Promise<{ ok: boolean; output?: string; error?: string | null }>;
+      gitSync: (cwd: string, options: { message?: string; action: 'commit' | 'commit-push' | 'push' | 'pull' | 'fetch' }) => Promise<{ ok: boolean; output?: string; error?: string | null }>;
       gitLog: (cwd?: string, limit?: number) => Promise<GitCommitLog[]>;
       memoryListNotes: (cwd?: string) => Promise<DracoNoteItem[]>;
       memoryReadNote: (cwd: string, filename: string) => Promise<{ ok: boolean; name: string; content: string; path?: string; error?: string }>;

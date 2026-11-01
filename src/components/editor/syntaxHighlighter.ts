@@ -4,7 +4,8 @@
  * - Control Keywords vs Declaration Keywords
  * - Types & Built-ins
  * - Function Definitions vs Invocations
- * - Object Properties (.property)
+ * - Object Properties (.property & interface fields)
+ * - JSX/TSX Tags, Self-Closing Tags, JSX Attributes & `{/* ... * /}` Comments
  * - Decorators & Attributes
  * - Booleans, Nulls, Numbers
  * - String & Template Literals
@@ -42,13 +43,13 @@ const CONTROL_KEYWORDS = new Set([
   "if", "else", "switch", "case", "default", "break", "continue", "return",
   "try", "catch", "finally", "throw", "while", "do", "for", "in", "of",
   "await", "yield", "elif", "except", "with", "raise", "pass", "loop",
-  "match", "where", "move", "unsafe", "select", "from", "where", "group", "having"
+  "match", "where", "move", "unsafe", "select", "from", "group", "having"
 ]);
 
 const DECLARATION_KEYWORDS = new Set([
   "import", "export", "from", "as", "const", "let", "var", "function", "class",
   "extends", "implements", "interface", "type", "enum", "namespace", "declare",
-  "def", "lambda", "global", "nonlocal", "fn", "let", "mut", "pub", "struct",
+  "def", "lambda", "global", "nonlocal", "fn", "mut", "pub", "struct",
   "impl", "trait", "mod", "crate", "use", "void", "async", "sync", "new", "delete",
   "static", "readonly", "private", "protected", "public", "abstract", "mixin"
 ]);
@@ -56,9 +57,10 @@ const DECLARATION_KEYWORDS = new Set([
 const BUILTIN_TYPES = new Set([
   "string", "number", "boolean", "any", "unknown", "never", "void", "symbol", "bigint",
   "Promise", "Array", "Record", "Map", "Set", "Object", "Function", "Date", "RegExp",
+  "React", "FC", "ReactNode", "JSX", "HTMLElement", "HTMLDivElement", "HTMLInputElement",
   "int", "float", "str", "bool", "list", "dict", "tuple", "set",
   "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16", "u32", "u64", "u128", "usize",
-  "f32", "f64", "char", "bool", "Option", "Result", "String", "Vec"
+  "f32", "f64", "char", "Option", "Result", "String", "Vec"
 ]);
 
 const BOOLEAN_NULLS = new Set([
@@ -68,6 +70,7 @@ const BOOLEAN_NULLS = new Set([
 
 export function highlightCode(code: string, fileName?: string): Token[][] {
   const ext = (fileName?.split(".").pop() || "txt").toLowerCase();
+  const isJsxExt = ["html", "jsx", "tsx", "xml", "vue", "svelte"].includes(ext);
   const lines = code.split("\n");
 
   return lines.map((line) => {
@@ -92,19 +95,48 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
       }
     }
 
-    // Full-line Comments
+    // Full-line Comments (including JSX `{/* ... */}` and JSDoc `* ...`)
     const trimmed = line.trimStart();
     if (
       trimmed.startsWith("//") ||
       (trimmed.startsWith("#") && ext !== "md" && ext !== "css") ||
       trimmed.startsWith("--") ||
-      trimmed.startsWith("/*")
+      trimmed.startsWith("/*") ||
+      trimmed.startsWith("{/*") ||
+      trimmed.startsWith("*/") ||
+      (trimmed.startsWith("* ") && ext !== "md")
     ) {
       return [{ type: "cmt", value: line }];
     }
 
     while (i < line.length) {
-      // In-line comments
+      // Inline JSX comment `{/* ... */}`
+      if (line.slice(i, i + 3) === "{/*") {
+        const closeIdx = line.indexOf("*/}", i + 3);
+        if (closeIdx !== -1) {
+          tokens.push({ type: "cmt", value: line.slice(i, closeIdx + 3) });
+          i = closeIdx + 3;
+        } else {
+          tokens.push({ type: "cmt", value: line.slice(i) });
+          break;
+        }
+        continue;
+      }
+
+      // Inline Block comment `/* ... */`
+      if (line.slice(i, i + 2) === "/*") {
+        const closeIdx = line.indexOf("*/", i + 2);
+        if (closeIdx !== -1) {
+          tokens.push({ type: "cmt", value: line.slice(i, closeIdx + 2) });
+          i = closeIdx + 2;
+        } else {
+          tokens.push({ type: "cmt", value: line.slice(i) });
+          break;
+        }
+        continue;
+      }
+
+      // In-line comments `//` or `#`
       if (line.slice(i, i + 2) === "//") {
         tokens.push({ type: "cmt", value: line.slice(i) });
         break;
@@ -158,14 +190,37 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         continue;
       }
 
-      // HTML / JSX opening and closing tags
-      if (char === "<" && ["html", "jsx", "tsx", "xml"].includes(ext)) {
-        const tagMatch = line.slice(i).match(/^<(\/?[a-zA-Z0-9_-]+)/);
-        if (tagMatch) {
-          tokens.push({ type: "tag", value: tagMatch[0] });
-          i += tagMatch[0].length;
+      // HTML / JSX opening, closing, and fragment tags
+      if (isJsxExt && char === "<") {
+        const closeTagMatch = line.slice(i).match(/^<\/[a-zA-Z0-9_.:-]*>/);
+        if (closeTagMatch) {
+          tokens.push({ type: "tag", value: closeTagMatch[0] });
+          i += closeTagMatch[0].length;
           continue;
         }
+        const openTagMatch = line.slice(i).match(/^<(\/?[a-zA-Z0-9_.:-]+|>)/);
+        if (openTagMatch) {
+          tokens.push({ type: "tag", value: openTagMatch[0] });
+          i += openTagMatch[0].length;
+          continue;
+        }
+      }
+
+      // JSX self-closing `/>` or tag closing `>`
+      if (isJsxExt && line.slice(i, i + 2) === "/>") {
+        tokens.push({ type: "tag", value: "/>" });
+        i += 2;
+        continue;
+      }
+      if (
+        isJsxExt &&
+        char === ">" &&
+        line[i - 1] !== "=" &&
+        (i === line.length - 1 || line[i + 1] === "<" || line[i + 1] === "{")
+      ) {
+        tokens.push({ type: "tag", value: ">" });
+        i++;
+        continue;
       }
 
       // Decorators / Rust attributes (@decorator, #[attribute])
@@ -186,8 +241,10 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         continue;
       }
 
-      // Operators (multi-char first: ===, !==, =>, &&, ||, etc.)
-      const opMatch = line.slice(i).match(/^(===|!==|==|!=|=>|<=|>=|\+\+|--|&&|\|\||\.\.\.|\+=|-=|\*=|\/=|%=|\?|:|\+|-|\*|\/|%|=|!|<|>|&|\||\^)/);
+      // Operators (multi-char first: ===, !==, =>, &&, ||, ?:, etc.)
+      const opMatch = line
+        .slice(i)
+        .match(/^(===|!==|==|!=|=>|<=|>=|\+\+|--|&&|\|\||\?\?|\?\.|\.\.\.|\+=|-=|\*=|\/=|%=|\?:|\?|:|\+|-|\*|\/|%|=|!|<|>|&|\||\^)/);
       if (opMatch) {
         tokens.push({ type: "operator", value: opMatch[0] });
         i += opMatch[0].length;
@@ -218,15 +275,19 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
         continue;
       }
 
-      // Words (identifiers, keywords, functions)
-      const wordMatch = line.slice(i).match(/^[a-zA-Z_$][a-zA-Z0-9_$]*/);
+      // Words (identifiers, keywords, JSX attributes, interface fields, functions)
+      const wordMatch = line.slice(i).match(/^[a-zA-Z_$][a-zA-Z0-9_$-]*/);
       if (wordMatch) {
         const word = wordMatch[0];
-        const nextChar = line[i + word.length];
+        const restAfterWord = line.slice(i + word.length);
+        const nextChar = restAfterWord[0];
+        const trimmedRest = restAfterWord.trimStart();
 
         // Check preceding token to distinguish function definition
         const lastToken = tokens[tokens.length - 1];
-        const isPrevDecl = lastToken && (lastToken.value === "function" || lastToken.value === "def" || lastToken.value === "fn");
+        const isPrevDecl =
+          lastToken &&
+          (lastToken.value === "function" || lastToken.value === "def" || lastToken.value === "fn");
 
         if (CONTROL_KEYWORDS.has(word)) {
           tokens.push({ type: "kw-control", value: word });
@@ -242,8 +303,15 @@ export function highlightCode(code: string, fileName?: string): Token[][] {
           tokens.push({ type: "fn-call", value: word });
         } else if (/^[A-Z][a-zA-Z0-9_$]*$/.test(word)) {
           tokens.push({ type: "type", value: word });
-        } else if (ext === "json" && nextChar === ":") {
+        } else if (
+          (isJsxExt && /^=(?!=|>)/.test(trimmedRest)) ||
+          (ext === "json" && nextChar === ":")
+        ) {
+          // JSX attribute (`className=...`, `onClick={...}`) or default prop assignment (`headline = '...'`)
           tokens.push({ type: "attr", value: word });
+        } else if (/^\??:(?!:)/.test(trimmedRest)) {
+          // TypeScript interface / object property (`headline?: string`, `subtitle: string`)
+          tokens.push({ type: "prop", value: word });
         } else {
           tokens.push({ type: "text", value: word });
         }

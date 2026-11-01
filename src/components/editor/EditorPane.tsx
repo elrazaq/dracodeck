@@ -29,6 +29,7 @@ export interface OpenTab {
   name: string;
   content: string;
   isDirty?: boolean;
+  isPreview?: boolean;
 }
 
 function normalizePathKey(p: string): string {
@@ -40,8 +41,8 @@ function normalizePathKey(p: string): string {
 }
 
 interface EditorPaneProps {
-  activeFile?: { path: string; name: string };
-  onActiveFileChange?: (file?: { path: string; name: string }) => void;
+  activeFile?: { path: string; name: string; isPreview?: boolean };
+  onActiveFileChange?: (file?: { path: string; name: string; isPreview?: boolean }) => void;
   onLanguageChange?: (lang: string) => void;
   scopedWorkspace?: string | null;
   onExitScope?: () => void;
@@ -93,8 +94,17 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     if (!activeFile || !activeFile.path) return;
 
     const targetNorm = normalizePathKey(activeFile.path);
+    const wantPreview = activeFile.isPreview !== false;
+
     const existing = tabs.find((t) => normalizePathKey(t.path) === targetNorm);
     if (existing) {
+      if (!wantPreview && existing.isPreview) {
+        setTabs((prev) =>
+          prev.map((t) =>
+            normalizePathKey(t.path) === targetNorm ? { ...t, isPreview: false } : t
+          )
+        );
+      }
       setActiveTabPath(existing.path);
       return;
     }
@@ -114,17 +124,33 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       setTabs((prev) => {
         const alreadyInPrev = prev.find((t) => normalizePathKey(t.path) === targetNorm);
         if (alreadyInPrev) {
+          if (!wantPreview && alreadyInPrev.isPreview) {
+            return prev.map((t) =>
+              normalizePathKey(t.path) === targetNorm ? { ...t, isPreview: false } : t
+            );
+          }
           return prev;
         }
-        return [
-          ...prev,
-          {
-            path: activeFile.path,
-            name: activeFile.name,
-            content,
-            isDirty: false,
-          },
-        ];
+
+        const newTab: OpenTab = {
+          path: activeFile.path,
+          name: activeFile.name,
+          content,
+          isDirty: false,
+          isPreview: wantPreview,
+        };
+
+        // VS Code Preview Tab replacement: if opening in preview mode and an untouched preview tab exists, replace it in-place
+        if (wantPreview) {
+          const previewIdx = prev.findIndex((t) => t.isPreview && !t.isDirty);
+          if (previewIdx !== -1) {
+            const next = [...prev];
+            next[previewIdx] = newTab;
+            return next;
+          }
+        }
+
+        return [...prev, newTab];
       });
       setActiveTabPath(activeFile.path);
     };
@@ -152,9 +178,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     setTabs((prev) =>
       prev.map((t) =>
         normalizePathKey(t.path) === activeNorm
-          ? { ...t, content: newContent, isDirty: true }
+          ? { ...t, content: newContent, isDirty: true, isPreview: false }
           : t
       )
+    );
+  };
+
+  const pinTab = (path: string) => {
+    const norm = normalizePathKey(path);
+    setTabs((prev) =>
+      prev.map((t) => (normalizePathKey(t.path) === norm ? { ...t, isPreview: false } : t))
     );
   };
 
@@ -426,9 +459,110 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
   const handleSelectAll = () => {
     if (!textareaRef.current) return;
+    textareaRef.current.focus();
     textareaRef.current.select();
     setContextMenu(null);
   };
+
+  const handleDuplicateLine = () => {
+    if (!currentTab || !textareaRef.current) return;
+    const pos = textareaRef.current.selectionStart ?? 0;
+    const allLines = currentTab.content.split("\n");
+    const lineIdx = currentTab.content.slice(0, pos).split("\n").length - 1;
+    const targetLine = allLines[lineIdx] ?? "";
+    allLines.splice(lineIdx + 1, 0, targetLine);
+    handleContentChange(allLines.join("\n"));
+  };
+
+  const handleDeleteLine = () => {
+    if (!currentTab || !textareaRef.current) return;
+    const pos = textareaRef.current.selectionStart ?? 0;
+    const allLines = currentTab.content.split("\n");
+    const lineIdx = currentTab.content.slice(0, pos).split("\n").length - 1;
+    allLines.splice(lineIdx, 1);
+    handleContentChange(allLines.join("\n"));
+  };
+
+  // Global TopBar Menu Command Listener ("dracode:editor-cmd")
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const custom = e as CustomEvent<{ action: string }>;
+      const action = custom.detail?.action;
+      if (!action) return;
+
+      switch (action) {
+        case "save":
+          handleSave();
+          break;
+        case "format":
+          handleFormat();
+          break;
+        case "find":
+          setIsFindOpen(true);
+          setIsReplaceMode(false);
+          setTimeout(() => findInputRef.current?.focus(), 50);
+          break;
+        case "replace":
+          setIsFindOpen(true);
+          setIsReplaceMode(true);
+          setTimeout(() => findInputRef.current?.focus(), 50);
+          break;
+        case "close-tab":
+          if (activeTabPath) {
+            const targetNorm = normalizePathKey(activeTabPath);
+            const filtered = tabs.filter((t) => normalizePathKey(t.path) !== targetNorm);
+            setTabs(filtered);
+            if (filtered.length === 0) {
+              setActiveTabPath("");
+              onActiveFileChange?.(undefined);
+            } else {
+              const nextTab = filtered[filtered.length - 1];
+              setActiveTabPath(nextTab.path);
+              onActiveFileChange?.({ path: nextTab.path, name: nextTab.name });
+            }
+          }
+          break;
+        case "close-all":
+          closeAllTabs();
+          break;
+        case "toggle-minimap":
+          setIsMinimapOn((p) => !p);
+          break;
+        case "toggle-syntax":
+          setIsSyntaxOn((p) => !p);
+          break;
+        case "select-all":
+          handleSelectAll();
+          break;
+        case "cut":
+          handleCut();
+          break;
+        case "copy":
+          handleCopy();
+          break;
+        case "paste":
+          handlePaste();
+          break;
+        case "undo":
+          textareaRef.current?.focus();
+          document.execCommand("undo");
+          break;
+        case "redo":
+          textareaRef.current?.focus();
+          document.execCommand("redo");
+          break;
+        case "duplicate-line":
+          handleDuplicateLine();
+          break;
+        case "delete-line":
+          handleDeleteLine();
+          break;
+      }
+    };
+
+    window.addEventListener("dracode:editor-cmd", onCommand);
+    return () => window.removeEventListener("dracode:editor-cmd", onCommand);
+  });
 
   const renderToken = (tok: Token, idx: number) => {
     switch (tok.type) {
@@ -527,16 +661,27 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           {tabs.map((tab) => {
             const isActive = normalizePathKey(tab.path) === normalizePathKey(activeTabPath);
             const isMarkdown = tab.name.endsWith(".md");
+            const isPreviewTab = !!tab.isPreview && !tab.isDirty;
             return (
               <div
                 key={normalizePathKey(tab.path)}
                 onClick={() => {
                   setActiveTabPath(tab.path);
-                  onActiveFileChange?.({ path: tab.path, name: tab.name });
+                  onActiveFileChange?.({ path: tab.path, name: tab.name, isPreview: tab.isPreview });
                 }}
+                onDoubleClick={() => pinTab(tab.path)}
+                title={
+                  isPreviewTab
+                    ? `${tab.name} — Preview Mode (Double-click or edit to pin)`
+                    : tab.path
+                }
                 className={`h-full flex items-center gap-2 px-3 border-r border-[#261d38] text-xs font-mono cursor-pointer transition-colors max-w-xs truncate flex-shrink-0 ${
                   isActive
-                    ? "bg-[#0b0813] text-[#e2e8f0] border-t-2 border-t-[#ff007f] font-semibold"
+                    ? isPreviewTab
+                      ? "bg-[#0b0813] text-[#cbd5e1] border-t-2 border-t-[#00e5ff] italic"
+                      : "bg-[#0b0813] text-[#e2e8f0] border-t-2 border-t-[#ff007f] font-semibold"
+                    : isPreviewTab
+                    ? "bg-[#120c1f] text-[#7a7194] italic hover:bg-[#161026] hover:text-[#cbd5e1]"
                     : "bg-[#120c1f] text-[#7a7194] hover:bg-[#161026] hover:text-[#cbd5e1]"
                 }`}
               >
@@ -546,6 +691,18 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   <FileCode className="w-3.5 h-3.5 text-[#00e5ff] flex-shrink-0" />
                 )}
                 <span className="truncate">{tab.name}</span>
+                {isPreviewTab && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      pinTab(tab.path);
+                    }}
+                    className="text-[8px] not-italic px-1 py-0.2 bg-[#161026] border border-[#00e5ff]/40 text-[#00e5ff] hover:bg-[#00e5ff] hover:text-[#0b0813] font-bold uppercase flex-shrink-0"
+                    title="Preview Mode — Click or edit to pin tab"
+                  >
+                    PREVIEW
+                  </span>
+                )}
                 {tab.isDirty && (
                   <span className="w-1.5 h-1.5 rounded-full bg-[#ff007f] animate-pulse flex-shrink-0" />
                 )}
