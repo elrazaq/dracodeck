@@ -34,23 +34,10 @@ export const ExplorerView: React.FC<ExplorerViewProps> = ({
   } | null>(null);
 
   const loadDirectory = useCallback(async (dirPath: string): Promise<ExplorerItem[]> => {
-    let raw: FileEntry[] = [];
-    if (window.dracoAPI?.readDir) {
-      raw = await window.dracoAPI.readDir(dirPath);
-    } else {
-      raw = [
-        { name: "docs", isDirectory: true, path: `${dirPath}/docs` },
-        { name: "electron", isDirectory: true, path: `${dirPath}/electron` },
-        { name: "src", isDirectory: true, path: `${dirPath}/src` },
-        { name: "public", isDirectory: true, path: `${dirPath}/public` },
-        { name: ".agents", isDirectory: true, path: `${dirPath}/.agents` },
-        { name: "AGENTS.md", isDirectory: false, path: `${dirPath}/AGENTS.md` },
-        { name: "GEMINI.md", isDirectory: false, path: `${dirPath}/GEMINI.md` },
-        { name: "package.json", isDirectory: false, path: `${dirPath}/package.json` },
-        { name: "README.md", isDirectory: false, path: `${dirPath}/README.md` },
-        { name: "index.html", isDirectory: false, path: `${dirPath}/index.html` },
-      ];
+    if (!dirPath || !window.dracoAPI?.readDir) {
+      return [];
     }
+    const raw = await window.dracoAPI.readDir(dirPath);
     return sortEntries(raw);
   }, []);
 

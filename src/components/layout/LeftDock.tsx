@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Monitor,
-  FileCode,
   FolderTree,
   Terminal,
   Radio,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react";
 import { ActiveView } from "../../types";
 import { DracoTooltip } from "../common/DracoTooltip";
+import { DracodeLogo } from "../common/DracodeLogo";
 
 interface LeftDockProps {
   activeView: ActiveView;
@@ -102,10 +102,10 @@ export const LeftDock: React.FC<LeftDockProps> = ({
     },
     {
       id: "editor",
-      label: "Draco Code Studio",
+      label: "Dracode",
       shortcut: "Alt+E",
       accent: "pink",
-      icon: <FileCode className="w-4 h-4 text-[#ff007f]" />,
+      icon: <DracodeLogo size={18} />,
     },
     {
       id: "explorer",
@@ -186,7 +186,7 @@ export const LeftDock: React.FC<LeftDockProps> = ({
     {
       tab: "cockpit" as const,
       cat: "05 - Cockpit Core",
-      tools: ["Code Studio", "ConPTY Shell", "Port Slayer"],
+      tools: ["Dracode", "ConPTY Shell", "Port Slayer"],
       icon: <Terminal className="w-3 h-3 text-[#cbd5e1]" />,
     },
   ];
@@ -281,7 +281,7 @@ export const LeftDock: React.FC<LeftDockProps> = ({
                           key={t}
                           onClick={() => {
                             if (t === "DracoBrowser Suite") onSelectView("browser");
-                            else if (t === "Code Studio") onSelectView("editor");
+                            else if (t === "Dracode") onSelectView("editor");
                             else if (t === "ConPTY Shell") onSelectView("terminal");
                             else if (t === "Port Slayer") onSelectView("slayer");
                             else onOpenOffensiveSuite?.(group.tab);

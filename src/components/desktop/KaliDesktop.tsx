@@ -4,6 +4,7 @@ import { TerminalPane } from "../terminal/TerminalPane";
 import { DracoBrowser } from "../browser/DracoBrowser";
 import { TelemetryPane } from "../telemetry/TelemetryPane";
 import { DracoTooltip } from "../common/DracoTooltip";
+import { DracodeLogo } from "../common/DracodeLogo";
 import {
   Folder,
   Terminal,
@@ -12,7 +13,6 @@ import {
   Globe,
   Zap,
   Radio,
-  FileCode,
   Image as ImageIcon,
   Palette,
   Check,
@@ -58,7 +58,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
     y: 40,
     width: 820,
     height: 540,
-    isOpen: true,
+    isOpen: false,
     isMaximized: false,
     isMinimized: false,
   });
@@ -242,8 +242,8 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
   const desktopShortcuts = [
     {
       id: "editor",
-      label: "Draco Editor",
-      icon: <FileCode className="w-10 h-10 text-[#ff007f] stroke-[1.5]" />,
+      label: "Dracode",
+      icon: <DracodeLogo size={40} glow={true} />,
       action: () => onSelectView?.("editor"),
     },
     {
@@ -280,7 +280,10 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
       id: "readme",
       label: "README.md",
       icon: <FileText className="w-10 h-10 text-[#cbd5e1] stroke-[1.5]" />,
-      action: () => onOpenFile("README.md", "README.md"),
+      action: () => {
+        const prefix = workspacePath ? workspacePath.replace(/[/\\]+$/, "") + "/" : "";
+        onOpenFile(`${prefix}README.md`, "README.md");
+      },
     },
     {
       id: "trash",

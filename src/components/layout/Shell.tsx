@@ -3,7 +3,7 @@ import { TopBar } from "./TopBar";
 import { LeftDock } from "./LeftDock";
 import { BottomBar } from "./BottomBar";
 import { SplitPane } from "./SplitPane";
-import { ExplorerView } from "../explorer/ExplorerView";
+import { DracodeSidebar } from "../editor/DracodeSidebar";
 import { EditorPane } from "../editor/EditorPane";
 import { TerminalPane } from "../terminal/TerminalPane";
 import { TelemetryPane } from "../telemetry/TelemetryPane";
@@ -14,6 +14,7 @@ import { KaliFileManager } from "../desktop/KaliFileManager";
 import { OffensiveWorkstation } from "../offensive/OffensiveWorkstation";
 import { GitMemoryWorkstation } from "../gitops/GitMemoryWorkstation";
 import { WorkspaceWelcome } from "../welcome/WorkspaceWelcome";
+import { CyberdeckSplash } from "../splash/CyberdeckSplash";
 import { ActiveView } from "../../types";
 
 const STORAGE_KEY = "dracodex_workspace";
@@ -21,10 +22,11 @@ const STORAGE_KEY = "dracodex_workspace";
 export const Shell: React.FC = () => {
   const [workspace, setWorkspace] = useState<string | null>(null);
   const [scopedWorkspace, setScopedWorkspace] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState<ActiveView>("explorer");
+  const [activeView, setActiveView] = useState<ActiveView>("desktop");
   const [activeFile, setActiveFile] = useState<{ path: string; name: string } | undefined>(undefined);
-  const [activeLang, setActiveLang] = useState<string>("Markdown");
+  const [activeLang, setActiveLang] = useState<string>("DRACODE");
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
+  const [isBooting, setIsBooting] = useState(true);
 
   // Keyboard shortcut Ctrl+` to toggle terminal, Alt+G to open GitOps & Memory
   useEffect(() => {
@@ -134,15 +136,15 @@ export const Shell: React.FC = () => {
         );
 
       case "editor":
-        // Focused Code Studio Workstation
+        // Dracode Studio Workstation (Multi-Sidebar + Editor + ConPTY)
         return (
           <SplitPane
             direction="horizontal"
-            initialSplit={18}
-            minSize={12}
-            maxSize={35}
+            initialSplit={20}
+            minSize={14}
+            maxSize={38}
             left={
-              <ExplorerView
+              <DracodeSidebar
                 workspacePath={defaultWs}
                 selectedFile={activeFile?.path}
                 onOpenFile={handleOpenFile}
@@ -159,6 +161,7 @@ export const Shell: React.FC = () => {
                   left={
                     <EditorPane
                       activeFile={activeFile}
+                      onActiveFileChange={(file) => setActiveFile(file)}
                       onLanguageChange={(lang) => setActiveLang(lang)}
                       scopedWorkspace={scopedWorkspace}
                       onExitScope={handleExitScope}
@@ -171,6 +174,7 @@ export const Shell: React.FC = () => {
               ) : (
                 <EditorPane
                   activeFile={activeFile}
+                  onActiveFileChange={(file) => setActiveFile(file)}
                   onLanguageChange={(lang) => setActiveLang(lang)}
                   scopedWorkspace={scopedWorkspace}
                   onExitScope={handleExitScope}
@@ -258,6 +262,14 @@ export const Shell: React.FC = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0b0813] text-[#cbd5e1] font-mono overflow-hidden select-none">
+      {/* Brutal Modern Hacker Boot Sequence Splash Screen */}
+      {isBooting && (
+        <CyberdeckSplash
+          workspace={currentEffectiveWorkspace}
+          onComplete={() => setIsBooting(false)}
+        />
+      )}
+
       {/* Permanent Anti-Clipping Kali Top System Bar */}
       <TopBar workspace={currentEffectiveWorkspace} />
 

@@ -22,6 +22,7 @@ import {
 import { highlightCode, Token } from "./syntaxHighlighter";
 import { formatCode } from "./codeFormatter";
 import { DracoTooltip } from "../common/DracoTooltip";
+import { DracodeLogo } from "../common/DracodeLogo";
 
 export interface OpenTab {
   path: string;
@@ -30,8 +31,17 @@ export interface OpenTab {
   isDirty?: boolean;
 }
 
+function normalizePathKey(p: string): string {
+  return String(p || "")
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/\/$/, "")
+    .toLowerCase();
+}
+
 interface EditorPaneProps {
   activeFile?: { path: string; name: string };
+  onActiveFileChange?: (file?: { path: string; name: string }) => void;
   onLanguageChange?: (lang: string) => void;
   scopedWorkspace?: string | null;
   onExitScope?: () => void;
@@ -41,6 +51,7 @@ interface EditorPaneProps {
 
 export const EditorPane: React.FC<EditorPaneProps> = ({
   activeFile,
+  onActiveFileChange,
   onLanguageChange,
   scopedWorkspace,
   onExitScope,
@@ -79,14 +90,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const findInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!activeFile) return;
+    if (!activeFile || !activeFile.path) return;
 
-    const existing = tabs.find((t) => t.path === activeFile.path);
+    const targetNorm = normalizePathKey(activeFile.path);
+    const existing = tabs.find((t) => normalizePathKey(t.path) === targetNorm);
     if (existing) {
       setActiveTabPath(existing.path);
       return;
     }
 
+    let cancelled = false;
     const load = async () => {
       let content = "";
       if (window.dracoAPI?.readFile) {
@@ -95,66 +108,50 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         } catch {
           content = `// Error loading ${activeFile.name}`;
         }
-      } else {
-        content = `# ${activeFile.name}\n\n// Running in preview mode`;
       }
+      if (cancelled) return;
 
-      const newTab: OpenTab = {
-        path: activeFile.path,
-        name: activeFile.name,
-        content,
-        isDirty: false,
-      };
-      setTabs((prev) => [...prev, newTab]);
+      setTabs((prev) => {
+        const alreadyInPrev = prev.find((t) => normalizePathKey(t.path) === targetNorm);
+        if (alreadyInPrev) {
+          return prev;
+        }
+        return [
+          ...prev,
+          {
+            path: activeFile.path,
+            name: activeFile.name,
+            content,
+            isDirty: false,
+          },
+        ];
+      });
       setActiveTabPath(activeFile.path);
     };
 
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [activeFile]);
 
-  // Default initial tab
-  useEffect(() => {
-    if (tabs.length === 0 && !activeFile) {
-      const defaultPath = "README.md";
-      const loadDefault = async () => {
-        let content = "";
-        if (window.dracoAPI?.readFile) {
-          try {
-            content = await window.dracoAPI.readFile(defaultPath);
-          } catch {
-            content = "# DRACODECK\nThe Offensive-Grade Developer Cockpit for Windows";
-          }
-        } else {
-          content = "# DRACODECK\nThe Offensive-Grade Developer Cockpit for Windows";
-        }
-        setTabs([
-          {
-            path: defaultPath,
-            name: "README.md",
-            content,
-            isDirty: false,
-          },
-        ]);
-        setActiveTabPath(defaultPath);
-      };
-      loadDefault();
-    }
-  }, [tabs.length, activeFile]);
-
-  const currentTab = tabs.find((t) => t.path === activeTabPath);
+  const currentTab = tabs.find((t) => normalizePathKey(t.path) === normalizePathKey(activeTabPath));
 
   // Update active language for BottomBar
   useEffect(() => {
     if (currentTab && onLanguageChange) {
       const ext = currentTab.name.split(".").pop()?.toUpperCase() || "PLAINTEXT";
       onLanguageChange(ext === "MD" ? "Markdown" : ext);
+    } else if (!currentTab && onLanguageChange) {
+      onLanguageChange("DRACODE");
     }
   }, [currentTab, onLanguageChange]);
 
   const handleContentChange = (newContent: string) => {
+    const activeNorm = normalizePathKey(activeTabPath);
     setTabs((prev) =>
       prev.map((t) =>
-        t.path === activeTabPath
+        normalizePathKey(t.path) === activeNorm
           ? { ...t, content: newContent, isDirty: true }
           : t
       )
@@ -176,9 +173,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     if (window.dracoAPI?.writeFile) {
       try {
         await window.dracoAPI.writeFile(currentTab.path, currentTab.content);
+        const activeNorm = normalizePathKey(activeTabPath);
         setTabs((prev) =>
           prev.map((t) =>
-            t.path === activeTabPath ? { ...t, isDirty: false } : t
+            normalizePathKey(t.path) === activeNorm ? { ...t, isDirty: false } : t
           )
         );
         setSaveStatus("SAVED");
@@ -191,11 +189,24 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
   const closeTab = (e: React.MouseEvent, path: string) => {
     e.stopPropagation();
-    const filtered = tabs.filter((t) => t.path !== path);
+    const targetNorm = normalizePathKey(path);
+    const filtered = tabs.filter((t) => normalizePathKey(t.path) !== targetNorm);
     setTabs(filtered);
-    if (activeTabPath === path && filtered.length > 0) {
-      setActiveTabPath(filtered[filtered.length - 1].path);
+
+    if (filtered.length === 0) {
+      setActiveTabPath("");
+      onActiveFileChange?.(undefined);
+    } else if (normalizePathKey(activeTabPath) === targetNorm) {
+      const nextTab = filtered[filtered.length - 1];
+      setActiveTabPath(nextTab.path);
+      onActiveFileChange?.({ path: nextTab.path, name: nextTab.name });
     }
+  };
+
+  const closeAllTabs = () => {
+    setTabs([]);
+    setActiveTabPath("");
+    onActiveFileChange?.(undefined);
   };
 
   const lines = currentTab ? currentTab.content.split("\n") : [];
@@ -493,8 +504,16 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         </div>
       )}
 
-      {/* Editor Tab Bar */}
+      {/* Dracode Editor Tab Bar */}
       <div className="h-8 min-h-[32px] max-h-8 flex-shrink-0 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between select-none relative z-20 overflow-hidden">
+        {/* Dracode Identity Badge */}
+        <div className="h-full px-2.5 bg-[#0e0918] border-r border-[#261d38] flex items-center gap-1.5 flex-shrink-0">
+          <DracodeLogo size={15} />
+          <span className="text-[10px] font-bold tracking-wider text-[#ff007f]">
+            DRACODE
+          </span>
+        </div>
+
         {/* Scrollable Tabs Container (Horizontal Wheel Synced, Vertical Wheel Converted) */}
         <div
           onWheel={(e) => {
@@ -506,12 +525,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           style={{ scrollbarWidth: "none" }}
         >
           {tabs.map((tab) => {
-            const isActive = tab.path === activeTabPath;
+            const isActive = normalizePathKey(tab.path) === normalizePathKey(activeTabPath);
             const isMarkdown = tab.name.endsWith(".md");
             return (
               <div
-                key={tab.path}
-                onClick={() => setActiveTabPath(tab.path)}
+                key={normalizePathKey(tab.path)}
+                onClick={() => {
+                  setActiveTabPath(tab.path);
+                  onActiveFileChange?.({ path: tab.path, name: tab.name });
+                }}
                 className={`h-full flex items-center gap-2 px-3 border-r border-[#261d38] text-xs font-mono cursor-pointer transition-colors max-w-xs truncate flex-shrink-0 ${
                   isActive
                     ? "bg-[#0b0813] text-[#e2e8f0] border-t-2 border-t-[#ff007f] font-semibold"
@@ -530,12 +552,23 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 <button
                   onClick={(e) => closeTab(e, tab.path)}
                   className="hover:text-[#ff1744] hover:bg-[#261d38] p-0.5 cursor-pointer flex-shrink-0"
+                  title="Close Tab"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
             );
           })}
+
+          {tabs.length > 1 && (
+            <button
+              onClick={closeAllTabs}
+              className="px-2 h-full text-[9px] font-bold text-[#7a7194] hover:text-[#ff1744] hover:bg-[#161026] border-r border-[#261d38] flex-shrink-0 cursor-pointer"
+              title="Close All Open Tabs"
+            >
+              CLOSE ALL
+            </button>
+          )}
         </div>
 
         {/* Toolbar Toggles: Format, Minimap, Syntax, Terminal, Save */}
@@ -837,9 +870,41 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             )}
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-[#7a7194] gap-2 select-none">
-            <FileCode className="w-8 h-8 text-[#261d38]" />
-            <p>No file open. Select a file from the explorer to inspect.</p>
+          <div className="flex-1 flex flex-col items-center justify-center bg-[#090610] text-[#7a7194] p-6 select-none relative overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(#261d3833_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
+            <div className="relative z-10 max-w-md w-full bg-[#120c1f]/90 border border-[#261d38] p-6 flex flex-col items-center text-center shadow-[0_20px_50px_rgba(0,0,0,0.85)]">
+              <div className="p-3 bg-[#0b0813] border border-[#ff007f]/40 mb-3">
+                <DracodeLogo size={56} glow={true} />
+              </div>
+              <h2 className="text-base font-bold text-[#e2e8f0] tracking-wider">
+                DRACODE // CODE STUDIO
+              </h2>
+              <p className="text-[11px] text-[#7a7194] mt-1 mb-4">
+                Zero forced files. Select any source file from the{" "}
+                <span className="text-[#00e5ff] font-bold">EXPLORER</span>,{" "}
+                <span className="text-[#00e676] font-bold">GIT</span>, or{" "}
+                <span className="text-[#ff007f] font-bold">AGENT</span> sidebar to begin editing.
+              </p>
+
+              <div className="w-full space-y-1.5 text-[10px] border-t border-[#261d38] pt-3 text-left">
+                <div className="flex items-center justify-between bg-[#0b0813] px-2.5 py-1 border border-[#261d38]">
+                  <span className="text-[#cbd5e1]">Save Active File</span>
+                  <kbd className="text-[#ff007f] font-bold">Ctrl + S</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-[#0b0813] px-2.5 py-1 border border-[#261d38]">
+                  <span className="text-[#cbd5e1]">Find & Replace Matrix</span>
+                  <kbd className="text-[#00e5ff] font-bold">Ctrl + H</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-[#0b0813] px-2.5 py-1 border border-[#261d38]">
+                  <span className="text-[#cbd5e1]">Auto-Format Code</span>
+                  <kbd className="text-[#00e676] font-bold">Shift + Alt + F</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-[#0b0813] px-2.5 py-1 border border-[#261d38]">
+                  <span className="text-[#cbd5e1]">Toggle ConPTY Terminal</span>
+                  <kbd className="text-[#ff8800] font-bold">Ctrl + `</kbd>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
