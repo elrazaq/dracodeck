@@ -621,7 +621,39 @@ ipcMain.handle('sentinel-test-concurrency', async (event, targetUrl, endpointPat
   }
 });
 
-// DracoDeck GitOps & Memory Store IPC Handlers (Milestone M5)
+// DracoDeck GitOps & Memory Store IPC Handlers (Milestone M5 & M6.1)
+
+ipcMain.handle('git-resolve-repo', async (event, workspacePath, activeFilePath, overrideRepoPath) => {
+  try {
+    return await gitOps.resolveGitRepo(workspacePath || activeAppCwd, activeFilePath, overrideRepoPath);
+  } catch (err) {
+    return {
+      isRepo: false,
+      repoPath: workspacePath || activeAppCwd,
+      repoName: '',
+      source: 'none',
+      subRepos: [],
+      error: err.message,
+    };
+  }
+});
+
+ipcMain.handle('git-init', async (event, cwd) => {
+  try {
+    return await gitOps.initGitRepo(cwd || activeAppCwd);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-default-identity', async () => {
+  try {
+    return gitOps.getDefaultIdentity();
+  } catch (err) {
+    return { name: 'Dracode Operator', email: 'operator@dracodeck.local' };
+  }
+});
+
 
 ipcMain.handle('git-user-config', async (event, cwd) => {
   try {

@@ -21,6 +21,7 @@ import {
   X,
   UserCheck,
   Link2,
+  FolderGit2,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -30,6 +31,7 @@ import {
   GitBranchesResult,
   GitCommitLog,
   GitUserConfig,
+  GitResolvedRepo,
   TelemetrySessionItem,
   TelemetryEvent,
 } from "../../vite-env";
@@ -58,6 +60,15 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [userConfig, setUserConfig] = useState<GitUserConfig | null>(null);
   const [commitMsg, setCommitMsg] = useState("");
   const [isGitBusy, setIsGitBusy] = useState(false);
+  // Milestone M6.1: Adaptive Scope Resolution & Sub-Repo Overrides
+  const [resolvedRepo, setResolvedRepo] = useState<GitResolvedRepo | null>(null);
+  const [manualRepoOverride, setManualRepoOverride] = useState<string | null>(null);
+
+  const effectiveGitCwd =
+    (resolvedRepo?.isRepo
+      ? resolvedRepo.repoPath
+      : manualRepoOverride || workspacePath) || workspacePath;
+
   const [gitFeedback, setGitFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
 
   // Branch Creation & Inline Working Tree Diff State
@@ -87,32 +98,67 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [agentEvents, setAgentEvents] = useState<TelemetryEvent[]>([]);
   const [isAgentLoading, setIsAgentLoading] = useState(false);
 
-  // Refresh Real Git Telemetry (Status + Branches + Commit Log + User Identity)
+  // Refresh Real Git Telemetry (Adaptive Resolution + Branches + Logs + Identity)
   const refreshGit = useCallback(async () => {
-    if (!workspacePath || !window.dracoAPI?.gitStatus) return;
+    if (!workspacePath) return;
     try {
-      const [st, br, lg, uc] = await Promise.all([
-        window.dracoAPI.gitStatus(workspacePath),
-        window.dracoAPI.gitBranches
-          ? window.dracoAPI.gitBranches(workspacePath)
-          : Promise.resolve(null),
-        window.dracoAPI.gitLog
-          ? window.dracoAPI.gitLog(workspacePath, 8)
-          : Promise.resolve([]),
-        window.dracoAPI.gitUserConfig
-          ? window.dracoAPI.gitUserConfig(workspacePath)
-          : Promise.resolve(null),
-      ]);
-      setGitStatus(st);
-      if (br) setGitBranches(br);
-      setGitLogs(lg || []);
-      if (uc) {
-        setUserConfig(uc);
-        if (uc.name) setAuthorName(uc.name);
-        if (uc.email) setAuthorEmail(uc.email);
+      let resolved: GitResolvedRepo | null = null;
+      if (window.dracoAPI?.gitResolveRepo) {
+        resolved = await window.dracoAPI.gitResolveRepo(
+          workspacePath,
+          selectedFile,
+          manualRepoOverride
+        );
+        setResolvedRepo(resolved);
+      }
+
+      const targetCwd =
+        (resolved?.isRepo
+          ? resolved.repoPath
+          : manualRepoOverride || workspacePath) || workspacePath;
+
+      if (!resolved || resolved.isRepo) {
+        const [st, br, lg, uc] = await Promise.all([
+          window.dracoAPI?.gitStatus
+            ? window.dracoAPI.gitStatus(targetCwd)
+            : Promise.resolve(null),
+          window.dracoAPI?.gitBranches
+            ? window.dracoAPI.gitBranches(targetCwd)
+            : Promise.resolve(null),
+          window.dracoAPI?.gitLog
+            ? window.dracoAPI.gitLog(targetCwd, 8)
+            : Promise.resolve([]),
+          window.dracoAPI?.gitUserConfig
+            ? window.dracoAPI.gitUserConfig(targetCwd)
+            : Promise.resolve(null),
+        ]);
+        if (st) setGitStatus(st);
+        if (br) setGitBranches(br);
+        setGitLogs(lg || []);
+        if (uc) {
+          setUserConfig(uc);
+          if (uc.name) setAuthorName(uc.name);
+          if (uc.email) setAuthorEmail(uc.email);
+        }
+      } else {
+        setGitStatus({
+          isRepo: false,
+          branch: "no-repo",
+          staged: [],
+          unstaged: [],
+          untracked: [],
+          ahead: 0,
+          behind: 0,
+          hasRemote: false,
+          remoteUrl: "",
+          upstream: "",
+          totalDirty: 0,
+        });
+        setGitBranches(null);
+        setGitLogs([]);
       }
     } catch {}
-  }, [workspacePath]);
+  }, [workspacePath, selectedFile, manualRepoOverride]);
 
   useEffect(() => {
     refreshGit();
@@ -166,7 +212,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const handleStage = async (filePath: string) => {
     if (!window.dracoAPI?.gitStage) return;
     setIsGitBusy(true);
-    await window.dracoAPI.gitStage(workspacePath, filePath);
+    await window.dracoAPI.gitStage(effectiveGitCwd, filePath);
     await refreshGit();
     setIsGitBusy(false);
   };
@@ -174,7 +220,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const handleUnstage = async (filePath: string) => {
     if (!window.dracoAPI?.gitUnstage) return;
     setIsGitBusy(true);
-    await window.dracoAPI.gitUnstage(workspacePath, filePath);
+    await window.dracoAPI.gitUnstage(effectiveGitCwd, filePath);
     await refreshGit();
     setIsGitBusy(false);
   };
@@ -182,7 +228,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const handleDiscard = async (filePath: string) => {
     if (!window.dracoAPI?.gitDiscard) return;
     setIsGitBusy(true);
-    await window.dracoAPI.gitDiscard(workspacePath, filePath);
+    await window.dracoAPI.gitDiscard(effectiveGitCwd, filePath);
     if (activeDiff?.path === filePath) setActiveDiff(null);
     await refreshGit();
     setIsGitBusy(false);
@@ -193,7 +239,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     setIsGitBusy(true);
     setGitFeedback({ message: `${createNew ? "Creating" : "Switching to"} ${branchName.trim()}...` });
     try {
-      const res = await window.dracoAPI.gitCheckout(workspacePath, branchName.trim(), createNew);
+      const res = await window.dracoAPI.gitCheckout(effectiveGitCwd, branchName.trim(), createNew);
       if (res.ok) {
         setGitFeedback({ message: `Switched to ${res.branch || branchName.trim()}` });
         setIsCreatingBranch(false);
@@ -216,7 +262,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       setActiveDiff(null);
       return;
     }
-    const res = await window.dracoAPI.gitDiff(workspacePath, filePath, staged);
+    const res = await window.dracoAPI.gitDiff(effectiveGitCwd, filePath, staged);
     setActiveDiff({
       path: filePath,
       staged,
@@ -228,7 +274,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const handleSaveIdentity = async () => {
     if (!authorName.trim() || !authorEmail.trim() || !window.dracoAPI?.gitSetUserConfig) return;
     setIsGitBusy(true);
-    const res = await window.dracoAPI.gitSetUserConfig(workspacePath, {
+    const res = await window.dracoAPI.gitSetUserConfig(effectiveGitCwd, {
       name: authorName.trim(),
       email: authorEmail.trim(),
       isGlobal: isGlobalIdentity,
@@ -258,7 +304,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const handleSaveRemote = async () => {
     if (!remoteUrlInput.trim() || !window.dracoAPI?.gitAddRemote) return;
     setIsGitBusy(true);
-    const res = await window.dracoAPI.gitAddRemote(workspacePath, remoteUrlInput.trim());
+    const res = await window.dracoAPI.gitAddRemote(effectiveGitCwd, remoteUrlInput.trim());
     setIsGitBusy(false);
     if (res.ok) {
       setShowRemoteModal(false);
@@ -304,7 +350,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     setIsGitBusy(true);
     setGitFeedback({ message: `Running ${action.toUpperCase()}...` });
     try {
-      const res = await window.dracoAPI.gitSync(workspacePath, {
+      const res = await window.dracoAPI.gitSync(effectiveGitCwd, {
         message: commitMsg.trim(),
         action,
       });
@@ -329,10 +375,84 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     }
   };
 
+  // Milestone M6.1: 1-Click Git Repository Initialization
+  const handleGitInit = async () => {
+    if (!window.dracoAPI?.gitInit) return;
+    setIsGitBusy(true);
+    setGitFeedback({ message: "Initializing Git repository (git init -b main)..." });
+    try {
+      const target = effectiveGitCwd || workspacePath;
+      const res = await window.dracoAPI.gitInit(target);
+      if (res.ok) {
+        setGitFeedback({ message: `✓ Initialized Git repository in ${target}` });
+        await refreshGit();
+      } else {
+        setGitFeedback({ message: res.error || "Failed to initialize Git repository", isError: true });
+      }
+    } catch (err: any) {
+      setGitFeedback({ message: err.message || "Git init error", isError: true });
+    } finally {
+      setIsGitBusy(false);
+      setTimeout(() => setGitFeedback(null), 3500);
+    }
+  };
+
+  // Milestone M6.1: Auto-generate Local Fallback Identity (Offline OK)
+  const handleAutoGenerateIdentity = async (autoSaveAndProceed = false) => {
+    let name = "Dracode Operator";
+    let email = "operator@dracodeck.local";
+    try {
+      if (window.dracoAPI?.gitDefaultIdentity) {
+        const def = await window.dracoAPI.gitDefaultIdentity();
+        if (def?.name) name = def.name;
+        if (def?.email) email = def.email;
+      }
+    } catch {}
+
+    setAuthorName(name);
+    setAuthorEmail(email);
+    setIsGlobalIdentity(true);
+
+    if (autoSaveAndProceed && window.dracoAPI?.gitSetUserConfig) {
+      setIsGitBusy(true);
+      try {
+        const res = await window.dracoAPI.gitSetUserConfig(effectiveGitCwd, {
+          name,
+          email,
+          isGlobal: true,
+        });
+        if (res.ok) {
+          setUserConfig({
+            hasIdentity: true,
+            name,
+            email,
+            isGlobal: true,
+          });
+          setShowIdentityModal(false);
+          setGitFeedback({ message: `✓ Local author identity configured (${name} <${email}>). Ready!` });
+          setTimeout(() => setGitFeedback(null), 3000);
+
+          if (pendingActionAfterIdentity) {
+            const nextAction = pendingActionAfterIdentity;
+            setPendingActionAfterIdentity(null);
+            setTimeout(() => handleGitSync(nextAction), 200);
+          }
+        } else {
+          setGitFeedback({ message: res.error || "Failed to save identity", isError: true });
+        }
+      } catch (err: any) {
+        setGitFeedback({ message: err.message, isError: true });
+      } finally {
+        setIsGitBusy(false);
+      }
+    }
+  };
+
   const openRelativeRepoFile = (relPath: string, isPreview: boolean = true) => {
     const cleanRel = relPath.replace(/^[/\\]+/, "");
-    const fullPath = workspacePath
-      ? `${workspacePath.replace(/[/\\]+$/, "")}/${cleanRel}`
+    const baseDir = effectiveGitCwd || workspacePath;
+    const fullPath = baseDir
+      ? `${baseDir.replace(/[/\\]+$/, "")}/${cleanRel}`
       : cleanRel;
     const baseName = cleanRel.split(/[/\\]/).pop() || cleanRel;
     onOpenFile(fullPath, baseName, isPreview);
@@ -413,13 +533,109 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         {mode === "git" && (
           <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
             {!gitStatus?.isRepo ? (
-              <div className="p-4 bg-[#120c1f] border border-[#261d38] text-center text-[#7a7194] space-y-1">
-                <GitBranch className="w-6 h-6 mx-auto text-[#443a57]" />
-                <p className="text-[11px] text-[#e2e8f0] font-bold">No Git Repository</p>
-                <p className="text-[10px]">Active scope is not initialized with Git.</p>
+              <div className="space-y-2.5 font-mono">
+                {/* Milestone M6.1 Sub-Repositories Card */}
+                {resolvedRepo?.subRepos && resolvedRepo.subRepos.length > 0 && (
+                  <div className="p-2.5 bg-[#120c1f] border border-[#261d38] space-y-2">
+                    <div className="flex items-center gap-1.5 text-[#00e5ff] text-[10px] font-bold tracking-wider">
+                      <FolderGit2 className="w-3.5 h-3.5 text-[#00e5ff] shrink-0" />
+                      <span>DETECTED SUB-REPOSITORIES ({resolvedRepo.subRepos.length})</span>
+                    </div>
+                    <p className="text-[9.5px] text-[#94a3b8] leading-tight">
+                      Scope <span className="text-[#e2e8f0] font-bold">{workspacePath}</span> is a root container. Select a project repository:
+                    </p>
+                    <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                      {resolvedRepo.subRepos.map((sub) => (
+                        <button
+                          key={sub.path}
+                          onClick={() => setManualRepoOverride(sub.path)}
+                          className="w-full flex items-center justify-between p-1.5 bg-[#0b0813] hover:bg-[#1a132e] border border-[#261d38] hover:border-[#00e5ff] text-left transition-colors cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-1.5 truncate">
+                            <GitBranch className="w-3 h-3 text-[#ff007f] group-hover:text-[#00e5ff] shrink-0" />
+                            <span className="text-[10px] text-[#e2e8f0] font-bold truncate">
+                              {sub.name}
+                            </span>
+                          </div>
+                          <span className="text-[8.5px] text-[#7a7194] group-hover:text-[#00e5ff] font-bold shrink-0">
+                            SELECT ➔
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Milestone M6.1 1-Click git init Box */}
+                <div className="p-4 bg-[#120c1f] border border-[#261d38] text-center space-y-2.5">
+                  <div className="w-8 h-8 mx-auto rounded-full bg-[#1b122c] border border-[#3b2a59] flex items-center justify-center">
+                    <GitBranch className="w-4 h-4 text-[#7a7194]" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-[11px] text-[#e2e8f0] font-bold uppercase tracking-wider">
+                      No Git Repository
+                    </p>
+                    <p className="text-[10px] text-[#94a3b8] leading-tight">
+                      Current scope <span className="text-[#00e5ff] break-all">{effectiveGitCwd || workspacePath}</span> is not initialized with Git.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGitInit}
+                    disabled={isGitBusy}
+                    className="w-full py-2 px-3 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-40 text-white text-[10px] font-bold tracking-wider cursor-pointer shadow-[0_0_15px_rgba(255,0,127,0.25)] flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                    <span>⚡ INITIALIZE GIT REPOSITORY (git init)</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <>
+                {/* Milestone M6.1: Active Repo Boundary & Quick Switcher */}
+                <div className="bg-[#120c1f] border border-[#261d38] p-1.5 flex items-center justify-between gap-1 text-[9.5px]">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <FolderGit2 className="w-3.5 h-3.5 text-[#00e5ff] shrink-0" />
+                    <span className="text-[9px] text-[#7a7194] uppercase font-bold shrink-0">REPO:</span>
+                    <span className="text-[10px] text-[#e2e8f0] font-bold truncate" title={effectiveGitCwd}>
+                      {resolvedRepo?.repoName || effectiveGitCwd.split(/[/\\]/).pop() || effectiveGitCwd}
+                    </span>
+                    {resolvedRepo?.source === "file" && (
+                      <span className="text-[8px] px-1 py-0.2 bg-[#00e5ff]/15 text-[#00e5ff] border border-[#00e5ff]/30 font-bold shrink-0">
+                        AUTO-FILE
+                      </span>
+                    )}
+                  </div>
+                  {resolvedRepo?.subRepos && resolvedRepo.subRepos.length > 0 && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <select
+                        value={effectiveGitCwd}
+                        onChange={(e) => setManualRepoOverride(e.target.value)}
+                        className="bg-[#0b0813] border border-[#261d38] text-[#00e5ff] text-[9px] px-1 py-0.5 outline-none font-mono cursor-pointer"
+                        title="Switch active Git repository"
+                      >
+                        <option value={effectiveGitCwd}>
+                          {resolvedRepo?.repoName || "Select Repo"}
+                        </option>
+                        {resolvedRepo.subRepos
+                          .filter((sub) => sub.path !== effectiveGitCwd)
+                          .map((sub) => (
+                            <option key={sub.path} value={sub.path}>
+                              {sub.name}
+                            </option>
+                          ))}
+                      </select>
+                      {manualRepoOverride && (
+                        <button
+                          onClick={() => setManualRepoOverride(null)}
+                          title="Reset to automatic file/workspace resolution"
+                          className="text-[#7a7194] hover:text-[#ff1744] text-[9px] px-1 cursor-pointer font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {/* 1. Online vs Local-Only Repository Connection Status Card */}
                 <div className="bg-[#120c1f] border border-[#261d38] p-2 space-y-1.5">
                   <div className="flex items-center justify-between gap-1">
@@ -1080,9 +1296,24 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
               </button>
             </div>
 
-            <p className="text-[11px] text-[#94a3b8]">
-              Git requires an author name and email to sign commits into the repository log.
-            </p>
+            <div className="bg-[#0b0813] border border-[#261d38] p-2 space-y-1">
+              <div className="flex items-center gap-1.5 text-[#00e5ff] text-[10px] font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-[#00e5ff]" />
+                <span>OFFLINE LOCAL IDENTITY OK</span>
+              </div>
+              <p className="text-[10px] text-[#94a3b8] leading-tight">
+                Git requires any name & email string to sign commits offline on your laptop. You do <b>NOT</b> need a real GitHub account or password.
+              </p>
+            </div>
+
+            <button
+              onClick={() => handleAutoGenerateIdentity(false)}
+              type="button"
+              className="w-full py-1.5 px-2 bg-[#1b122c] hover:bg-[#261d38] border border-[#00e5ff]/50 text-[#00e5ff] text-[10px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <Sparkles className="w-3 h-3 text-[#00e5ff]" />
+              <span>⚡ AUTO-POPULATE LOCAL IDENTITY</span>
+            </button>
 
             <div className="space-y-2">
               <div>
@@ -1122,21 +1353,33 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
               </label>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#261d38]">
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#261d38]">
               <button
-                onClick={() => setShowIdentityModal(false)}
-                className="px-2.5 py-1 text-[#7a7194] hover:text-[#cbd5e1] text-[10px] font-bold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveIdentity}
-                disabled={!authorName.trim() || !authorEmail.trim() || isGitBusy}
-                className="px-3 py-1 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-40 text-white text-[10px] font-bold cursor-pointer flex items-center gap-1"
+                onClick={() => handleAutoGenerateIdentity(true)}
+                disabled={isGitBusy}
+                title="Auto-fill identity, save, and proceed immediately"
+                className="px-2.5 py-1 bg-[#00e5ff]/20 hover:bg-[#00e5ff]/30 text-[#00e5ff] border border-[#00e5ff]/50 text-[10px] font-bold cursor-pointer flex items-center gap-1"
               >
                 <Check className="w-3.5 h-3.5" />
-                <span>SAVE IDENTITY</span>
+                <span>1-CLICK AUTO-SAVE</span>
               </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowIdentityModal(false)}
+                  className="px-2 py-1 text-[#7a7194] hover:text-[#cbd5e1] text-[10px] font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveIdentity}
+                  disabled={!authorName.trim() || !authorEmail.trim() || isGitBusy}
+                  className="px-3 py-1 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-40 text-white text-[10px] font-bold cursor-pointer flex items-center gap-1"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>SAVE</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

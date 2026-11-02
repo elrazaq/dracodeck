@@ -222,6 +222,25 @@ export interface GitBranchesResult {
   error?: string;
 }
 
+export interface GitSubRepo {
+  name: string;
+  path: string;
+}
+
+export interface GitResolvedRepo {
+  isRepo: boolean;
+  repoPath: string;
+  repoName: string;
+  source: 'workspace' | 'file' | 'manual' | 'none';
+  subRepos: GitSubRepo[];
+  error?: string;
+}
+
+export interface GitDefaultIdentity {
+  name: string;
+  email: string;
+}
+
 export interface GitUserConfig {
   hasIdentity: boolean;
   name: string;
@@ -289,6 +308,9 @@ declare global {
       sentinelCrawlShadow: (targetUrl: string) => Promise<ShadowApiScanResult>;
       sentinelTestTiming: (targetUrl: string, endpointPath?: string, testUser?: string) => Promise<TimingDiscrepancyResult>;
       sentinelTestConcurrency: (targetUrl: string, endpointPath?: string) => Promise<ConcurrencyRaceResult>;
+      gitResolveRepo: (workspacePath: string, activeFilePath?: string, overrideRepoPath?: string | null) => Promise<GitResolvedRepo>;
+      gitInit: (cwd: string) => Promise<{ ok: boolean; output?: string; error?: string | null }>;
+      gitDefaultIdentity: () => Promise<GitDefaultIdentity>;
       gitUserConfig: (cwd?: string) => Promise<GitUserConfig>;
       gitSetUserConfig: (cwd: string, config: { name: string; email: string; isGlobal?: boolean }) => Promise<{ ok: boolean; name?: string; email?: string; isGlobal?: boolean; error?: string }>;
       gitAddRemote: (cwd: string, remoteUrl: string) => Promise<{ ok: boolean; remoteUrl?: string; error?: string | null }>;

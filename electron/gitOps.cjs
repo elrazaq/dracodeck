@@ -379,7 +379,124 @@ async function addRemoteOrigin(cwd, remoteUrl) {
   };
 }
 
+
+function getDefaultIdentity() {
+  const os = require('os');
+  let username = 'Dracode Operator';
+  try {
+    const info = os.userInfo();
+    if (info && info.username) {
+      username = info.username;
+    }
+  } catch {}
+  const cleanUser = username.replace(/[^a-zA-Z0-9_-]/g, '') || 'operator';
+  return {
+    name: username,
+    email: cleanUser.toLowerCase() + '@dracodeck.local',
+  };
+}
+
+async function initGitRepo(cwd) {
+  if (!cwd || !fs.existsSync(cwd)) {
+    return { ok: false, error: 'Target directory does not exist.' };
+  }
+  const initRes = await runGit(cwd, ['init', '-b', 'main']);
+  if (!initRes.ok) {
+    const fallbackRes = await runGit(cwd, ['init']);
+    if (!fallbackRes.ok) {
+      return { ok: false, error: fallbackRes.stderr.trim() || 'Failed to initialize Git repository.' };
+    }
+    await runGit(cwd, ['branch', '-M', 'main']);
+    return { ok: true, output: (fallbackRes.stdout || '').trim() || 'Initialized empty Git repository' };
+  }
+  return { ok: true, output: initRes.stdout.trim() || 'Initialized empty Git repository' };
+}
+
+async function resolveGitRepo(workspacePath, activeFilePath, overrideRepoPath) {
+  if (overrideRepoPath && fs.existsSync(overrideRepoPath)) {
+    const rev = await runGit(overrideRepoPath, ['rev-parse', '--show-toplevel']);
+    if (rev.ok && rev.stdout.trim()) {
+      const repoPath = path.normalize(rev.stdout.trim());
+      return {
+        isRepo: true,
+        repoPath,
+        repoName: path.basename(repoPath),
+        source: 'manual',
+        subRepos: [],
+      };
+    }
+  }
+
+  if (activeFilePath && typeof activeFilePath === 'string') {
+    try {
+      const fileDir = fs.existsSync(activeFilePath)
+        ? (fs.statSync(activeFilePath).isDirectory() ? activeFilePath : path.dirname(activeFilePath))
+        : path.dirname(activeFilePath);
+      const rev = await runGit(fileDir, ['rev-parse', '--show-toplevel']);
+      if (rev.ok && rev.stdout.trim()) {
+        const repoPath = path.normalize(rev.stdout.trim());
+        return {
+          isRepo: true,
+          repoPath,
+          repoName: path.basename(repoPath),
+          source: 'file',
+          subRepos: [],
+        };
+      }
+    } catch {}
+  }
+
+  if (workspacePath && fs.existsSync(workspacePath)) {
+    const rev = await runGit(workspacePath, ['rev-parse', '--show-toplevel']);
+    if (rev.ok && rev.stdout.trim()) {
+      const repoPath = path.normalize(rev.stdout.trim());
+      return {
+        isRepo: true,
+        repoPath,
+        repoName: path.basename(repoPath),
+        source: 'workspace',
+        subRepos: [],
+      };
+    }
+
+    const subRepos = [];
+    try {
+      const entries = fs.readdirSync(workspacePath, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith('$') && entry.name !== 'System Volume Information' && entry.name !== 'node_modules') {
+          const subPath = path.join(workspacePath, entry.name);
+          const gitDir = path.join(subPath, '.git');
+          try {
+            if (fs.existsSync(gitDir)) {
+              subRepos.push({ name: entry.name, path: subPath });
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+
+    return {
+      isRepo: false,
+      repoPath: workspacePath,
+      repoName: path.basename(workspacePath) || workspacePath,
+      source: 'none',
+      subRepos,
+    };
+  }
+
+  return {
+    isRepo: false,
+    repoPath: workspacePath || process.cwd(),
+    repoName: path.basename(workspacePath || process.cwd()),
+    source: 'none',
+    subRepos: [],
+  };
+}
+
 module.exports = {
+  getDefaultIdentity,
+  initGitRepo,
+  resolveGitRepo,
   getGitUserConfig,
   setGitUserConfig,
   addRemoteOrigin,
