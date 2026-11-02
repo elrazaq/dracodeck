@@ -222,6 +222,14 @@ export interface GitBranchesResult {
   error?: string;
 }
 
+export interface GitUserConfig {
+  hasIdentity: boolean;
+  name: string;
+  email: string;
+  isGlobal?: boolean;
+  error?: string;
+}
+
 export interface GitCommitLog {
   hash: string;
   author: string;
@@ -281,6 +289,9 @@ declare global {
       sentinelCrawlShadow: (targetUrl: string) => Promise<ShadowApiScanResult>;
       sentinelTestTiming: (targetUrl: string, endpointPath?: string, testUser?: string) => Promise<TimingDiscrepancyResult>;
       sentinelTestConcurrency: (targetUrl: string, endpointPath?: string) => Promise<ConcurrencyRaceResult>;
+      gitUserConfig: (cwd?: string) => Promise<GitUserConfig>;
+      gitSetUserConfig: (cwd: string, config: { name: string; email: string; isGlobal?: boolean }) => Promise<{ ok: boolean; name?: string; email?: string; isGlobal?: boolean; error?: string }>;
+      gitAddRemote: (cwd: string, remoteUrl: string) => Promise<{ ok: boolean; remoteUrl?: string; error?: string | null }>;
       gitStatus: (cwd?: string) => Promise<GitStatusResult>;
       gitBranches: (cwd?: string) => Promise<GitBranchesResult>;
       gitCheckout: (cwd: string, branchName: string, createNew?: boolean) => Promise<{ ok: boolean; branch?: string; output?: string; error?: string | null }>;

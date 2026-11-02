@@ -622,6 +622,31 @@ ipcMain.handle('sentinel-test-concurrency', async (event, targetUrl, endpointPat
 });
 
 // DracoDeck GitOps & Memory Store IPC Handlers (Milestone M5)
+
+ipcMain.handle('git-user-config', async (event, cwd) => {
+  try {
+    return await gitOps.getGitUserConfig(cwd || activeAppCwd);
+  } catch (err) {
+    return { hasIdentity: false, name: '', email: '', isGlobal: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-set-user-config', async (event, cwd, config) => {
+  try {
+    return await gitOps.setGitUserConfig(cwd || activeAppCwd, config);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('git-add-remote', async (event, cwd, remoteUrl) => {
+  try {
+    return await gitOps.addRemoteOrigin(cwd || activeAppCwd, remoteUrl);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('git-status', async (event, cwd) => {
   try {
     return await gitOps.getGitStatus(cwd || activeAppCwd);

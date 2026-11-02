@@ -321,7 +321,68 @@ async function getGitLog(cwd, limit = 25) {
     });
 }
 
+
+async function getGitUserConfig(cwd) {
+  const [nameRes, emailRes, globalNameRes, globalEmailRes] = await Promise.all([
+    runGit(cwd, ['config', '--get', 'user.name']),
+    runGit(cwd, ['config', '--get', 'user.email']),
+    runGit(cwd, ['config', '--global', '--get', 'user.name']),
+    runGit(cwd, ['config', '--global', '--get', 'user.email']),
+  ]);
+
+  const name = nameRes.ok && nameRes.stdout.trim() ? nameRes.stdout.trim() : (globalNameRes.ok ? globalNameRes.stdout.trim() : '');
+  const email = emailRes.ok && emailRes.stdout.trim() ? emailRes.stdout.trim() : (globalEmailRes.ok ? globalEmailRes.stdout.trim() : '');
+
+  return {
+    hasIdentity: Boolean(name && email),
+    name,
+    email,
+    isGlobal: !nameRes.ok && Boolean(globalNameRes.ok),
+  };
+}
+
+async function setGitUserConfig(cwd, { name, email, isGlobal = true } = {}) {
+  const cleanName = (name || '').trim();
+  const cleanEmail = (email || '').trim();
+
+  if (!cleanName || !cleanEmail) {
+    return { ok: false, error: 'Name and email are required.' };
+  }
+
+  const scopeArg = isGlobal ? ['--global'] : [];
+  const [res1, res2] = await Promise.all([
+    runGit(cwd, ['config', ...scopeArg, 'user.name', cleanName]),
+    runGit(cwd, ['config', ...scopeArg, 'user.email', cleanEmail]),
+  ]);
+
+  if (!res1.ok || !res2.ok) {
+    return { ok: false, error: res1.stderr.trim() || res2.stderr.trim() || 'Failed to save Git author identity.' };
+  }
+
+  return { ok: true, name: cleanName, email: cleanEmail, isGlobal };
+}
+
+async function addRemoteOrigin(cwd, remoteUrl) {
+  const cleanUrl = (remoteUrl || '').trim();
+  if (!cleanUrl) {
+    return { ok: false, error: 'Remote URL cannot be empty.' };
+  }
+
+  const check = await runGit(cwd, ['remote', 'get-url', 'origin']);
+  const args = check.ok ? ['remote', 'set-url', 'origin', cleanUrl] : ['remote', 'add', 'origin', cleanUrl];
+  const res = await runGit(cwd, args);
+
+  return {
+    ok: res.ok,
+    remoteUrl: cleanUrl,
+    error: res.ok ? null : res.stderr.trim(),
+  };
+}
+
 module.exports = {
+  getGitUserConfig,
+  setGitUserConfig,
+  addRemoteOrigin,
   getGitStatus,
   getGitBranches,
   switchBranch,

@@ -19,6 +19,8 @@ import {
   HardDrive,
   FileDiff,
   X,
+  UserCheck,
+  Link2,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -27,6 +29,7 @@ import {
   GitStatusResult,
   GitBranchesResult,
   GitCommitLog,
+  GitUserConfig,
   TelemetrySessionItem,
   TelemetryEvent,
 } from "../../vite-env";
@@ -52,9 +55,10 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null);
   const [gitBranches, setGitBranches] = useState<GitBranchesResult | null>(null);
   const [gitLogs, setGitLogs] = useState<GitCommitLog[]>([]);
+  const [userConfig, setUserConfig] = useState<GitUserConfig | null>(null);
   const [commitMsg, setCommitMsg] = useState("");
   const [isGitBusy, setIsGitBusy] = useState(false);
-  const [gitFeedback, setGitFeedback] = useState<string | null>(null);
+  const [gitFeedback, setGitFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
 
   // Branch Creation & Inline Working Tree Diff State
   const [isCreatingBranch, setIsCreatingBranch] = useState(false);
@@ -65,17 +69,29 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     diff: string;
   } | null>(null);
 
+  // Milestone M6: Identity Modal & Remote Origin Config State
+  const [showIdentityModal, setShowIdentityModal] = useState(false);
+  const [authorName, setAuthorName] = useState("");
+  const [authorEmail, setAuthorEmail] = useState("");
+  const [isGlobalIdentity, setIsGlobalIdentity] = useState(true);
+  const [pendingActionAfterIdentity, setPendingActionAfterIdentity] = useState<
+    "commit" | "commit-push" | "push" | "pull" | "fetch" | null
+  >(null);
+
+  const [showRemoteModal, setShowRemoteModal] = useState(false);
+  const [remoteUrlInput, setRemoteUrlInput] = useState("");
+
   // Real Agent Telemetry State (from electron/tailerService.cjs)
   const [agentSessions, setAgentSessions] = useState<TelemetrySessionItem[]>([]);
   const [activeConvId, setActiveConvId] = useState<string>("");
   const [agentEvents, setAgentEvents] = useState<TelemetryEvent[]>([]);
   const [isAgentLoading, setIsAgentLoading] = useState(false);
 
-  // Refresh Real Git Telemetry (Status + Branches + Commit Log)
+  // Refresh Real Git Telemetry (Status + Branches + Commit Log + User Identity)
   const refreshGit = useCallback(async () => {
     if (!workspacePath || !window.dracoAPI?.gitStatus) return;
     try {
-      const [st, br, lg] = await Promise.all([
+      const [st, br, lg, uc] = await Promise.all([
         window.dracoAPI.gitStatus(workspacePath),
         window.dracoAPI.gitBranches
           ? window.dracoAPI.gitBranches(workspacePath)
@@ -83,10 +99,18 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         window.dracoAPI.gitLog
           ? window.dracoAPI.gitLog(workspacePath, 8)
           : Promise.resolve([]),
+        window.dracoAPI.gitUserConfig
+          ? window.dracoAPI.gitUserConfig(workspacePath)
+          : Promise.resolve(null),
       ]);
       setGitStatus(st);
       if (br) setGitBranches(br);
       setGitLogs(lg || []);
+      if (uc) {
+        setUserConfig(uc);
+        if (uc.name) setAuthorName(uc.name);
+        if (uc.email) setAuthorEmail(uc.email);
+      }
     } catch {}
   }, [workspacePath]);
 
@@ -167,19 +191,19 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const handleCheckoutBranch = async (branchName: string, createNew: boolean = false) => {
     if (!window.dracoAPI?.gitCheckout || !branchName.trim()) return;
     setIsGitBusy(true);
-    setGitFeedback(`${createNew ? "Creating" : "Switching to"} ${branchName.trim()}...`);
+    setGitFeedback({ message: `${createNew ? "Creating" : "Switching to"} ${branchName.trim()}...` });
     try {
       const res = await window.dracoAPI.gitCheckout(workspacePath, branchName.trim(), createNew);
       if (res.ok) {
-        setGitFeedback(`Switched to ${res.branch || branchName.trim()}`);
+        setGitFeedback({ message: `Switched to ${res.branch || branchName.trim()}` });
         setIsCreatingBranch(false);
         setNewBranchName("");
       } else {
-        setGitFeedback(res.error || "Branch checkout failed");
+        setGitFeedback({ message: res.error || "Branch checkout failed", isError: true });
       }
       await refreshGit();
     } catch (err: any) {
-      setGitFeedback(err.message || "Checkout error");
+      setGitFeedback({ message: err.message || "Checkout error", isError: true });
     } finally {
       setIsGitBusy(false);
       setTimeout(() => setGitFeedback(null), 3000);
@@ -200,17 +224,85 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     });
   };
 
+  // Milestone M6: Handle Git Author Identity Save
+  const handleSaveIdentity = async () => {
+    if (!authorName.trim() || !authorEmail.trim() || !window.dracoAPI?.gitSetUserConfig) return;
+    setIsGitBusy(true);
+    const res = await window.dracoAPI.gitSetUserConfig(workspacePath, {
+      name: authorName.trim(),
+      email: authorEmail.trim(),
+      isGlobal: isGlobalIdentity,
+    });
+    setIsGitBusy(false);
+    if (res.ok) {
+      setShowIdentityModal(false);
+      setUserConfig({
+        hasIdentity: true,
+        name: authorName.trim(),
+        email: authorEmail.trim(),
+        isGlobal: isGlobalIdentity,
+      });
+      setGitFeedback({ message: "Git author identity configured." });
+      setTimeout(() => setGitFeedback(null), 3000);
+      if (pendingActionAfterIdentity) {
+        const nextAction = pendingActionAfterIdentity;
+        setPendingActionAfterIdentity(null);
+        setTimeout(() => handleGitSync(nextAction), 200);
+      }
+    } else {
+      setGitFeedback({ message: res.error || "Failed to set identity", isError: true });
+    }
+  };
+
+  // Milestone M6: Handle Add Remote Origin
+  const handleSaveRemote = async () => {
+    if (!remoteUrlInput.trim() || !window.dracoAPI?.gitAddRemote) return;
+    setIsGitBusy(true);
+    const res = await window.dracoAPI.gitAddRemote(workspacePath, remoteUrlInput.trim());
+    setIsGitBusy(false);
+    if (res.ok) {
+      setShowRemoteModal(false);
+      setRemoteUrlInput("");
+      setGitFeedback({ message: "Remote origin URL connected." });
+      await refreshGit();
+    } else {
+      setGitFeedback({ message: res.error || "Failed to configure remote URL", isError: true });
+    }
+    setTimeout(() => setGitFeedback(null), 3500);
+  };
+
   const handleGitSync = async (
     action: "commit" | "commit-push" | "push" | "pull" | "fetch"
   ) => {
     if (!window.dracoAPI?.gitSync) return;
-    if ((action === "commit" || action === "commit-push") && !commitMsg.trim()) {
-      setGitFeedback("Enter commit message first.");
-      setTimeout(() => setGitFeedback(null), 2500);
+
+    // Milestone M6 Guard 1: Verify Git Author Identity before Commit
+    if (action === "commit" || action === "commit-push") {
+      if (!commitMsg.trim()) {
+        setGitFeedback({ message: "Enter commit message first.", isError: true });
+        setTimeout(() => setGitFeedback(null), 2500);
+        return;
+      }
+
+      if (userConfig && !userConfig.hasIdentity) {
+        setPendingActionAfterIdentity(action);
+        setShowIdentityModal(true);
+        return;
+      }
+    }
+
+    // Milestone M6 Guard 2: Guard Push / Commit+Push on Local-Only Repos
+    if ((action === "push" || action === "commit-push") && gitStatus && !gitStatus.hasRemote) {
+      setGitFeedback({
+        message: "LOCAL REPO ONLY: Configure remote origin URL to push.",
+        isError: true,
+      });
+      setShowRemoteModal(true);
       return;
     }
+
     setIsGitBusy(true);
-    setGitFeedback(`Running ${action.toUpperCase()}...`);
+    setGitFeedback({ message: `Running ${action.toUpperCase()}...` });
     try {
       const res = await window.dracoAPI.gitSync(workspacePath, {
         message: commitMsg.trim(),
@@ -218,16 +310,22 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       });
       if (res.ok) {
         if (action === "commit" || action === "commit-push") setCommitMsg("");
-        setGitFeedback(`${action.toUpperCase()} OK`);
+        setGitFeedback({ message: `${action.toUpperCase()} OK` });
       } else {
-        setGitFeedback(res.error || "Git operation failed");
+        const errMsg = res.error || "Git operation failed";
+        // Auto-detect identity unknown error from git output if config check missed
+        if (errMsg.toLowerCase().includes("author identity unknown") || errMsg.toLowerCase().includes("tell me who you are")) {
+          setPendingActionAfterIdentity(action);
+          setShowIdentityModal(true);
+        }
+        setGitFeedback({ message: errMsg, isError: true });
       }
       await refreshGit();
     } catch (err: any) {
-      setGitFeedback(err.message || "Error");
+      setGitFeedback({ message: err.message || "Error", isError: true });
     } finally {
       setIsGitBusy(false);
-      setTimeout(() => setGitFeedback(null), 3500);
+      setTimeout(() => setGitFeedback(null), 4000);
     }
   };
 
@@ -250,7 +348,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   );
 
   return (
-    <div className="h-full bg-[#161026] flex flex-col select-none overflow-hidden border-r border-[#261d38] font-mono text-xs">
+    <div className="h-full bg-[#161026] flex flex-col select-none overflow-hidden border-r border-[#261d38] font-mono text-xs relative">
       {/* Top Brand Header for Dracode Multi-Sidebar */}
       <div className="h-8 min-h-[32px] bg-[#100b1c] border-b border-[#261d38] px-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2 truncate">
@@ -264,13 +362,26 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         </div>
 
         {mode === "git" && (
-          <button
-            onClick={refreshGit}
-            className="text-[#7a7194] hover:text-[#00e5ff] p-1 cursor-pointer"
-            title="Refresh DracoOps Git Telemetry"
-          >
-            <RefreshCw className={`w-3 h-3 ${isGitBusy ? "animate-spin text-[#00e5ff]" : ""}`} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowIdentityModal(true)}
+              className="text-[#7a7194] hover:text-[#00e676] p-1 cursor-pointer"
+              title={
+                userConfig?.hasIdentity
+                  ? `Git Author: ${userConfig.name} <${userConfig.email}>`
+                  : "Setup Git Author Identity"
+              }
+            >
+              <UserCheck className={`w-3.5 h-3.5 ${userConfig?.hasIdentity ? "text-[#00e676]" : "text-[#ff8800]"}`} />
+            </button>
+            <button
+              onClick={refreshGit}
+              className="text-[#7a7194] hover:text-[#00e5ff] p-1 cursor-pointer"
+              title="Refresh DracoOps Git Telemetry"
+            >
+              <RefreshCw className={`w-3 h-3 ${isGitBusy ? "animate-spin text-[#00e5ff]" : ""}`} />
+            </button>
+          </div>
         )}
 
         {mode === "agent" && (
@@ -328,25 +439,49 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       </div>
                     )}
 
-                    {gitStatus.hasRemote && (
-                      <button
-                        onClick={() => handleGitSync("fetch")}
-                        disabled={isGitBusy}
-                        className="px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] text-[9px] font-bold cursor-pointer shrink-0"
-                        title="Fetch all remotes (git fetch --all --prune)"
-                      >
-                        FETCH
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {!gitStatus.hasRemote && (
+                        <button
+                          onClick={() => setShowRemoteModal(true)}
+                          className="px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#ff8800] border border-[#ff8800]/40 text-[9px] font-bold cursor-pointer shrink-0"
+                          title="Connect Remote Origin URL"
+                        >
+                          + REMOTE
+                        </button>
+                      )}
+                      {gitStatus.hasRemote && (
+                        <button
+                          onClick={() => handleGitSync("fetch")}
+                          disabled={isGitBusy}
+                          className="px-1.5 py-0.5 bg-[#161026] hover:bg-[#281b3d] text-[#00e5ff] border border-[#261d38] text-[9px] font-bold cursor-pointer shrink-0"
+                          title="Fetch all remotes (git fetch --all --prune)"
+                        >
+                          FETCH
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div
-                    className="text-[9.5px] text-[#7a7194] bg-[#0b0813] px-1.5 py-1 border border-[#261d38] truncate"
-                    title={gitStatus.remoteUrl || "No remote origin URL configured"}
+                    className="text-[9.5px] text-[#7a7194] bg-[#0b0813] px-1.5 py-1 border border-[#261d38] truncate flex items-center justify-between"
+                    title={gitStatus.remoteUrl || "No remote origin configured"}
                   >
-                    {gitStatus.hasRemote
-                      ? gitStatus.remoteUrl
-                      : "No remote origin configured (local repository)"}
+                    <span className="truncate">
+                      {gitStatus.hasRemote
+                        ? gitStatus.remoteUrl
+                        : "No remote origin (local repository only)"}
+                    </span>
+                    {gitStatus.hasRemote && (
+                      <button
+                        onClick={() => {
+                          setRemoteUrlInput(gitStatus.remoteUrl || "");
+                          setShowRemoteModal(true);
+                        }}
+                        className="text-[9px] text-[#00e5ff] hover:underline ml-1 shrink-0"
+                      >
+                        Edit
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -412,7 +547,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                     </div>
                   )}
 
-                  {/* Pull & Push Buttons */}
+                  {/* Pull & Push Buttons with Local-Only Protection */}
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       onClick={() => handleGitSync("pull")}
@@ -421,7 +556,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       title={
                         gitStatus.hasRemote
                           ? "Pull latest from remote"
-                          : "No online remote configured"
+                          : "No remote origin configured"
                       }
                     >
                       <DownloadCloud className="w-3 h-3" />
@@ -429,16 +564,20 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                     </button>
                     <button
                       onClick={() => handleGitSync("push")}
-                      disabled={isGitBusy || !gitStatus.hasRemote}
-                      className="flex items-center justify-center gap-1 py-1 bg-[#161026] hover:bg-[#281b3d] disabled:opacity-40 text-[#ff007f] border border-[#261d38] text-[10px] font-bold cursor-pointer"
+                      disabled={isGitBusy}
+                      className={`flex items-center justify-center gap-1 py-1 border text-[10px] font-bold cursor-pointer ${
+                        gitStatus.hasRemote
+                          ? "bg-[#161026] hover:bg-[#281b3d] text-[#ff007f] border-[#261d38]"
+                          : "bg-[#161026] text-[#7a7194] border-[#261d38] hover:border-[#ff8800]/50"
+                      }`}
                       title={
                         gitStatus.hasRemote
                           ? "Push commits to remote"
-                          : "No online remote configured"
+                          : "Local repository only (Click to configure remote)"
                       }
                     >
                       <UploadCloud className="w-3 h-3" />
-                      <span>PUSH</span>
+                      <span>{gitStatus.hasRemote ? "PUSH" : "PUSH (LOCAL)"}</span>
                     </button>
                   </div>
                 </div>
@@ -470,9 +609,48 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       <span>COMMIT+PUSH</span>
                     </button>
                   </div>
+
+                  {/* Expanded Diagnostic Feedback Drawer */}
                   {gitFeedback && (
-                    <div className="text-[10px] text-[#00e5ff] bg-[#0b0813] px-2 py-1 border border-[#261d38] truncate">
-                      {gitFeedback}
+                    <div
+                      className={`text-[10px] p-2 border space-y-1 ${
+                        gitFeedback.isError
+                          ? "bg-[#1f0a14] border-[#ff1744] text-[#ff80ab]"
+                          : "bg-[#0b0813] border-[#00e5ff] text-[#00e5ff]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="font-bold leading-tight break-all">
+                          {gitFeedback.message}
+                        </span>
+                        <button
+                          onClick={() => setGitFeedback(null)}
+                          className="text-[#7a7194] hover:text-[#e2e8f0] shrink-0"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {gitFeedback.isError &&
+                        (gitFeedback.message.toLowerCase().includes("author") ||
+                          gitFeedback.message.toLowerCase().includes("tell me who you are")) && (
+                          <button
+                            onClick={() => setShowIdentityModal(true)}
+                            className="mt-1 px-2 py-0.5 bg-[#ff007f] text-white text-[9.5px] font-bold cursor-pointer"
+                          >
+                            Set Author Identity Now
+                          </button>
+                        )}
+
+                      {gitFeedback.isError &&
+                        gitFeedback.message.toLowerCase().includes("local repo only") && (
+                          <button
+                            onClick={() => setShowRemoteModal(true)}
+                            className="mt-1 px-2 py-0.5 bg-[#00e5ff] text-[#0b0813] text-[9.5px] font-bold cursor-pointer"
+                          >
+                            Connect Remote URL Now
+                          </button>
+                        )}
                     </div>
                   )}
                 </div>
@@ -878,6 +1056,151 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
           </button>
         </DracoTooltip>
       </div>
+
+      {/* Milestone M6 Modal 1: Git Author Identity Setup Modal */}
+      {showIdentityModal && (
+        <div
+          onClick={() => setShowIdentityModal(false)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 font-mono select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[#120c1f] border border-[#ff007f] shadow-[0_20px_60px_rgba(0,0,0,0.95)] p-4 space-y-3 text-xs"
+          >
+            <div className="flex items-center justify-between border-b border-[#261d38] pb-2">
+              <div className="flex items-center gap-2 text-[#e2e8f0] font-bold">
+                <UserCheck className="w-4 h-4 text-[#ff007f]" />
+                <span>GIT AUTHOR IDENTITY</span>
+              </div>
+              <button
+                onClick={() => setShowIdentityModal(false)}
+                className="text-[#7a7194] hover:text-[#ff1744] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-[#94a3b8]">
+              Git requires an author name and email to sign commits into the repository log.
+            </p>
+
+            <div className="space-y-2">
+              <div>
+                <label className="text-[10px] text-[#7a7194] block uppercase font-bold mb-1">
+                  Author Name / Handle
+                </label>
+                <input
+                  type="text"
+                  value={authorName}
+                  onChange={(e) => setAuthorName(e.target.value)}
+                  placeholder="e.g. elrazaq"
+                  className="w-full bg-[#0b0813] border border-[#261d38] focus:border-[#00e5ff] text-[#e2e8f0] p-1.5 outline-none font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] text-[#7a7194] block uppercase font-bold mb-1">
+                  Author Email Address
+                </label>
+                <input
+                  type="email"
+                  value={authorEmail}
+                  onChange={(e) => setAuthorEmail(e.target.value)}
+                  placeholder="e.g. elrazaq@users.noreply.github.com"
+                  className="w-full bg-[#0b0813] border border-[#261d38] focus:border-[#00e5ff] text-[#e2e8f0] p-1.5 outline-none font-mono text-[11px]"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-[10px] text-[#cbd5e1] cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={isGlobalIdentity}
+                  onChange={(e) => setIsGlobalIdentity(e.target.checked)}
+                  className="accent-[#ff007f]"
+                />
+                <span>Save globally for all repositories (--global)</span>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#261d38]">
+              <button
+                onClick={() => setShowIdentityModal(false)}
+                className="px-2.5 py-1 text-[#7a7194] hover:text-[#cbd5e1] text-[10px] font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveIdentity}
+                disabled={!authorName.trim() || !authorEmail.trim() || isGitBusy}
+                className="px-3 py-1 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-40 text-white text-[10px] font-bold cursor-pointer flex items-center gap-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>SAVE IDENTITY</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Milestone M6 Modal 2: Add Remote Origin URL Modal */}
+      {showRemoteModal && (
+        <div
+          onClick={() => setShowRemoteModal(false)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 font-mono select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm bg-[#120c1f] border border-[#00e5ff] shadow-[0_20px_60px_rgba(0,0,0,0.95)] p-4 space-y-3 text-xs"
+          >
+            <div className="flex items-center justify-between border-b border-[#261d38] pb-2">
+              <div className="flex items-center gap-2 text-[#e2e8f0] font-bold">
+                <Link2 className="w-4 h-4 text-[#00e5ff]" />
+                <span>CONNECT REMOTE ORIGIN</span>
+              </div>
+              <button
+                onClick={() => setShowRemoteModal(false)}
+                className="text-[#7a7194] hover:text-[#ff1744] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-[#94a3b8]">
+              This workspace is currently local-only. Enter a remote Git repository URL (e.g. GitHub, GitLab) to enable push and sync.
+            </p>
+
+            <div>
+              <label className="text-[10px] text-[#7a7194] block uppercase font-bold mb-1">
+                Remote Origin URL
+              </label>
+              <input
+                type="text"
+                value={remoteUrlInput}
+                onChange={(e) => setRemoteUrlInput(e.target.value)}
+                placeholder="https://github.com/username/repository.git"
+                className="w-full bg-[#0b0813] border border-[#261d38] focus:border-[#00e5ff] text-[#e2e8f0] p-1.5 outline-none font-mono text-[11px]"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#261d38]">
+              <button
+                onClick={() => setShowRemoteModal(false)}
+                className="px-2.5 py-1 text-[#7a7194] hover:text-[#cbd5e1] text-[10px] font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveRemote}
+                disabled={!remoteUrlInput.trim() || isGitBusy}
+                className="px-3 py-1 bg-[#00e5ff] hover:bg-[#00b4cc] text-[#0b0813] font-bold text-[10px] cursor-pointer flex items-center gap-1 disabled:opacity-40"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>CONNECT REPO</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
