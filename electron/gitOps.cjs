@@ -28,8 +28,8 @@ function runGit(cwd, args, timeoutMs = 15000) {
 }
 
 async function getGitStatus(cwd) {
-  const branchRes = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  if (!branchRes.ok) {
+  const workTreeRes = await runGit(cwd, ['rev-parse', '--is-inside-work-tree']);
+  if (!workTreeRes.ok || workTreeRes.stdout.trim() !== 'true') {
     return {
       isRepo: false,
       branch: 'no-repo',
@@ -45,7 +45,17 @@ async function getGitStatus(cwd) {
     };
   }
 
-  const branch = branchRes.stdout.trim() || 'HEAD';
+  // Branch detection: handles fresh repo with 0 commits (unborn branch)
+  let branch = 'main';
+  const symRes = await runGit(cwd, ['symbolic-ref', '--short', 'HEAD']);
+  if (symRes.ok && symRes.stdout.trim()) {
+    branch = symRes.stdout.trim();
+  } else {
+    const branchRes = await runGit(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
+    if (branchRes.ok && branchRes.stdout.trim() && branchRes.stdout.trim() !== 'HEAD') {
+      branch = branchRes.stdout.trim();
+    }
+  }
   const [statusRes, abRes, remoteRes, upstreamRes] = await Promise.all([
     runGit(cwd, ['status', '--porcelain=v1', '-uall']),
     runGit(cwd, ['rev-list', '--left-right', '--count', 'HEAD...@{u}']),
