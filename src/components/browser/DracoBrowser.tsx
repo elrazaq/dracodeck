@@ -29,6 +29,17 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
   const [url, setUrl] = useState<string>(initialUrl);
   const [inputUrl, setInputUrl] = useState<string>(initialUrl);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Sync when initialUrl prop updates dynamically (e.g. clicked link from terminal)
+  useEffect(() => {
+    if (initialUrl && initialUrl !== url) {
+      setUrl(initialUrl);
+      setInputUrl(initialUrl);
+      setIsLoading(true);
+      const timer = setTimeout(() => setIsLoading(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [initialUrl]);
   // OpSec & Privacy States
   const [showOpSecModal, setShowOpSecModal] = useState(false);
   const [activeDns, setActiveDns] = useState<string>("cloudflare");

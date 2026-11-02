@@ -29,6 +29,12 @@ export const Shell: React.FC = () => {
   const [activeLang, setActiveLang] = useState<string>("DRACODE");
   const [isTerminalOpen, setIsTerminalOpen] = useState(true);
   const [isBooting, setIsBooting] = useState(true);
+  const [browserUrl, setBrowserUrl] = useState<string>("https://www.kali.org/docs/");
+
+  const handleOpenBrowser = (url: string) => {
+    setBrowserUrl(url);
+    setActiveView("browser");
+  };
 
   // Keyboard shortcut Ctrl+` to toggle terminal, Alt+G to open GitOps & Memory
   useEffect(() => {
@@ -121,7 +127,7 @@ export const Shell: React.FC = () => {
       case "browser":
         return (
           <div className="h-full w-full bg-[#0b0813]">
-            <DracoBrowser />
+            <DracoBrowser initialUrl={browserUrl} />
           </div>
         );
 
@@ -171,7 +177,7 @@ export const Shell: React.FC = () => {
                       onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
                     />
                   }
-                  right={<TerminalPane />}
+                  right={<TerminalPane workspacePath={defaultWs} onOpenBrowser={handleOpenBrowser} />}
                 />
               ) : (
                 <EditorPane
@@ -191,7 +197,7 @@ export const Shell: React.FC = () => {
       case "terminal":
         return (
           <div className="h-full w-full bg-[#0b0813]">
-            <TerminalPane />
+            <TerminalPane workspacePath={defaultWs} onOpenBrowser={handleOpenBrowser} />
           </div>
         );
 

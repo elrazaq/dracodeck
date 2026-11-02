@@ -1,5 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Terminal, Plus, Trash2, RotateCw, XCircle, Zap, X } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  Terminal,
+  Plus,
+  Trash2,
+  RotateCw,
+  Zap,
+  X,
+  Square,
+  Globe,
+  ExternalLink,
+  Copy,
+  Check,
+} from "lucide-react";
 import { executeDracoCommand } from "./dracoShell";
 import { DracoTooltip } from "../common/DracoTooltip";
 
@@ -8,7 +20,15 @@ interface TerminalTab {
   name: string;
 }
 
-export const TerminalPane: React.FC = () => {
+interface TerminalPaneProps {
+  workspacePath?: string;
+  onOpenBrowser?: (url: string) => void;
+}
+
+export const TerminalPane: React.FC<TerminalPaneProps> = ({
+  workspacePath,
+  onOpenBrowser,
+}) => {
   const nextIdRef = useRef<number>(2);
   const [tabs, setTabs] = useState<TerminalTab[]>([
     { id: "1", name: "pwsh.exe:1" },
@@ -23,6 +43,7 @@ export const TerminalPane: React.FC = () => {
   const [currentInput, setCurrentInput] = useState<string>("");
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +54,13 @@ export const TerminalPane: React.FC = () => {
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [outputLines]);
+
+  // Keep terminal CWD aligned with active workspace
+  useEffect(() => {
+    if (workspacePath && window.dracoAPI?.terminalSetCwd) {
+      window.dracoAPI.terminalSetCwd(workspacePath);
+    }
+  }, [workspacePath]);
 
   // Hydrate persistent history from Electron backend so switching views never loses logs
   useEffect(() => {
@@ -60,6 +88,31 @@ export const TerminalPane: React.FC = () => {
     }
   }, []);
 
+  // Detect active localhost / dev server URL from recent output lines
+  const detectedDevUrl = useMemo(() => {
+    for (let i = outputLines.length - 1; i >= Math.max(0, outputLines.length - 35); i--) {
+      const match = outputLines[i].match(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s"'<>]*)?/i);
+      if (match) return match[0];
+    }
+    return null;
+  }, [outputLines]);
+
+  const handleCopyUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(url);
+    setTimeout(() => {
+      setCopiedUrl((curr) => (curr === url ? null : curr));
+    }, 2000);
+  };
+
+  const handleOpenUrl = (url: string) => {
+    if (onOpenBrowser) {
+      onOpenBrowser(url);
+    } else {
+      window.open(url, "_blank");
+    }
+  };
+
   const handleSendCommand = async (cmd: string) => {
     if (!cmd.trim() || !currentTab) return;
 
@@ -67,7 +120,7 @@ export const TerminalPane: React.FC = () => {
     const dracoResult = await executeDracoCommand(cmd);
     if (dracoResult !== null) {
       if (dracoResult[0] === "__CLEAR__") {
-        setOutputLines([]);
+        handleClear();
       } else {
         setOutputLines((prev) => [
           ...prev,
@@ -89,6 +142,16 @@ export const TerminalPane: React.FC = () => {
 
     setCmdHistory((prev) => [...prev, cmd]);
     setHistoryIndex(-1);
+    setCurrentInput("");
+  };
+
+  const handleStopProcess = () => {
+    // Send \x03 (SIGINT / Ctrl+C) to ConPTY to stop active foreground command (e.g. npm run dev)
+    // Shell process and working directory are preserved!
+    if (window.dracoAPI?.send) {
+      window.dracoAPI.send("terminal-input", "\x03");
+    }
+    setOutputLines((prev) => [...prev, "^C"]);
     setCurrentInput("");
   };
 
@@ -115,11 +178,7 @@ export const TerminalPane: React.FC = () => {
         }
       }
     } else if (e.ctrlKey && e.key === "c") {
-      if (window.dracoAPI?.send) {
-        window.dracoAPI.send("terminal-input", "\x03");
-      }
-      setOutputLines((prev) => [...prev, `^C`]);
-      setCurrentInput("");
+      handleStopProcess();
     } else if (e.ctrlKey && e.key === "l") {
       e.preventDefault();
       handleClear();
@@ -131,27 +190,21 @@ export const TerminalPane: React.FC = () => {
     if (window.dracoAPI?.terminalClearHistory) {
       await window.dracoAPI.terminalClearHistory();
     }
+    // Clear ConPTY host screen without resetting CWD or terminating PowerShell
+    if (window.dracoAPI?.send) {
+      window.dracoAPI.send("terminal-input", "Clear-Host\r\n");
+    }
   };
 
   const handleRestart = async () => {
     setOutputLines(["[Restarting ConPTY session...]", ""]);
     if (window.dracoAPI?.terminalInit) {
-      await window.dracoAPI.terminalInit();
+      await window.dracoAPI.terminalInit(workspacePath);
     }
   };
 
-  const handleKill = async () => {
-    if (window.dracoAPI?.terminalKill) {
-      await window.dracoAPI.terminalKill();
-      setOutputLines((prev) => [...prev, "[ConPTY process tree terminated. Respawning fresh session...]"]);
-      if (window.dracoAPI?.terminalInit) {
-        await window.dracoAPI.terminalInit();
-      }
-    }
-  };
-
-  const handleSlayDevServers = async () => {
-    const devPorts = [5174, 5173, 3000, 8080, 8000];
+  const handleSlayPorts = async () => {
+    const devPorts = [5174, 5173, 4200, 3000, 8080, 8000];
     let killed = 0;
     if (window.dracoAPI?.slayerKillPort) {
       for (const port of devPorts) {
@@ -159,19 +212,19 @@ export const TerminalPane: React.FC = () => {
           const res = await window.dracoAPI.slayerKillPort(port);
           if (res.success) {
             killed++;
-            setOutputLines((prev) => [...prev, `[Slayer] Terminated process on port ${port} (${res.processName}).`]);
+            setOutputLines((prev) => [
+              ...prev,
+              `[Slayer] Terminated zombie process on port ${port} (${res.processName}).`,
+            ]);
           }
         } catch {}
       }
     }
-    if (window.dracoAPI?.terminalKill) {
-      await window.dracoAPI.terminalKill();
-      if (tabs.length > 0 && window.dracoAPI?.terminalInit) {
-        await window.dracoAPI.terminalInit();
-      }
-    }
     if (killed === 0) {
-      setOutputLines((prev) => [...prev, "[Slayer] Process tree terminated. All dev ports checked & free."]);
+      setOutputLines((prev) => [
+        ...prev,
+        "[Slayer] Dev ports (5174/5173/4200/3000/8080/8000) verified clean.",
+      ]);
     }
   };
 
@@ -182,7 +235,7 @@ export const TerminalPane: React.FC = () => {
     setActiveTabId(newId);
     if (wasEmpty && window.dracoAPI?.terminalInit) {
       setOutputLines(["[Spawning new PowerShell ConPTY session...]", ""]);
-      await window.dracoAPI.terminalInit();
+      await window.dracoAPI.terminalInit(workspacePath);
     }
   };
 
@@ -201,32 +254,86 @@ export const TerminalPane: React.FC = () => {
     }
   };
 
-  const parseAnsiLine = (line: string) => {
+  const renderLineWithLinks = (line: string, lineIdx: number) => {
     const clean = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
-    if (!clean) return <div className="h-4" />;
+    if (!clean) return <div key={lineIdx} className="h-4" />;
 
-    if (/error|failed|exception/i.test(clean)) {
-      return <div className="text-[#ff1744]">{clean}</div>;
+    const urlRegex = /(https?:\/\/[^\s"'<>()[\]{}]+)/g;
+    const parts = clean.split(urlRegex);
+
+    const getTextColorClass = (text: string) => {
+      if (/error|failed|exception/i.test(text)) return "text-[#ff1744]";
+      if (/warning|warn/i.test(text)) return "text-[#ff8800]";
+      if (/success|ready|done|connected/i.test(text)) return "text-[#00e676]";
+      if (/PS\s+[A-Z]:\\/i.test(text) || text.startsWith(">")) return "text-[#00e5ff] font-semibold";
+      return "text-[#cbd5e1]";
+    };
+
+    if (parts.length === 1) {
+      return (
+        <div key={lineIdx} className={`select-text cursor-text ${getTextColorClass(clean)}`}>
+          {clean}
+        </div>
+      );
     }
-    if (/warning|warn/i.test(clean)) {
-      return <div className="text-[#ff8800]">{clean}</div>;
-    }
-    if (/success|ready|done|connected/i.test(clean)) {
-      return <div className="text-[#00e676]">{clean}</div>;
-    }
-    if (/PS\s+[A-Z]:\\/i.test(clean) || clean.startsWith(">")) {
-      return <div className="text-[#00e5ff] font-semibold">{clean}</div>;
-    }
-    return <div className="text-[#cbd5e1]">{clean}</div>;
+
+    return (
+      <div key={lineIdx} className="select-text cursor-text flex flex-wrap items-center">
+        {parts.map((part, partIdx) => {
+          if (part.match(/^https?:\/\//i)) {
+            const isCopied = copiedUrl === part;
+            return (
+              <span
+                key={partIdx}
+                className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 bg-[#00e5ff]/10 hover:bg-[#ff007f]/20 border border-[#00e5ff]/30 hover:border-[#ff007f]/50 rounded-xs transition-colors cursor-pointer group"
+              >
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenUrl(part);
+                  }}
+                  className="text-[#00e5ff] group-hover:text-[#ff007f] font-bold underline flex items-center gap-1 select-text"
+                  title="Click to open in DracoBrowser"
+                >
+                  <Globe className="w-2.5 h-2.5 shrink-0" />
+                  <span>{part}</span>
+                  <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100 shrink-0" />
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCopyUrl(part);
+                  }}
+                  className="p-0.5 text-[#7a7194] hover:text-[#00e676] cursor-pointer shrink-0 transition-colors"
+                  title="Copy URL to clipboard"
+                >
+                  {isCopied ? (
+                    <Check className="w-2.5 h-2.5 text-[#00e676]" />
+                  ) : (
+                    <Copy className="w-2.5 h-2.5" />
+                  )}
+                </button>
+              </span>
+            );
+          }
+          return (
+            <span key={partIdx} className={getTextColorClass(part)}>
+              {part}
+            </span>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
     <div
       onClick={() => inputRef.current?.focus()}
-      className="h-full bg-[#0b0813] flex flex-col font-mono text-xs overflow-hidden border-t border-[#261d38] select-none"
+      className="h-full bg-[#0b0813] flex flex-col font-mono text-xs overflow-hidden border-t border-[#261d38]"
     >
       {/* Terminal Tab Bar */}
-      <div className="h-7 min-h-[28px] max-h-7 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between px-2 overflow-hidden">
+      <div className="h-7 min-h-[28px] max-h-7 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between px-2 overflow-hidden select-none">
         <div
           onWheel={(e) => {
             if (e.deltaY !== 0) e.currentTarget.scrollLeft += e.deltaY;
@@ -276,72 +383,82 @@ export const TerminalPane: React.FC = () => {
         </div>
 
         {/* Terminal Action Tools */}
-        <div className="flex items-center gap-2 text-[10px] text-[#7a7194] shrink-0 pl-2">
-          <DracoTooltip content="Clear Screen" shortcut="Ctrl+L" position="bottom" accent="cyan">
+        <div className="flex items-center gap-1.5 text-[10px] text-[#7a7194] shrink-0 pl-2 select-none">
+          {detectedDevUrl && (
+            <DracoTooltip content={`Open ${detectedDevUrl} in DracoBrowser`} position="bottom" accent="cyan">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenUrl(detectedDevUrl);
+                }}
+                className="flex items-center gap-1.5 px-2 py-0.5 bg-[#00e5ff]/10 hover:bg-[#00e5ff]/25 border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] font-bold cursor-pointer transition-colors mr-1"
+              >
+                <Globe className="w-3 h-3 text-[#00e5ff] animate-pulse" />
+                <span className="hidden md:inline">OPEN</span>
+                <span>{detectedDevUrl.replace(/^https?:\/\//, "")}</span>
+                <ExternalLink className="w-2.5 h-2.5 opacity-80" />
+              </button>
+            </DracoTooltip>
+          )}
+
+          <DracoTooltip content="Stop Active Process (Sends Ctrl+C SIGINT)" position="bottom" accent="pink">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStopProcess();
+              }}
+              className="flex items-center gap-1 bg-[#ff8800]/15 hover:bg-[#ff8800]/30 text-[#ff8800] border border-[#ff8800]/40 px-2 py-0.5 font-bold transition-colors cursor-pointer"
+            >
+              <Square className="w-3 h-3 fill-[#ff8800]/30" />
+              <span>STOP (Ctrl+C)</span>
+            </button>
+          </DracoTooltip>
+
+          <DracoTooltip content="Clear Screen (Keeps Current Folder)" shortcut="Ctrl+L" position="bottom" accent="cyan">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleClear();
               }}
-              className="flex items-center gap-1 hover:text-[#00e5ff] p-0.5 transition-colors cursor-pointer"
+              className="flex items-center gap-1 hover:text-[#00e5ff] px-1.5 py-0.5 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3 h-3" />
               <span className="hidden sm:inline">CLEAR</span>
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content="Restart Shell Session" position="bottom" accent="green">
+          <DracoTooltip content="Restart Shell in Workspace" position="bottom" accent="green">
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleRestart();
               }}
-              className="flex items-center gap-1 hover:text-[#00e676] p-0.5 transition-colors cursor-pointer"
+              className="flex items-center gap-1 hover:text-[#00e676] px-1.5 py-0.5 transition-colors cursor-pointer"
             >
               <RotateCw className="w-3 h-3" />
               <span className="hidden sm:inline">RESTART</span>
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content="Kill Active Shell Process Tree" shortcut="Ctrl+C" position="bottom" accent="pink">
+          <DracoTooltip content="Kill Zombie Dev Ports (3000, 4200, 5173, 8080)" position="bottom" accent="pink">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handleKill();
+                handleSlayPorts();
               }}
-              className="flex items-center gap-1 hover:text-[#ff1744] p-0.5 transition-colors cursor-pointer"
-            >
-              <XCircle className="w-3 h-3" />
-              <span className="hidden sm:inline">KILL</span>
-            </button>
-          </DracoTooltip>
-
-          <DracoTooltip content="Force Terminate Background Dev Servers (Ports 5174/5173/3000)" position="bottom" accent="pink">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSlayDevServers();
-              }}
-              className="flex items-center gap-1 bg-[#ff1744]/20 hover:bg-[#ff1744] text-[#ff1744] hover:text-white px-1.5 py-0.5 border border-[#ff1744]/40 font-bold transition-colors cursor-pointer text-[10px]"
+              className="flex items-center gap-1 bg-[#ff1744]/15 hover:bg-[#ff1744]/30 text-[#ff1744] hover:text-white px-2 py-0.5 border border-[#ff1744]/40 font-bold transition-colors cursor-pointer text-[10px]"
             >
               <Zap className="w-3 h-3" />
-              <span className="hidden sm:inline">STOP DEV / SLAY PORTS</span>
+              <span>SLAY PORTS</span>
             </button>
           </DracoTooltip>
-
-          <span className="text-[#261d38]">|</span>
-          <span className={`font-semibold ${currentTab ? "text-[#00e676]" : "text-[#7a7194]"}`}>
-            {currentTab ? "ConPTY LIVE" : "STANDBY"}
-          </span>
         </div>
       </div>
 
       {/* Terminal Screen Canvas or Clean Empty State */}
       {currentTab ? (
-        <div className="flex-1 p-3 overflow-y-auto bg-[#0b0813] text-[#cbd5e1] leading-5 space-y-0.5 cursor-text font-mono text-[11px]">
-          {outputLines.map((line, idx) => (
-            <div key={idx}>{parseAnsiLine(line)}</div>
-          ))}
+        <div className="flex-1 p-3 overflow-y-auto bg-[#0b0813] text-[#cbd5e1] leading-5 space-y-0.5 cursor-text font-mono text-[11px] select-text">
+          {outputLines.map((line, idx) => renderLineWithLinks(line, idx))}
 
           {/* Active Command Prompt Line */}
           <div className="flex items-center gap-2 pt-1">
@@ -362,7 +479,7 @@ export const TerminalPane: React.FC = () => {
           <div ref={terminalEndRef} />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-[#090610] text-[#7a7194] gap-2.5 p-4">
+        <div className="flex-1 flex flex-col items-center justify-center bg-[#090610] text-[#7a7194] gap-2.5 p-4 select-none">
           <Terminal className="w-6 h-6 text-[#443a57]" />
           <p className="text-[11px] text-[#cbd5e1] font-bold">
             ALL TERMINAL SESSIONS CLOSED

@@ -45,6 +45,8 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
   onOpenScope,
   onSelectView,
 }) => {
+  const [browserUrl, setBrowserUrl] = useState<string>("https://www.kali.org/docs/");
+
   // Wallpaper selection with persistence
   const [wallpaper, setWallpaper] = useState<WallpaperKey>(() => {
     return (localStorage.getItem("dracodeck_wallpaper") as WallpaperKey) || "cosmic";
@@ -473,7 +475,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
           </div>
 
           <div className="flex-1 overflow-hidden">
-            <TerminalPane />
+            <TerminalPane workspacePath={workspacePath} onOpenBrowser={(url) => { setBrowserUrl(url); setBrowserWin((prev) => ({ ...prev, isOpen: true, isMinimized: false })); }} />
           </div>
 
           {!termWin.isMaximized && (
@@ -530,6 +532,7 @@ export const KaliDesktop: React.FC<KaliDesktopProps> = ({
 
           <div className="flex-1 overflow-hidden">
             <DracoBrowser
+              initialUrl={browserUrl}
               onClose={() => setBrowserWin((prev) => ({ ...prev, isOpen: false }))}
             />
           </div>
