@@ -187,9 +187,9 @@ export const DracoBrowser: React.FC<DracoBrowserProps> = ({
           {onClose && (
             <button
               onClick={onClose}
-              className="text-[#7a7194] hover:text-[#ff1744] px-1 font-bold cursor-pointer"
+              className="text-[#7a7194] hover:text-[#ff1744] p-0.5 cursor-pointer flex items-center"
             >
-              ✕
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

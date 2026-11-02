@@ -65,7 +65,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
   const handleTriggerFormat = () => {
     onFormatCode?.();
-    setFormatStatus("Formatted ✓");
+    setFormatStatus("FORMATTED");
     setTimeout(() => setFormatStatus(null), 1800);
   };
 
@@ -227,7 +227,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               onClick={handleTriggerFormat}
               className="flex items-center gap-1 bg-[#0b0813] hover:bg-[#161026] text-[#00e676] px-2 py-0.5 transition-colors cursor-pointer"
             >
-              <span>{formatStatus || "Prettier ✓"}</span>
+              <Check className="w-3 h-3 text-[#00e676]" /><span>{formatStatus || "PRETTIER"}</span>
             </button>
           </DracoTooltip>
         </div>
@@ -248,8 +248,8 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                 <GitBranch className="w-3.5 h-3.5" />
                 <span>SWITCH WORKSPACE GIT BRANCH</span>
               </span>
-              <button onClick={() => setShowBranchMenu(false)} className="text-[#7a7194] hover:text-white cursor-pointer">
-                ✕
+              <button onClick={() => setShowBranchMenu(false)} className="text-[#7a7194] hover:text-white cursor-pointer p-0.5">
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
             <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -295,8 +295,8 @@ export const BottomBar: React.FC<BottomBarProps> = ({
           >
             <div className="flex items-center justify-between pb-2 border-b border-[#261d38] mb-3 text-[#00e5ff] font-bold">
               <span>GO TO LINE</span>
-              <button onClick={() => setShowLineJump(false)} className="text-[#7a7194] hover:text-white">
-                ✕
+              <button onClick={() => setShowLineJump(false)} className="text-[#7a7194] hover:text-white p-0.5 cursor-pointer">
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
             <form onSubmit={handleJumpLine} className="space-y-3">

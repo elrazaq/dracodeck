@@ -798,7 +798,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                 }`}
               >
                 <Terminal className="w-3 h-3 text-[#ff8800]" />
-                <span>{isTerminalOpen ? "TERM ⏷" : "TERM ⏶"}</span>
+                <span>TERM</span>{isTerminalOpen ? <ChevronDown className="w-3 h-3 text-[#ff8800]" /> : <ChevronUp className="w-3 h-3 text-[#ff8800]" />}
               </button>
             </DracoTooltip>
           )}

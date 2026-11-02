@@ -22,6 +22,7 @@ import {
   UserCheck,
   Link2,
   FolderGit2,
+  ChevronRight,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -375,16 +376,22 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     }
   };
 
-  // Milestone M6.1: 1-Click Git Repository Initialization
+  // Milestone M6.1 / M6.2: 1-Click Git Repository Initialization
   const handleGitInit = async () => {
-    if (!window.dracoAPI?.gitInit) return;
+    if (!window.dracoAPI?.gitInit) {
+      setGitFeedback({
+        message: "Git Bridge unavailable: Please restart DracoDeck to bind native Git CLI runtime.",
+        isError: true,
+      });
+      return;
+    }
     setIsGitBusy(true);
     setGitFeedback({ message: "Initializing Git repository (git init -b main)..." });
     try {
       const target = effectiveGitCwd || workspacePath;
       const res = await window.dracoAPI.gitInit(target);
       if (res.ok) {
-        setGitFeedback({ message: `✓ Initialized Git repository in ${target}` });
+        setGitFeedback({ message: `[OK] Initialized Git repository in ${target}` });
         await refreshGit();
       } else {
         setGitFeedback({ message: res.error || "Failed to initialize Git repository", isError: true });
@@ -393,11 +400,11 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       setGitFeedback({ message: err.message || "Git init error", isError: true });
     } finally {
       setIsGitBusy(false);
-      setTimeout(() => setGitFeedback(null), 3500);
+      setTimeout(() => setGitFeedback(null), 4000);
     }
   };
 
-  // Milestone M6.1: Auto-generate Local Fallback Identity (Offline OK)
+  // Milestone M6.1 / M6.2: Auto-generate Local Fallback Identity (Offline OK)
   const handleAutoGenerateIdentity = async (autoSaveAndProceed = false) => {
     let name = "Dracode Operator";
     let email = "operator@dracodeck.local";
@@ -429,7 +436,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
             isGlobal: true,
           });
           setShowIdentityModal(false);
-          setGitFeedback({ message: `✓ Local author identity configured (${name} <${email}>). Ready!` });
+          setGitFeedback({ message: `[OK] Local author identity configured (${name} <${email}>). Ready!` });
           setTimeout(() => setGitFeedback(null), 3000);
 
           if (pendingActionAfterIdentity) {
@@ -532,6 +539,50 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         {/* 02. DRACOOPS GIT MODE (100% Real Git CLI Engine) */}
         {mode === "git" && (
           <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
+            {/* Universal Diagnostic Feedback Drawer (M6.2: Global Visibility) */}
+            {gitFeedback && (
+              <div
+                className={`text-[10px] p-2 border space-y-1 ${
+                  gitFeedback.isError
+                    ? "bg-[#1f0a14] border-[#ff1744] text-[#ff80ab]"
+                    : "bg-[#0b0813] border-[#00e5ff] text-[#00e5ff]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <span className="font-bold leading-tight break-all">
+                    {gitFeedback.message}
+                  </span>
+                  <button
+                    onClick={() => setGitFeedback(null)}
+                    className="text-[#7a7194] hover:text-[#e2e8f0] shrink-0 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {gitFeedback.isError &&
+                  (gitFeedback.message.toLowerCase().includes("author") ||
+                    gitFeedback.message.toLowerCase().includes("tell me who you are")) && (
+                    <button
+                      onClick={() => setShowIdentityModal(true)}
+                      className="mt-1 px-2 py-0.5 bg-[#ff007f] text-white text-[9.5px] font-bold cursor-pointer"
+                    >
+                      Set Author Identity Now
+                    </button>
+                  )}
+
+                {gitFeedback.isError &&
+                  gitFeedback.message.toLowerCase().includes("local repo only") && (
+                    <button
+                      onClick={() => setShowRemoteModal(true)}
+                      className="mt-1 px-2 py-0.5 bg-[#00e5ff] text-[#0b0813] text-[9.5px] font-bold cursor-pointer"
+                    >
+                      Connect Remote URL Now
+                    </button>
+                  )}
+              </div>
+            )}
+
             {!gitStatus?.isRepo ? (
               <div className="space-y-2.5 font-mono">
                 {/* Milestone M6.1 Sub-Repositories Card */}
@@ -557,8 +608,9 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                               {sub.name}
                             </span>
                           </div>
-                          <span className="text-[8.5px] text-[#7a7194] group-hover:text-[#00e5ff] font-bold shrink-0">
-                            SELECT ➔
+                          <span className="text-[8.5px] text-[#7a7194] group-hover:text-[#00e5ff] font-bold shrink-0 flex items-center gap-0.5">
+                            <span>SELECT</span>
+                            <ChevronRight className="w-3 h-3" />
                           </span>
                         </button>
                       ))}
@@ -566,7 +618,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                   </div>
                 )}
 
-                {/* Milestone M6.1 1-Click git init Box */}
+                {/* Milestone M6.1 / M6.2 1-Click git init Box */}
                 <div className="p-4 bg-[#120c1f] border border-[#261d38] text-center space-y-2.5">
                   <div className="w-8 h-8 mx-auto rounded-full bg-[#1b122c] border border-[#3b2a59] flex items-center justify-center">
                     <GitBranch className="w-4 h-4 text-[#7a7194]" />
@@ -582,10 +634,18 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                   <button
                     onClick={handleGitInit}
                     disabled={isGitBusy}
-                    className="w-full py-2 px-3 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-40 text-white text-[10px] font-bold tracking-wider cursor-pointer shadow-[0_0_15px_rgba(255,0,127,0.25)] flex items-center justify-center gap-1.5 transition-colors"
+                    className="w-full py-2 px-3 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-50 text-white text-[10px] font-bold tracking-wider cursor-pointer shadow-[0_0_15px_rgba(255,0,127,0.25)] flex items-center justify-center gap-1.5 transition-colors"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-white" />
-                    <span>⚡ INITIALIZE GIT REPOSITORY (git init)</span>
+                    {isGitBusy ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                    ) : (
+                      <GitBranch className="w-3.5 h-3.5 text-white" />
+                    )}
+                    <span>
+                      {isGitBusy
+                        ? "INITIALIZING REPOSITORY (git init)..."
+                        : "INITIALIZE GIT REPOSITORY (git init)"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -628,9 +688,9 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                         <button
                           onClick={() => setManualRepoOverride(null)}
                           title="Reset to automatic file/workspace resolution"
-                          className="text-[#7a7194] hover:text-[#ff1744] text-[9px] px-1 cursor-pointer font-bold"
+                          className="text-[#7a7194] hover:text-[#ff1744] p-0.5 cursor-pointer flex items-center"
                         >
-                          ✕
+                          <X className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -825,50 +885,6 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       <span>COMMIT+PUSH</span>
                     </button>
                   </div>
-
-                  {/* Expanded Diagnostic Feedback Drawer */}
-                  {gitFeedback && (
-                    <div
-                      className={`text-[10px] p-2 border space-y-1 ${
-                        gitFeedback.isError
-                          ? "bg-[#1f0a14] border-[#ff1744] text-[#ff80ab]"
-                          : "bg-[#0b0813] border-[#00e5ff] text-[#00e5ff]"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="font-bold leading-tight break-all">
-                          {gitFeedback.message}
-                        </span>
-                        <button
-                          onClick={() => setGitFeedback(null)}
-                          className="text-[#7a7194] hover:text-[#e2e8f0] shrink-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-
-                      {gitFeedback.isError &&
-                        (gitFeedback.message.toLowerCase().includes("author") ||
-                          gitFeedback.message.toLowerCase().includes("tell me who you are")) && (
-                          <button
-                            onClick={() => setShowIdentityModal(true)}
-                            className="mt-1 px-2 py-0.5 bg-[#ff007f] text-white text-[9.5px] font-bold cursor-pointer"
-                          >
-                            Set Author Identity Now
-                          </button>
-                        )}
-
-                      {gitFeedback.isError &&
-                        gitFeedback.message.toLowerCase().includes("local repo only") && (
-                          <button
-                            onClick={() => setShowRemoteModal(true)}
-                            className="mt-1 px-2 py-0.5 bg-[#00e5ff] text-[#0b0813] text-[9.5px] font-bold cursor-pointer"
-                          >
-                            Connect Remote URL Now
-                          </button>
-                        )}
-                    </div>
-                  )}
                 </div>
 
                 {/* 4. Working Tree Inspector */}
@@ -1312,7 +1328,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
               className="w-full py-1.5 px-2 bg-[#1b122c] hover:bg-[#261d38] border border-[#00e5ff]/50 text-[#00e5ff] text-[10px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
             >
               <Sparkles className="w-3 h-3 text-[#00e5ff]" />
-              <span>⚡ AUTO-POPULATE LOCAL IDENTITY</span>
+              <span>AUTO-POPULATE LOCAL IDENTITY</span>
             </button>
 
             <div className="space-y-2">

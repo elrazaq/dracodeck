@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Zap, RefreshCw, Shield, AlertTriangle, Search, Trash2 } from "lucide-react";
+import { Zap, RefreshCw, Shield, AlertTriangle, Search, Trash2, X } from "lucide-react";
 import { DracoTooltip } from "../common/DracoTooltip";
 import { PortInfo } from "../../types";
 
@@ -250,7 +250,7 @@ export const SlayerPane: React.FC = () => {
             : "bg-[#00e676]/15 border-[#00e676]/40 text-[#00e676]"
         }`}>
           <span>{actionMessage.text}</span>
-          <button onClick={() => setActionMessage(null)} className="text-[#7a7194] hover:text-white">✕</button>
+          <button onClick={() => setActionMessage(null)} className="text-[#7a7194] hover:text-white p-0.5 cursor-pointer flex items-center"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 

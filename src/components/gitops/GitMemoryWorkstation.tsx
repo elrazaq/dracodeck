@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
+  X,
   GitBranch,
   GitCommit,
   RefreshCw,
@@ -333,7 +334,7 @@ export const GitMemoryWorkstation: React.FC<GitMemoryWorkstationProps> = ({
       noteContent
     );
     if (res.ok) {
-      setNoteSaveStatus("SAVED TO DISK ✓");
+      setNoteSaveStatus("SAVED TO DISK");
       setTimeout(() => setNoteSaveStatus(null), 1800);
       const list = await window.dracoAPI.memoryListNotes(workspacePath);
       setNotes(list);
@@ -454,9 +455,9 @@ export const GitMemoryWorkstation: React.FC<GitMemoryWorkstationProps> = ({
           <span className="truncate font-mono">{gitFeedback.text}</span>
           <button
             onClick={() => setGitFeedback(null)}
-            className="text-[#7a7194] hover:text-white ml-4 cursor-pointer"
+            className="text-[#7a7194] hover:text-white ml-4 cursor-pointer p-0.5"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -1069,8 +1070,9 @@ export const GitMemoryWorkstation: React.FC<GitMemoryWorkstationProps> = ({
                   {activeNoteName || "No note selected"}
                 </span>
                 {noteSaveStatus && (
-                  <span className="text-[10px] text-[#00e676] font-bold">
-                    {noteSaveStatus}
+                  <span className="text-[10px] text-[#00e676] font-bold flex items-center gap-1">
+                    <Check className="w-3 h-3 text-[#00e676]" />
+                    <span>{noteSaveStatus}</span>
                   </span>
                 )}
               </div>

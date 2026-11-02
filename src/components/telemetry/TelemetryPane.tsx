@@ -225,7 +225,7 @@ export const TelemetryPane: React.FC = () => {
             >
               {sessions.map((s, idx) => (
                 <option key={s.id} value={s.id}>
-                  {idx === 0 ? "★ [ACTIVE] " : ""}{s.id.slice(0, 8)}... ({new Date(s.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+                  {idx === 0 ? "[ACTIVE] " : ""}{s.id.slice(0, 8)}... ({new Date(s.mtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
                 </option>
               ))}
             </select>
