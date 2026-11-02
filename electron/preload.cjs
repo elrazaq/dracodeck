@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   renameFile: (oldPath, newPath) => ipcRenderer.invoke('rename-file', oldPath, newPath),
   statFile: (targetPath) => ipcRenderer.invoke('stat-file', targetPath),
   quitApp: () => ipcRenderer.invoke('quit-app'),
+  relaunchApp: () => ipcRenderer.invoke('app-relaunch'),
   terminalInit: (cwd) => ipcRenderer.invoke('terminal-init', cwd),
   terminalKill: () => ipcRenderer.invoke('terminal-kill'),
   terminalSetCwd: (cwd) => ipcRenderer.invoke('terminal-set-cwd', cwd),

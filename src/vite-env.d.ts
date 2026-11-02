@@ -292,6 +292,7 @@ declare global {
       renameFile: (oldPath: string, newPath: string) => Promise<boolean>;
       statFile: (targetPath: string) => Promise<FileStat | null>;
       quitApp: () => Promise<void>;
+      relaunchApp?: () => Promise<void>;
       terminalInit: (cwd?: string) => Promise<boolean>;
       terminalKill: () => Promise<boolean>;
       terminalSetCwd: (cwd: string) => Promise<boolean>;

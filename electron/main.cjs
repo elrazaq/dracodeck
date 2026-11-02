@@ -171,6 +171,11 @@ ipcMain.handle('window-close', () => {
   app.quit();
 });
 
+ipcMain.handle('app-relaunch', () => {
+  app.relaunch();
+  app.exit(0);
+});
+
 // IPC Handlers - Terminal ConPTY Engine
 ipcMain.on('terminal-input', (event, data) => {
   if (!terminalProcess) {

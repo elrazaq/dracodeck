@@ -397,7 +397,20 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         setGitFeedback({ message: res.error || "Failed to initialize Git repository", isError: true });
       }
     } catch (err: any) {
-      setGitFeedback({ message: err.message || "Git init error", isError: true });
+      const msg = err.message || "Git init error";
+      if (
+        msg.includes("No handler registered") ||
+        msg.includes("remote method 'git-init'") ||
+        msg.includes("git-init")
+      ) {
+        setGitFeedback({
+          message:
+            "DRACODECK RESTART REQUIRED: Native bridge handler 'git-init' requires restarting DracoDeck to take effect in background process.",
+          isError: true,
+        });
+      } else {
+        setGitFeedback({ message: msg, isError: true });
+      }
     } finally {
       setIsGitBusy(false);
       setTimeout(() => setGitFeedback(null), 4000);
@@ -579,6 +592,26 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                     >
                       Connect Remote URL Now
                     </button>
+                  )}
+
+                {gitFeedback.isError &&
+                  (gitFeedback.message.toLowerCase().includes("restart") ||
+                    gitFeedback.message.toLowerCase().includes("no handler registered")) && (
+                    <div className="pt-1">
+                      <button
+                        onClick={() => {
+                          if (window.dracoAPI?.relaunchApp) {
+                            window.dracoAPI.relaunchApp();
+                          } else if (window.dracoAPI?.quitApp) {
+                            window.dracoAPI.quitApp();
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-[#ff007f] hover:bg-[#d5006d] text-white text-[9.5px] font-bold cursor-pointer flex items-center gap-1.5 shadow-[0_0_12px_rgba(255,0,127,0.35)] transition-colors"
+                      >
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>RESTART DRACODECK NOW</span>
+                      </button>
+                    </div>
                   )}
               </div>
             )}
