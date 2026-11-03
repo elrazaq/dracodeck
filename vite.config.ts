@@ -55,6 +55,11 @@ function dracoAntigravityDevPlugin() {
             res.end(JSON.stringify(result));
             return;
           }
+          if (req.url.startsWith("/__draco_antigravity/delete-session")) {
+            const result = bridge.deleteSession(body.conversationId, body.workspacePath);
+            res.end(JSON.stringify(result));
+            return;
+          }
           res.statusCode = 404;
           res.end(JSON.stringify({ ok: false, error: "Not found" }));
         } catch (err: any) {

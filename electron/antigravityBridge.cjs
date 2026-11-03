@@ -98,7 +98,7 @@ function formatTurnDuration(startTime, endTime) {
   }
 }
 
-function readTranscriptMessages(conversationId, maxMessages = 60) {
+function readTranscriptMessages(conversationId, maxMessages = 150) {
   if (!conversationId) return [];
   const rawList = [];
 
@@ -119,7 +119,7 @@ function readTranscriptMessages(conversationId, maxMessages = 60) {
     try {
       const content = fs.readFileSync(logPath, 'utf-8');
       const lines = content.split(/\r?\n/).filter(Boolean);
-      const recentLines = lines.slice(-250);
+      const recentLines = lines.slice(-1000);
 
       for (const line of recentLines) {
         try {
@@ -132,7 +132,7 @@ function readTranscriptMessages(conversationId, maxMessages = 60) {
             if (cleanText && !cleanText.startsWith('[Message] timestamp=')) {
               rawList.push({
                 type: 'user',
-                id: `step-${step.step_index}-user`,
+                id: `step-${conversationId}-${step.step_index}-user`,
                 role: 'user',
                 content: cleanText,
                 timestamp: step.created_at || new Date().toISOString(),
@@ -167,18 +167,23 @@ function readTranscriptMessages(conversationId, maxMessages = 60) {
   const messages = [];
   let curAssistantTurn = null;
 
-  for (const item of rawList) {
+  for (let idx = 0; idx < rawList.length; idx++) {
+    const item = rawList[idx];
     if (item.type === 'user' || item.role === 'user') {
       if (curAssistantTurn) {
-        curAssistantTurn.durationText = formatTurnDuration(curAssistantTurn.startTime, curAssistantTurn.endTime);
-        curAssistantTurn.thinking = Array.isArray(curAssistantTurn.thinking)
+        const hasTools = Array.isArray(curAssistantTurn.tools) && curAssistantTurn.tools.length > 0;
+        const hasThinking = Array.isArray(curAssistantTurn.thinking) && curAssistantTurn.thinking.some((t) => Boolean(t.trim()));
+        curAssistantTurn.durationText = (hasTools || hasThinking)
+          ? formatTurnDuration(curAssistantTurn.startTime, curAssistantTurn.endTime)
+          : '';
+        curAssistantTurn.thinking = hasThinking
           ? curAssistantTurn.thinking.slice(-3).join('\n')
-          : curAssistantTurn.thinking;
+          : '';
         messages.push(curAssistantTurn);
         curAssistantTurn = null;
       }
       messages.push({
-        id: item.id || `user-${Date.now()}`,
+        id: item.id || `user-${conversationId}-${idx}-${Date.now()}`,
         role: 'user',
         content: item.content,
         timestamp: item.timestamp,
@@ -187,7 +192,7 @@ function readTranscriptMessages(conversationId, maxMessages = 60) {
     } else {
       if (!curAssistantTurn) {
         curAssistantTurn = {
-          id: `asst-${item.stepIndex || Date.now()}`,
+          id: `asst-${conversationId}-${item.stepIndex || idx}-${idx}`,
           role: 'assistant',
           content: item.text || item.content || '',
           thinking: item.thinking ? [item.thinking] : [],
@@ -216,10 +221,14 @@ function readTranscriptMessages(conversationId, maxMessages = 60) {
   }
 
   if (curAssistantTurn) {
-    curAssistantTurn.durationText = formatTurnDuration(curAssistantTurn.startTime, curAssistantTurn.endTime);
-    curAssistantTurn.thinking = Array.isArray(curAssistantTurn.thinking)
+    const hasTools = Array.isArray(curAssistantTurn.tools) && curAssistantTurn.tools.length > 0;
+    const hasThinking = Array.isArray(curAssistantTurn.thinking) && curAssistantTurn.thinking.some((t) => Boolean(t.trim()));
+    curAssistantTurn.durationText = (hasTools || hasThinking)
+      ? formatTurnDuration(curAssistantTurn.startTime, curAssistantTurn.endTime)
+      : '';
+    curAssistantTurn.thinking = hasThinking
       ? curAssistantTurn.thinking.slice(-3).join('\n')
-      : curAssistantTurn.thinking;
+      : '';
     messages.push(curAssistantTurn);
   }
 
@@ -594,12 +603,52 @@ function getAvailableSkills(workspacePath) {
     } catch {}
   }
 
+  // 1. Current workspace .agents/skills
   if (workspacePath) {
     scanDir(path.join(workspacePath, '.agents', 'skills'));
   }
+  // 2. Draco / Dracodex repository skills
+  scanDir(path.join('d:\\dracodex', '.agents', 'skills'));
+  // 3. User global config skills (caveman, hallmark, ponytail, etc.)
+  scanDir(path.join(os.homedir(), '.gemini', 'config', 'skills'));
+  // 4. User global agents skills
+  scanDir(path.join(os.homedir(), '.agents', 'skills'));
+  // 5. Antigravity application builtin skills
   scanDir(path.join(getAntigravityRoot(), 'builtin', 'skills'));
 
   return { ok: true, skills };
+}
+
+function deleteSession(conversationId, workspacePath) {
+  if (!conversationId) return { ok: false, error: 'No conversation ID provided' };
+
+  // 1. Remove from in-memory pending map
+  pendingSessions.delete(conversationId);
+
+  // 2. Remove brain transcript directory if present
+  try {
+    const brainDir = path.join(getBrainDir(), conversationId);
+    if (fs.existsSync(brainDir)) {
+      fs.rmSync(brainDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    console.error('Failed to remove brain dir:', err);
+  }
+
+  // 3. Delete from conversation_summaries.db
+  try {
+    const dbPath = getSummariesDbPath();
+    if (fs.existsSync(dbPath)) {
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync(dbPath);
+      db.prepare('DELETE FROM conversation_summaries WHERE conversation_id = ?').run(conversationId);
+      db.close();
+    }
+  } catch (err) {
+    console.error('Failed to delete from DB:', err);
+  }
+
+  return { ok: true, deletedId: conversationId };
 }
 
 
@@ -663,4 +712,5 @@ module.exports = {
   getAvailableModels,
   getAvailableSkills,
   getUsageStats,
+  deleteSession,
 };

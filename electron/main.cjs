@@ -942,6 +942,14 @@ ipcMain.handle('antigravity-get-messages', async (event, conversationId) => {
   }
 });
 
+ipcMain.handle('antigravity-delete-session', async (event, conversationId, workspacePath) => {
+  try {
+    return antigravityBridge.deleteSession(conversationId, workspacePath || activeAppCwd);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('wsl-check', async () => {
   return new Promise((resolve) => {
     if (process.platform !== 'win32') {

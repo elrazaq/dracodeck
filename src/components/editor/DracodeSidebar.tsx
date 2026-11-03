@@ -38,6 +38,7 @@ import {
   Folder,
   AtSign,
   Gauge,
+  Trash2,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -305,6 +306,12 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       } else if (action === "get-usage" && window.dracoAPI?.antigravityGetUsage) {
         const res = await window.dracoAPI.antigravityGetUsage();
         if (res && !String(res.error || "").includes("No handler registered")) return res;
+      } else if (action === "delete-session" && window.dracoAPI?.antigravityDeleteSession) {
+        const res = await window.dracoAPI.antigravityDeleteSession(
+          payload.conversationId,
+          payload.workspacePath
+        );
+        if (res && !String(res.error || "").includes("No handler registered")) return res;
       }
     } catch {}
 
@@ -390,6 +397,34 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         setActiveConvId(sessionId);
         setAgentEvents(attached.history);
       }
+    }
+  };
+
+  const handleDeleteAgySession = async (sessionId: string) => {
+    if (!sessionId) return;
+    const res = await callAntigravityBridge("delete-session", {
+      conversationId: sessionId,
+      workspacePath,
+    });
+    if (res && res.ok) {
+      setAgyState((prev) => {
+        if (!prev) return prev;
+        const filtered = prev.sessions.filter((s) => s.id !== sessionId);
+        const isCurrent = prev.activeSessionId === sessionId;
+        const nextId = isCurrent ? (filtered[0]?.id || "") : prev.activeSessionId;
+        return {
+          ...prev,
+          sessions: filtered,
+          activeSessionId: nextId,
+          messages: isCurrent ? [] : prev.messages,
+        };
+      });
+      const remaining = agyState?.sessions.filter((s) => s.id !== sessionId) || [];
+      if (agyState?.activeSessionId === sessionId && remaining.length > 0) {
+        handleSelectAgySession(remaining[0].id);
+      }
+      setAgyStatusNotice("Session deleted.");
+      setTimeout(() => setAgyStatusNotice(null), 3000);
     }
   };
 
@@ -488,6 +523,24 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       if (typeof cleanup === "function") cleanup();
     };
   }, []);
+
+  // Auto-scroll chat stream strictly to latest bottom message on updates / streaming
+  useEffect(() => {
+    if (!chatScrollRef.current) return;
+    const el = chatScrollRef.current;
+    const scrollTask = () => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: "smooth",
+      });
+    };
+    const animId = requestAnimationFrame(scrollTask);
+    const timeoutId = setTimeout(scrollTask, 60);
+    return () => {
+      cancelAnimationFrame(animId);
+      clearTimeout(timeoutId);
+    };
+  }, [agyState?.messages, isAgySending]);
 
   // Git Action Handlers
   const handleStage = async (filePath: string) => {
@@ -823,6 +876,19 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                   <span>Refresh Connection</span>
                   <RefreshCw className="w-3 h-3 text-[#00e676]" />
                 </button>
+                {agyState?.activeSessionId && (
+                  <button
+                    onClick={() => {
+                      if (agyState.activeSessionId) {
+                        handleDeleteAgySession(agyState.activeSessionId);
+                      }
+                    }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-[#3d182b] text-[#ff5252] flex items-center justify-between border-t border-[#372b54]/50"
+                  >
+                    <span>Delete Current Session</span>
+                    <Trash2 className="w-3 h-3 text-[#ff5252]" />
+                  </button>
+                )}
               </div>
             )}
 
@@ -1585,24 +1651,38 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       <div className="px-3 py-2 text-slate-500 text-center">No sessions found</div>
                     ) : (
                       agyState.sessions.map((s) => (
-                        <button
+                        <div
                           key={s.id}
-                          onClick={() => {
-                            setIsSessionMenuOpen(false);
-                            handleSelectAgySession(s.id);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex flex-col cursor-pointer border-b border-[#231a38]/40 ${
+                          className={`group w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer border-b border-[#231a38]/40 ${
                             agyState.activeSessionId === s.id
                               ? "bg-[#251b3d] text-[#00e5ff]"
                               : "text-slate-300"
                           }`}
                         >
-                          <span className="truncate font-medium">{s.title}</span>
-                          <span className="text-[9.5px] text-slate-500">
-                            {s.stepCount} steps •{" "}
-                            {s.lastModified ? new Date(s.lastModified).toLocaleDateString() : ""}
-                          </span>
-                        </button>
+                          <div
+                            className="flex flex-col truncate flex-1 pr-2"
+                            onClick={() => {
+                              setIsSessionMenuOpen(false);
+                              handleSelectAgySession(s.id);
+                            }}
+                          >
+                            <span className="truncate font-medium">{s.title}</span>
+                            <span className="text-[9.5px] text-slate-500">
+                              {s.stepCount} steps •{" "}
+                              {s.lastModified ? new Date(s.lastModified).toLocaleDateString() : ""}
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAgySession(s.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 rounded transition-opacity shrink-0"
+                            title="Delete session"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-slate-500 hover:text-red-400" />
+                          </button>
+                        </div>
                       ))
                     )}
                   </div>
@@ -1744,7 +1824,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       </p>
                     </div>
                   ) : (
-                    agyState.messages.map((msg) => {
+                    agyState.messages.map((msg, idx) => {
                       if (msg.role === "user") {
                         // Extract prompt text and slash command badges
                         const lines = msg.content.split("\n");
@@ -1902,10 +1982,13 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                         return nodes;
                       };
 
-                      const hasInternalSteps = Boolean(
-                        msg.thinking || (msg.tools && msg.tools.length > 0) || msg.durationText
+                      const hasThinking = Boolean(
+                        typeof msg.thinking === "string" && msg.thinking.trim().length > 0
                       );
-                      const isWorkedOpen = openWorkedMap[msg.id] ?? false;
+                      const hasTools = Boolean(Array.isArray(msg.tools) && msg.tools.length > 0);
+                      const hasInternalSteps = hasThinking || hasTools;
+                      const msgKey = msg.id || `msg-${idx}`;
+                      const isWorkedOpen = openWorkedMap[msgKey] ?? false;
                       const workedLabel = msg.durationText
                         ? `Worked for ${msg.durationText}`
                         : msg.stepCount && msg.stepCount > 1
@@ -1913,7 +1996,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                         : "Worked for a few seconds";
 
                       return (
-                        <div key={msg.id} className="space-y-2 select-text font-sans">
+                        <div key={msgKey} className="space-y-2 select-text font-sans">
                           {/* Single Collapsible Worked Header per Turn */}
                           {hasInternalSteps && (
                             <div>
@@ -1921,7 +2004,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                 onClick={() =>
                                   setOpenWorkedMap((prev) => ({
                                     ...prev,
-                                    [msg.id]: !isWorkedOpen,
+                                    [msgKey]: !isWorkedOpen,
                                   }))
                                 }
                                 className="text-[11.5px] text-[#4ea8de] hover:underline flex items-center gap-1 cursor-pointer font-sans font-medium select-none"
@@ -1934,19 +2017,19 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                 />
                               </button>
 
-                              {isWorkedOpen && (
+                              {isWorkedOpen && (hasThinking || hasTools) && (
                                 <div className="mt-1.5 bg-[#171226] border border-[#2d2448] p-2.5 rounded-lg space-y-2 text-xs font-mono">
-                                  {msg.thinking && (
+                                  {hasThinking && (
                                     <div className="text-[10.5px] text-slate-400 italic bg-[#100b1c] p-2 rounded border-l-2 border-[#5b468c] whitespace-pre-wrap leading-relaxed">
                                       {msg.thinking}
                                     </div>
                                   )}
 
-                                  {msg.tools && msg.tools.length > 0 && (
+                                  {hasTools && msg.tools && (
                                     <div className="space-y-1">
-                                      {msg.tools.map((t, idx) => (
+                                      {msg.tools.map((t, tIdx) => (
                                         <div
-                                          key={`${msg.id}-t-${idx}`}
+                                          key={`${msgKey}-t-${tIdx}`}
                                           className="flex items-center gap-1.5 px-2 py-1 bg-[#100b1c] border border-[#2d2448] rounded text-[10px]"
                                         >
                                           {t.name.includes("file") ||
