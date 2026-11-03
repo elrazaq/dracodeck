@@ -10,6 +10,7 @@ const portSlayer = require('./portSlayer.cjs');
 const sentinelEngine = require('./sentinelEngine.cjs');
 const gitOps = require('./gitOps.cjs');
 const memoryStore = require('./memoryStore.cjs');
+const antigravityBridge = require('./antigravityBridge.cjs');
 
 let mainWindow = null;
 let terminalProcess = null;
@@ -886,6 +887,34 @@ ipcMain.handle('memory-save-tasks', async (event, cwd, tasks) => {
     return await memoryStore.saveTasks(cwd || activeAppCwd, tasks);
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// Milestone M8: Official Google Antigravity Live Bridge IPC Handlers
+ipcMain.handle('antigravity-connect-scope', async (event, workspacePath, options) => {
+  try {
+    return await antigravityBridge.connectScope(workspacePath || activeAppCwd, options || {});
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('antigravity-send-prompt', async (event, payload) => {
+  try {
+    return await antigravityBridge.sendPrompt({
+      ...(payload || {}),
+      workspacePath: payload?.workspacePath || activeAppCwd,
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('antigravity-get-messages', async (event, conversationId) => {
+  try {
+    return antigravityBridge.getSessionMessages(conversationId);
+  } catch (err) {
+    return { ok: false, error: err.message, messages: [] };
   }
 });
 

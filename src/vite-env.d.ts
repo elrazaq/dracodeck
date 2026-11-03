@@ -349,6 +349,9 @@ declare global {
       checkPublicIP: () => Promise<{ ip: string; status: string }>;
       openWebviewDevTools: (options?: { mode?: 'right' | 'bottom' | 'undocked' }) => Promise<{ opened: boolean } | boolean>;
       checkWSL: () => Promise<{ hasWSL: boolean; isKali: boolean }>;
+      antigravityConnectScope?: (workspacePath: string, options?: any) => Promise<any>;
+      antigravitySendPrompt?: (payload: any) => Promise<any>;
+      antigravityGetMessages?: (conversationId: string) => Promise<any>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => (() => void) | void;
       off: (channel: string, func: (...args: any[]) => void) => void;
