@@ -32,16 +32,7 @@ interface TerminalPaneProps {
 
 type BottomPanelTab = "problems" | "console" | "terminal" | "ports";
 
-export interface CodeDiagnosticItem {
-  id: string;
-  file: string;
-  filePath?: string;
-  line: number;
-  col: number;
-  severity: "error" | "warning";
-  message: string;
-  source: string;
-}
+import { analyzeCodeProblems, CodeDiagnosticItem } from "./codeDiagnostics";
 
 interface ConsoleEntry {
   id: string;
@@ -55,201 +46,6 @@ const stripAnsi = (str: string): string =>
   str
     .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
     .replace(/\x1b\][^\x07]*\x07/g, "");
-
-/**
- * Real-time universal syntax & structural error analyzer for all programming languages
- */
-function analyzeCodeProblems(fileName: string, filePath: string, content: string): CodeDiagnosticItem[] {
-  if (!content || !fileName) return [];
-  const ext = fileName.split(".").pop()?.toLowerCase() || "";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "avif", "md", "txt"].includes(ext)) {
-    return [];
-  }
-
-  const diagnostics: CodeDiagnosticItem[] = [];
-  const lines = content.split(/\r?\n/);
-
-  // 1. JSON strict validation
-  if (ext === "json") {
-    try {
-      JSON.parse(content);
-    } catch (err: any) {
-      const msg = err?.message || "Invalid JSON syntax";
-      const posMatch = msg.match(/position\s+(\d+)/i);
-      let line = 1;
-      let col = 1;
-      if (posMatch) {
-        const pos = parseInt(posMatch[1], 10);
-        const slice = content.slice(0, pos);
-        const slicedLines = slice.split(/\r?\n/);
-        line = slicedLines.length;
-        col = (slicedLines[slicedLines.length - 1]?.length || 0) + 1;
-      }
-      diagnostics.push({
-        id: `json-${line}-${col}`,
-        file: fileName,
-        filePath,
-        line,
-        col,
-        severity: "error",
-        message: msg,
-        source: "JSON",
-      });
-    }
-    return diagnostics;
-  }
-
-  // 2. Universal bracket, brace, paren & string literal validation across code languages
-  const stack: { char: string; expected: string; line: number; col: number }[] = [];
-  const openMap: Record<string, string> = { "{": "}", "(": ")", "[": "]" };
-  const closeSet = new Set(["}", ")", "]"]);
-  let inBlockComment = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
-    const lineNum = i + 1;
-
-    // Check Git merge conflict markers
-    if (/^(<<<<<<<|=======|>>>>>>>)/.test(rawLine)) {
-      diagnostics.push({
-        id: `conflict-${lineNum}`,
-        file: fileName,
-        filePath,
-        line: lineNum,
-        col: 1,
-        severity: "error",
-        message: "Unresolved Git merge conflict marker detected",
-        source: "GIT",
-      });
-    }
-
-    // Python specific indentation & colon checks
-    if (ext === "py") {
-      if (/^\s*(def\s+\w+\s*\(.*\)|class\s+\w+.*|if\s+.*|elif\s+.*|else|for\s+.*|while\s+.*|try|except.*|finally)\s*$/.test(rawLine)) {
-        const trimmed = rawLine.trim();
-        if (!trimmed.endsWith(":") && !trimmed.endsWith("\\") && !trimmed.endsWith(",")) {
-          diagnostics.push({
-            id: `py-colon-${lineNum}`,
-            file: fileName,
-            filePath,
-            line: lineNum,
-            col: rawLine.length,
-            severity: "error",
-            message: "Expected ':' at end of Python compound statement",
-            source: "PYTHON",
-          });
-        }
-      }
-    }
-
-    let inString: string | null = null;
-    let stringStartCol = 1;
-
-    for (let j = 0; j < rawLine.length; j++) {
-      const ch = rawLine[j];
-      const next = rawLine[j + 1] || "";
-
-      if (inBlockComment) {
-        if (ch === "*" && next === "/") {
-          inBlockComment = false;
-          j++;
-        }
-        continue;
-      }
-
-      if (!inString) {
-        if (ch === "/" && next === "/") break; // Line comment
-        if (ch === "#" && ["py", "sh", "yaml", "yml", "toml", "rb"].includes(ext)) break;
-        if (ch === "/" && next === "*") {
-          inBlockComment = true;
-          j++;
-          continue;
-        }
-        if (ch === '"' || ch === "'" || ch === "`") {
-          // Ignore apostrophes inside words or Rust lifetimes like 'a
-          if (ch === "'" && (ext === "rs" || /\w/.test(rawLine[j - 1] || ""))) {
-            continue;
-          }
-          inString = ch;
-          stringStartCol = j + 1;
-          continue;
-        }
-
-        if (openMap[ch]) {
-          stack.push({ char: ch, expected: openMap[ch], line: lineNum, col: j + 1 });
-        } else if (closeSet.has(ch)) {
-          if (stack.length === 0) {
-            diagnostics.push({
-              id: `unmatched-close-${lineNum}-${j}`,
-              file: fileName,
-              filePath,
-              line: lineNum,
-              col: j + 1,
-              severity: "error",
-              message: `Unexpected closing '${ch}' with no matching opening bracket`,
-              source: ext.toUpperCase() || "SYNTAX",
-            });
-          } else {
-            const last = stack[stack.length - 1];
-            if (last.expected === ch) {
-              stack.pop();
-            } else {
-              diagnostics.push({
-                id: `mismatch-${lineNum}-${j}`,
-                file: fileName,
-                filePath,
-                line: lineNum,
-                col: j + 1,
-                severity: "error",
-                message: `Mismatched bracket: expected '${last.expected}' (to close '${last.char}' from Ln ${last.line}), found '${ch}'`,
-                source: ext.toUpperCase() || "SYNTAX",
-              });
-              stack.pop();
-            }
-          }
-        }
-      } else {
-        if (ch === "\\") {
-          j++; // Skip escaped char
-          continue;
-        }
-        if (ch === inString) {
-          inString = null;
-        }
-      }
-    }
-
-    // Single/double quotes (not template backticks) must close on the same line unless escaped
-    if (inString && inString !== "`" && !rawLine.trimEnd().endsWith("\\")) {
-      diagnostics.push({
-        id: `unclosed-str-${lineNum}-${stringStartCol}`,
-        file: fileName,
-        filePath,
-        line: lineNum,
-        col: stringStartCol,
-        severity: "error",
-        message: `Unclosed string literal (${inString})`,
-        source: ext.toUpperCase() || "SYNTAX",
-      });
-    }
-  }
-
-  // Remaining unclosed brackets
-  for (const unclosed of stack.slice(-5)) {
-    diagnostics.push({
-      id: `unclosed-open-${unclosed.line}-${unclosed.col}`,
-      file: fileName,
-      filePath,
-      line: unclosed.line,
-      col: unclosed.col,
-      severity: "error",
-      message: `Unclosed '${unclosed.char}' — expected matching '${unclosed.expected}'`,
-      source: ext.toUpperCase() || "SYNTAX",
-    });
-  }
-
-  return diagnostics;
-}
 
 export const TerminalPane: React.FC<TerminalPaneProps> = ({
   workspacePath,
@@ -320,15 +116,50 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  // Listen to real-time code changes from EditorPane to compute live Problems
+  // Listen to real-time code changes from EditorPane to compute live Problems (AST + Multi-Language Validator)
   useEffect(() => {
-    const handleEditorCode = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && typeof detail.content === "string") {
-        const items = analyzeCodeProblems(detail.name || "", detail.path || "", detail.content);
-        setEditorDiagnostics(items);
+    let latestReqId = 0;
+
+    const evaluatePayload = async (detail: { name?: string; path?: string; content?: string }) => {
+      if (!detail || typeof detail.content !== "string" || !detail.name) {
+        setEditorDiagnostics([]);
+        return;
+      }
+      const reqId = ++latestReqId;
+      const localItems = analyzeCodeProblems(detail.name, detail.path || "", detail.content);
+      setEditorDiagnostics(localItems);
+
+      if (window.dracoAPI?.lintCodeDiagnostics) {
+        try {
+          const ipcItems = await window.dracoAPI.lintCodeDiagnostics(detail.name, detail.content);
+          if (reqId === latestReqId && Array.isArray(ipcItems) && ipcItems.length > 0) {
+            const merged = [...localItems];
+            for (const item of ipcItems) {
+              const existsOnLine = merged.some((m) => m.line === item.line);
+              if (!existsOnLine) {
+                merged.push({
+                  ...item,
+                  filePath: detail.path || item.filePath,
+                });
+              }
+            }
+            merged.sort((a, b) => a.line - b.line);
+            setEditorDiagnostics(merged);
+          }
+        } catch {}
       }
     };
+
+    const handleEditorCode = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      evaluatePayload(detail);
+    };
+
+    // Immediately evaluate if EditorPane already has an active file loaded
+    if ((window as any).__dracoLastEditorState) {
+      evaluatePayload((window as any).__dracoLastEditorState);
+    }
+
     window.addEventListener("dracode:editor-diagnostics", handleEditorCode);
     return () => window.removeEventListener("dracode:editor-diagnostics", handleEditorCode);
   }, []);
@@ -420,31 +251,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     };
   }, []);
 
-  // Poll active listening TCP ports (strictly excluding Dracodeck's own port and process)
-  const refreshPorts = useCallback(async () => {
-    if (!window.dracoAPI?.slayerScanPorts) return;
-    setIsScanningPorts(true);
-    try {
-      const all = await window.dracoAPI.slayerScanPorts();
-      const filtered = (all || []).filter(
-        (p: any) =>
-          p.state === "LISTENING" &&
-          !p.isSelf &&
-          !p.isProtected &&
-          p.port !== selfPort &&
-          p.processName?.toLowerCase() !== "electron.exe" &&
-          p.processName?.toLowerCase() !== "dracodeck.exe"
-      );
-      setActivePortsList(filtered);
-    } catch {}
-    setIsScanningPorts(false);
-  }, [selfPort]);
-
-  useEffect(() => {
-    refreshPorts();
-    const timer = setInterval(refreshPorts, 4000);
-    return () => clearInterval(timer);
-  }, [refreshPorts]);
+  // Scope-aware port polling is wired below detectedPort
 
   // Auto-scroll to bottom ONLY when new lines arrive AND user has no active text selection
   useEffect(() => {
@@ -572,6 +379,75 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [detectedDevUrl, outputLines, slayedAtLineIndex, selfPort]);
 
   const hasActivePort = detectedPort !== null;
+
+  // Collect all ports active in current scope's terminal output (since last slay/scope switch)
+  const scopeTerminalPorts = useMemo(() => {
+    const ports = new Set<number>();
+    if (detectedPort && detectedPort !== selfPort) {
+      ports.add(detectedPort);
+    }
+    const minIdx = Math.max(slayedAtLineIndex, outputLines.length - 60, 0);
+    for (let i = outputLines.length - 1; i >= minIdx; i--) {
+      const clean = stripAnsi(outputLines[i]);
+      const urlRegex = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\]):(\d+)/gi;
+      let m: RegExpExecArray | null;
+      while ((m = urlRegex.exec(clean)) !== null) {
+        const p = parseInt(m[1], 10);
+        if (!isNaN(p) && p !== selfPort) {
+          ports.add(p);
+        }
+      }
+    }
+    return ports;
+  }, [detectedPort, outputLines, slayedAtLineIndex, selfPort]);
+
+  // Poll active listening TCP ports ONLY for current workspace scope (never all PC ports)
+  const refreshPorts = useCallback(async () => {
+    setIsScanningPorts(true);
+    try {
+      let all: any[] = [];
+      if (window.dracoAPI?.slayerScanPorts) {
+        all = (await window.dracoAPI.slayerScanPorts(workspacePath)) || [];
+      }
+      const scoped = all.filter(
+        (p: any) =>
+          p.state === "LISTENING" &&
+          !p.isSelf &&
+          !p.isProtected &&
+          p.port !== selfPort &&
+          p.processName?.toLowerCase() !== "electron.exe" &&
+          p.processName?.toLowerCase() !== "dracodeck.exe" &&
+          (scopeTerminalPorts.has(p.port) || p.matchesWorkspace === true)
+      );
+
+      // Ensure any active port detected in current scope's terminal is represented even before netstat finishes
+      for (const termPort of scopeTerminalPorts) {
+        if (!scoped.some((item: any) => item.port === termPort)) {
+          const matchInAll = all.find((item: any) => item.port === termPort && !item.isSelf);
+          if (matchInAll) {
+            scoped.push(matchInAll);
+          } else {
+            scoped.push({
+              port: termPort,
+              pid: "-",
+              processName: "node.exe (Scope Dev)",
+              localAddress: `127.0.0.1:${termPort}`,
+              label: "Active Scope Dev Server",
+            });
+          }
+        }
+      }
+
+      setActivePortsList(scoped);
+    } catch {}
+    setIsScanningPorts(false);
+  }, [selfPort, workspacePath, scopeTerminalPorts]);
+
+  useEffect(() => {
+    refreshPorts();
+    const timer = setInterval(refreshPorts, 3500);
+    return () => clearInterval(timer);
+  }, [refreshPorts]);
 
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -1196,7 +1072,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           <div className="h-7 bg-[#120c1f] border-b border-[#261d38] px-3 flex items-center justify-between text-[10px] text-[#94a3b8] select-none">
             <div className="flex items-center gap-2">
               <Radio className="w-3 h-3 text-[#00e676]" />
-              <span>Active Listening TCP Ports (Dracodeck internal port :{selfPort} excluded)</span>
+              <span>Active Scope Ports ({workspacePath || "Local Workspace"})</span>
             </div>
             <button
               onClick={() => refreshPorts()}
@@ -1209,7 +1085,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           <div className="flex-1 overflow-y-auto p-3">
             {activePortsList.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[#7a7194] text-[11px]">
-                No external active listening ports detected.
+                No active ports running in current workspace scope.
               </div>
             ) : (
               <table className="w-full text-left border-collapse text-[11px]">

@@ -102,10 +102,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const [imageGridBg, setImageGridBg] = useState<boolean>(true);
   const [isSyntaxOn, setIsSyntaxOn] = useState<boolean>(true);
   const [isMinimapOn, setIsMinimapOn] = useState<boolean>(true);
-  const [viewportRatio, setViewportRatio] = useState<{ top: number; height: number }>({
-    top: 0,
-    height: 0.2,
-  });
+  const [windowStartLine, setWindowStartLine] = useState<number>(0);
 
   // Find & Replace State
   const [isFindOpen, setIsFindOpen] = useState(false);
@@ -119,13 +116,15 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
-  // Minimap Dragging State
+  // Minimap Dragging State & Window Virtualization Refs
   const isDraggingMinimap = useRef(false);
+  const windowStartRef = useRef<number>(0);
 
   const gutterRef = useRef<HTMLDivElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const minimapRef = useRef<HTMLDivElement>(null);
+  const minimapThumbRef = useRef<HTMLDivElement>(null);
   const findInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -236,27 +235,32 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     };
   }, [currentTab?.path, currentTab?.name]);
 
+  // Reset virtualization window when switching tabs
+  useEffect(() => {
+    windowStartRef.current = 0;
+    setWindowStartLine(0);
+    if (textareaRef.current) textareaRef.current.scrollTop = 0;
+    if (gutterRef.current) gutterRef.current.scrollTop = 0;
+    if (preRef.current) preRef.current.scrollTop = 0;
+  }, [activeTabPath]);
+
   // Broadcast live code content for real-time Problems tab & listen for jump-to-line
   useEffect(() => {
     if (!currentTab || isImageFile(currentTab.name)) {
-      window.dispatchEvent(
-        new CustomEvent("dracode:editor-diagnostics", {
-          detail: { path: "", name: "", content: "" },
-        })
-      );
+      const emptyPayload = { path: "", name: "", content: "" };
+      (window as any).__dracoLastEditorState = emptyPayload;
+      window.dispatchEvent(new CustomEvent("dracode:editor-diagnostics", { detail: emptyPayload }));
       return;
     }
     const timer = setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("dracode:editor-diagnostics", {
-          detail: {
-            path: currentTab.path,
-            name: currentTab.name,
-            content: currentTab.content,
-          },
-        })
-      );
-    }, 180);
+      const payload = {
+        path: currentTab.path,
+        name: currentTab.name,
+        content: currentTab.content,
+      };
+      (window as any).__dracoLastEditorState = payload;
+      window.dispatchEvent(new CustomEvent("dracode:editor-diagnostics", { detail: payload }));
+    }, 120);
     return () => clearTimeout(timer);
   }, [currentTab?.path, currentTab?.name, currentTab?.content]);
 
@@ -359,13 +363,35 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     onActiveFileChange?.(undefined);
   };
 
-  const lines = currentTab && !isImageFile(currentTab.name) ? currentTab.content.split("\n") : [];
-
-  // Syntax highlighting memoization
-  const tokenizedLines = useMemo(() => {
+  const lines = useMemo(() => {
     if (!currentTab || isImageFile(currentTab.name)) return [];
-    return highlightCode(currentTab.content, currentTab.name);
+    return currentTab.content.split("\n");
   }, [currentTab?.content, currentTab?.name]);
+
+  // Windowed Viewport Virtualization (~120 lines active in DOM at any time, even for 10,000+ line files)
+  const sliceStart = Math.max(0, windowStartLine - 35);
+  const sliceEnd = Math.min(lines.length, windowStartLine + 85);
+
+  const visibleLinesSlice = useMemo(
+    () => lines.slice(sliceStart, sliceEnd),
+    [lines, sliceStart, sliceEnd]
+  );
+
+  // Tokenize ONLY the visible viewport slice instead of all 10,000+ lines
+  const visibleTokensSlice = useMemo(() => {
+    if (!currentTab || isImageFile(currentTab.name) || visibleLinesSlice.length === 0) return [];
+    return highlightCode(visibleLinesSlice.join("\n"), currentTab.name);
+  }, [visibleLinesSlice, currentTab?.name]);
+
+  const minimapSampleLines = useMemo(() => {
+    if (lines.length <= 100) return lines;
+    const step = Math.max(1, Math.floor(lines.length / 100));
+    const sample: string[] = [];
+    for (let i = 0; i < lines.length && sample.length < 100; i += step) {
+      sample.push(lines[i]);
+    }
+    return sample;
+  }, [lines]);
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     const { scrollTop, scrollLeft, scrollHeight, clientHeight } = e.currentTarget;
@@ -377,11 +403,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       preRef.current.scrollLeft = scrollLeft;
     }
 
-    // Update minimap viewport slider
-    if (scrollHeight > clientHeight) {
-      const top = scrollTop / scrollHeight;
-      const height = clientHeight / scrollHeight;
-      setViewportRatio({ top, height });
+    // Direct DOM update for minimap viewport slider (Zero React state re-render during scroll)
+    if (minimapThumbRef.current && scrollHeight > clientHeight) {
+      const topPct = (scrollTop / scrollHeight) * 100;
+      const heightPct = Math.max(10, (clientHeight / scrollHeight) * 100);
+      minimapThumbRef.current.style.top = `${topPct}%`;
+      minimapThumbRef.current.style.height = `${heightPct}%`;
+    }
+
+    // Shift virtualization window only when scrolled >= 16 lines from current window anchor
+    const topLine = Math.floor(scrollTop / 20);
+    if (Math.abs(topLine - windowStartRef.current) >= 16) {
+      windowStartRef.current = topLine;
+      setWindowStartLine(topLine);
     }
   };
 
@@ -1112,36 +1146,72 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             </div>
           ) : (
           <div className="flex-1 flex overflow-hidden">
-            {/* Dark Gray Line Numbers Gutter with Brighter Text */}
+            {/* Virtualized Dark Gray Line Numbers Gutter with Brighter Text */}
             <div
               ref={gutterRef}
-              className="w-12 bg-[#1c1c24] text-[#a1a1b5] select-none text-right pr-2.5 pt-3 border-r border-[#2d2d3a] font-mono overflow-hidden"
+              className="w-12 bg-[#1c1c24] text-[#a1a1b5] select-none text-right pr-2.5 pt-3 pb-3 border-r border-[#2d2d3a] font-mono overflow-hidden"
             >
-              {lines.map((_, i) => (
-                <div key={i} className="h-5 leading-5 text-[11px] hover:text-[#e2e8f0]">
-                  {i + 1}
+              <div style={{ height: `${lines.length * 20}px`, position: "relative" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: `${sliceStart * 20}px`,
+                    left: 0,
+                    right: 0,
+                  }}
+                >
+                  {visibleLinesSlice.map((_, idx) => {
+                    const lineNo = sliceStart + idx + 1;
+                    return (
+                      <div key={lineNo} className="h-5 leading-5 text-[11px] hover:text-[#e2e8f0]">
+                        {lineNo}
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
             </div>
 
-            {/* Synchronized Editor Canvas */}
+            {/* Synchronized Virtualized Editor Canvas */}
             <div
               onContextMenu={handleContextMenu}
               className="flex-1 relative overflow-hidden bg-[#0b0813]"
             >
-              {/* Syntax Highlighted Underlay + Rainbow Indent */}
+              {/* Virtualized Syntax Highlighted Underlay + Rainbow Indent */}
               {isSyntaxOn && (
                 <pre
                   ref={preRef}
                   aria-hidden="true"
                   className="absolute inset-0 p-3 pt-3 font-mono text-[11px] leading-5 pointer-events-none select-none overflow-hidden whitespace-pre m-0 border-none bg-transparent"
                 >
-                  {tokenizedLines.map((lineTokens, lineIdx) => (
-                    <div key={lineIdx} className="h-5 leading-5 relative">
-                      {renderRainbowIndent(lines[lineIdx] || "")}
-                      {lineTokens.length === 0 ? " " : lineTokens.map((tok, tokIdx) => renderToken(tok, tokIdx))}
+                  <div
+                    style={{
+                      height: `${lines.length * 20}px`,
+                      position: "relative",
+                      minWidth: "max-content",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: `${sliceStart * 20}px`,
+                        left: 0,
+                        right: 0,
+                      }}
+                    >
+                      {visibleTokensSlice.map((lineTokens, idx) => {
+                        const realIdx = sliceStart + idx;
+                        return (
+                          <div key={realIdx} className="h-5 leading-5 relative">
+                            {renderRainbowIndent(lines[realIdx] || "")}
+                            {lineTokens.length === 0
+                              ? " "
+                              : lineTokens.map((tok, tokIdx) => renderToken(tok, tokIdx))}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
+                  </div>
                 </pre>
               )}
 
@@ -1169,18 +1239,19 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   onMouseDown={handleMinimapMouseDown}
                   className="w-16 bg-[#0c0817] border-l border-[#261d38] relative overflow-hidden cursor-pointer select-none p-1 font-mono hidden md:block hover:bg-[#120c1f] transition-colors"
                 >
-                  {/* Viewport Scrubber Slider Box */}
+                  {/* Viewport Scrubber Slider Box (Direct DOM Ref — 0ms Latency) */}
                   <div
+                    ref={minimapThumbRef}
                     style={{
-                      top: `${viewportRatio.top * 100}%`,
-                      height: `${Math.max(10, viewportRatio.height * 100)}%`,
+                      top: "0%",
+                      height: "20%",
                     }}
-                    className="absolute left-0 right-0 bg-[#00e5ff]/15 border-y-2 border-[#00e5ff]/70 shadow-[0_0_10px_rgba(0,229,255,0.3)] pointer-events-none transition-all duration-75"
+                    className="absolute left-0 right-0 bg-[#00e5ff]/15 border-y-2 border-[#00e5ff]/70 shadow-[0_0_10px_rgba(0,229,255,0.3)] pointer-events-none"
                   />
 
                   {/* Micro Code Representation */}
                   <div className="space-y-[1px] opacity-40 leading-none">
-                    {lines.slice(0, 100).map((l, i) => (
+                    {minimapSampleLines.map((l, i) => (
                       <div
                         key={i}
                         style={{ width: `${Math.min(100, Math.max(15, l.length * 2))}%` }}

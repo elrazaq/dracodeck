@@ -91,14 +91,74 @@ function getProcessMap() {
   });
 }
 
-function scanWin32Ports() {
+function getScopedPids(workspacePath, shellPid) {
+  return new Promise((resolve) => {
+    const matchedPids = new Set();
+    if (process.platform !== 'win32') {
+      resolve(matchedPids);
+      return;
+    }
+    const cleanScope = (workspacePath || '').trim().replace(/\\+$/, '').toLowerCase();
+    // Do not treat bare root drive like "c:" or "d:" as a project scope match for all processes on that drive
+    const isSpecificFolder = cleanScope.length > 3 && cleanScope.includes('\\');
+
+    execFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress',
+      ],
+      { windowsHide: true, timeout: 2500, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err || !stdout) {
+          resolve(matchedPids);
+          return;
+        }
+        try {
+          const list = JSON.parse(stdout.trim());
+          const procs = Array.isArray(list) ? list : [list];
+          const parentMap = new Map();
+          for (const p of procs) {
+            if (!p || typeof p.ProcessId !== 'number') continue;
+            parentMap.set(p.ProcessId, p.ParentProcessId);
+            const cmd = (p.CommandLine || '').toLowerCase().replace(/\//g, '\\');
+            if (isSpecificFolder && cmd.includes(cleanScope)) {
+              matchedPids.add(p.ProcessId);
+            }
+          }
+          // Walk process tree: any descendant of shellPid or a matched workspace process is also in scope
+          let added = true;
+          let guard = 0;
+          while (added && guard < 10) {
+            added = false;
+            guard++;
+            for (const [pid, ppid] of parentMap.entries()) {
+              if (!matchedPids.has(pid) && ((shellPid && ppid === shellPid) || matchedPids.has(ppid))) {
+                matchedPids.add(pid);
+                added = true;
+              }
+            }
+          }
+        } catch {}
+        resolve(matchedPids);
+      }
+    );
+  });
+}
+
+function scanWin32Ports(workspacePath = '', shellPid = null) {
   return new Promise(async (resolve) => {
     if (process.platform !== 'win32') {
       resolve([]);
       return;
     }
 
-    const processMap = await getProcessMap();
+    const [processMap, scopedPids] = await Promise.all([
+      getProcessMap(),
+      getScopedPids(workspacePath, shellPid),
+    ]);
     const selfPid = process.pid;
 
     execFile('netstat.exe', ['-ano'], { windowsHide: true }, (err, stdout) => {
@@ -155,6 +215,7 @@ function scanWin32Ports() {
           isDevPort: Boolean(KNOWN_DEV_PORTS[port]),
           isProtected,
           isSelf,
+          matchesWorkspace: !isSelf && !isProtected && scopedPids.has(pid),
         });
       }
 

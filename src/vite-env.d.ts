@@ -300,7 +300,8 @@ declare global {
       terminalGetCwd: () => Promise<string>;
       terminalGetHistory: () => Promise<string[]>;
       terminalClearHistory: () => Promise<boolean>;
-      slayerScanPorts: () => Promise<any[]>;
+      slayerScanPorts: (workspacePath?: string) => Promise<any[]>;
+      lintCodeDiagnostics?: (fileName: string, content: string) => Promise<any[]>;
       slayerKillProcess: (pid: number, forceTree?: boolean) => Promise<{ success: boolean; pid?: number; error?: string; output?: string }>;
       slayerKillPort: (port: number) => Promise<{ success: boolean; port?: number; error?: string; processName?: string }>;
       slayerProbePort: (host: string, port: number) => Promise<{ open: boolean; latencyMs: number; banner?: string; error?: string }>;

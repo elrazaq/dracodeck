@@ -526,10 +526,53 @@ ipcMain.handle('open-webview-devtools', (event, options) => {
 });
 
 // Port Slayer IPC Handlers
-ipcMain.handle('slayer-scan-ports', async () => {
+ipcMain.handle('slayer-scan-ports', async (event, workspacePath) => {
   try {
-    return await portSlayer.scanWin32Ports();
+    const scopePath = workspacePath || activeAppCwd || '';
+    const shellPid = terminalProcess && terminalProcess.pid ? terminalProcess.pid : null;
+    return await portSlayer.scanWin32Ports(scopePath, shellPid);
   } catch (err) {
+    return [];
+  }
+});
+
+// Real AST / TypeScript Compiler Diagnostics IPC Handler
+ipcMain.handle('lint-code-diagnostics', async (event, fileName, content) => {
+  try {
+    const ext = (fileName || '').split('.').pop().toLowerCase();
+    if (!['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs'].includes(ext)) return [];
+    const ts = require('typescript');
+    const result = ts.transpileModule(content || '', {
+      fileName: fileName || 'module.tsx',
+      reportDiagnostics: true,
+      compilerOptions: {
+        target: ts.ScriptTarget.Latest,
+        jsx: ext.endsWith('x') ? ts.JsxEmit.ReactJSX : ts.JsxEmit.None,
+        allowJs: true,
+      },
+    });
+    if (!result.diagnostics || result.diagnostics.length === 0) return [];
+    return result.diagnostics.map((d, idx) => {
+      let line = 1;
+      let col = 1;
+      if (d.file && typeof d.start === 'number') {
+        const pos = d.file.getLineAndCharacterOfPosition(d.start);
+        line = pos.line + 1;
+        col = pos.character + 1;
+      }
+      const msg = ts.flattenDiagnosticMessageText(d.messageText, '\n');
+      return {
+        id: `tsc-ast-${line}-${col}-${idx}`,
+        file: (fileName || '').split(/[/\\]/).pop() || fileName,
+        filePath: fileName,
+        line,
+        col,
+        severity: d.category === ts.DiagnosticCategory.Warning ? 'warning' : 'error',
+        message: `TS${d.code}: ${msg}`,
+        source: 'TS Compiler',
+      };
+    });
+  } catch {
     return [];
   }
 });
