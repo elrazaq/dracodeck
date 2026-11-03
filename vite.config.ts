@@ -40,6 +40,11 @@ function dracoAntigravityDevPlugin() {
             res.end(JSON.stringify(result));
             return;
           }
+          if (req.url.startsWith("/__draco_antigravity/get-usage")) {
+            const result = bridge.getUsageStats();
+            res.end(JSON.stringify(result));
+            return;
+          }
           if (req.url.startsWith("/__draco_antigravity/get-skills")) {
             const result = bridge.getAvailableSkills(body.workspacePath);
             res.end(JSON.stringify(result));

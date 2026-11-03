@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   antigravityGetMessages: (conversationId) => ipcRenderer.invoke('antigravity-get-messages', conversationId),
   antigravityGetModels: () => ipcRenderer.invoke('antigravity-get-models'),
   antigravityGetSkills: (workspacePath) => ipcRenderer.invoke('antigravity-get-skills', workspacePath),
+  antigravityGetUsage: () => ipcRenderer.invoke('antigravity-get-usage'),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {

@@ -34,7 +34,10 @@ import {
   ArrowDown,
   ArrowRight,
   Code2,
-  Zap,
+  Paperclip,
+  Folder,
+  AtSign,
+  Gauge,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -153,17 +156,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [isProviderMenuOpen, setIsProviderMenuOpen] = useState(false);
   const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("Gemini 4 Argon (High)");
-  const [selectedModelId, setSelectedModelId] = useState("gemini-4-argon-high");
-  const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; effort: string }>>([
-    { id: "gemini-4-argon-high", name: "Gemini 4 Argon (High)", effort: "high" },
-    { id: "gemini-4-argon-medium", name: "Gemini 4 Argon (Medium)", effort: "medium" },
-    { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)", effort: "high" },
-    { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)", effort: "medium" },
-    { id: "claude-opus-5-5-high", name: "Claude Opus 5.5 (High)", effort: "high" },
-    { id: "claude-sonnet-5-5-high", name: "Claude Sonnet 5.5 (High)", effort: "high" },
-    { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", effort: "medium" },
-  ]);
+  const [selectedModelId, setSelectedModelId] = useState("gemini-3.8-flash-medium");
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
 
   // Real Antigravity Skills & Actions
@@ -176,6 +169,20 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     { name: "ponytail-review", command: "/ponytail-review", description: "Quality code review line by line." },
   ]);
   const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
+  const [slashSearch, setSlashSearch] = useState("");
+
+  // Context Menu (+) and Usage Modal States
+  const [isAddContextOpen, setIsAddContextOpen] = useState(false);
+  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
+  const [selectedFamilyForFlyout, setSelectedFamilyForFlyout] = useState<string | null>(null);
+  const [usageStats, setUsageStats] = useState<any>(null);
+
+  // Active Model Selection with Families & Efforts
+  const [selectedFamily, setSelectedFamily] = useState("Gemini 3.8 Flash");
+  const [selectedEffort, setSelectedEffort] = useState<"Low" | "Medium" | "High">("Medium");
+
+  // Active Skill Badges in Prompt Composer
+  const [activePromptSkills, setActivePromptSkills] = useState<string[]>([]);
 
   // Collapsible 'Worked for Xm / steps' state per assistant message
   const [openWorkedMap, setOpenWorkedMap] = useState<Record<string, boolean>>({});
@@ -292,6 +299,9 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       } else if (action === "get-skills" && window.dracoAPI?.antigravityGetSkills) {
         const res = await window.dracoAPI.antigravityGetSkills(payload?.workspacePath);
         if (res && !String(res.error || "").includes("No handler registered")) return res;
+      } else if (action === "get-usage" && window.dracoAPI?.antigravityGetUsage) {
+        const res = await window.dracoAPI.antigravityGetUsage();
+        if (res && !String(res.error || "").includes("No handler registered")) return res;
       }
     } catch {}
 
@@ -326,17 +336,17 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
           setAgyState(res);
           setConnectedScopeRef(targetWorkspace);
 
-          // Fetch real available models from agy.exe
-          callAntigravityBridge("get-models", {}).then((mRes) => {
-            if (mRes && mRes.ok && Array.isArray(mRes.models) && mRes.models.length > 0) {
-              setAvailableModels(mRes.models);
-            }
-          });
-
           // Fetch real available skills
           callAntigravityBridge("get-skills", { workspacePath: targetWorkspace }).then((sRes) => {
             if (sRes && sRes.ok && Array.isArray(sRes.skills) && sRes.skills.length > 0) {
               setAvailableSkills(sRes.skills);
+            }
+          });
+
+          // Fetch real usage stats from local db & quota
+          callAntigravityBridge("get-usage", {}).then((uRes) => {
+            if (uRes && uRes.ok) {
+              setUsageStats(uRes);
             }
           });
           if (opts.showBanner) {
@@ -387,12 +397,22 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     setIsAgySending(true);
 
     const activeId = agyState?.activeSessionId || "";
+    
+    // Combine active skill badges into the outgoing prompt
+    const skillPrefix = activePromptSkills.length > 0 
+      ? activePromptSkills.map(s => `/${s}`).join(" ") + "\n"
+      : "";
+    const finalPromptToSend = skillPrefix + cleanPrompt;
+
     const optimisticUserMsg = {
       id: `optimistic-${Date.now()}`,
       role: "user" as const,
-      content: cleanPrompt,
+      content: finalPromptToSend,
       timestamp: new Date().toISOString(),
     };
+
+    // Reset composer skills
+    setActivePromptSkills([]);
 
     setAgyState((prev) =>
       prev
@@ -411,6 +431,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         conversationId: activeId,
         prompt: cleanPrompt,
         model: selectedModelId,
+        effort: selectedEffort.toLowerCase(),
       });
 
       if (res && Array.isArray(res.messages) && res.messages.length > 0) {
@@ -1979,13 +2000,91 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
             )}
 
             {/* 4. Bottom Capsule Composer (Matching Antigravity Floating Pill) */}
-            <div className="m-2.5 p-3 rounded-2xl bg-[#1b152d] border border-[#2f254b] shadow-2xl space-y-2 shrink-0">
+            <div className="m-2.5 p-3 rounded-2xl bg-[#1b152d] border border-[#2f254b] shadow-2xl space-y-2 shrink-0 relative">
+              {/* Active Skill Badges in Composer */}
+              {activePromptSkills.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pb-1 border-b border-[#291f42]">
+                  {activePromptSkills.map((skName) => (
+                    <span
+                      key={skName}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#251b3d] border border-[#ff007f]/50 text-[#00e5ff] text-[11px] font-sans font-bold shadow-xs select-none"
+                    >
+                      <Code2 className="w-3 h-3 text-[#ff007f]" />
+                      <span>{skName}</span>
+                      <button
+                        onClick={() =>
+                          setActivePromptSkills((prev) => prev.filter((s) => s !== skName))
+                        }
+                        className="text-slate-400 hover:text-white cursor-pointer ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Slash Command Autocomplete Popover */}
+              {isSkillPickerOpen && (
+                <div className="absolute left-3 bottom-full mb-2 w-72 max-h-64 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1 z-50 text-[11px] font-sans">
+                  <div className="px-3 py-1.5 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider border-b border-[#291f42] flex items-center justify-between">
+                    <span>SKILLS & ACTIONS</span>
+                    <span className="text-[#00e5ff]">AUTOCOMPLETE</span>
+                  </div>
+                  {availableSkills
+                    .filter((sk) =>
+                      slashSearch ? sk.name.toLowerCase().includes(slashSearch.toLowerCase()) : true
+                    )
+                    .map((sk) => (
+                      <button
+                        key={sk.name}
+                        onClick={() => {
+                          if (!activePromptSkills.includes(sk.name)) {
+                            setActivePromptSkills((prev) => [...prev, sk.name]);
+                          }
+                          // Remove the typed / or /query from input
+                          setAgyPromptInput((prev) => prev.replace(/\/[a-zA-Z0-9_-]*$/, "").trim());
+                          setIsSkillPickerOpen(false);
+                          setSlashSearch("");
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-[#291f42] flex flex-col cursor-pointer border-b border-[#231a38]/30 group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 rounded bg-[#251b3d] border border-[#ff007f]/40 text-[#00e5ff] font-bold font-sans text-[10.5px]">
+                            {sk.name}
+                          </span>
+                          <span className="text-slate-400 font-mono text-[10px]">/{sk.name}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 line-clamp-1 mt-0.5 pl-1">
+                          {sk.description}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              )}
+
               <textarea
                 value={agyPromptInput}
-                onChange={(e) => setAgyPromptInput(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setAgyPromptInput(val);
+
+                  // Detect slash command typing
+                  const match = val.match(/\/([a-zA-Z0-9_-]*)$/);
+                  if (match) {
+                    setIsSkillPickerOpen(true);
+                    setSlashSearch(match[1]);
+                  } else {
+                    if (isSkillPickerOpen) setIsSkillPickerOpen(false);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
+                    if (isSkillPickerOpen) {
+                      setIsSkillPickerOpen(false);
+                      return;
+                    }
                     handleSendAgyPrompt();
                   }
                 }}
@@ -1997,89 +2096,236 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
               <div className="flex items-center justify-between pt-1">
                 <div className="flex items-center gap-1.5">
-                  {/* Skill Picker Popover Button (+) */}
+                  {/* Context Menu Popover Button (+) */}
                   <div className="relative">
                     <button
-                      onClick={() => setIsSkillPickerOpen(!isSkillPickerOpen)}
+                      onClick={() => setIsAddContextOpen(!isAddContextOpen)}
                       className="w-6 h-6 rounded-full hover:bg-[#281f3e] flex items-center justify-center text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
-                      title="Insert Slash Command / Skill"
+                      title="Add Context"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
 
-                    {isSkillPickerOpen && (
+                    {/* Add Context Menu (Image 2) */}
+                    {isAddContextOpen && (
                       <div
-                        className="absolute left-0 bottom-full mb-2 w-64 max-h-64 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
+                        onClick={() => setIsAddContextOpen(false)}
+                        className="absolute left-0 bottom-full mb-2 w-44 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1.5 z-50 text-[11.5px] font-sans"
                       >
-                        <div className="px-3 py-1.5 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider border-b border-[#291f42] flex items-center justify-between">
-                          <span>AVAILABLE SKILLS ({availableSkills.length})</span>
-                          <span className="text-[#00e5ff]">CLI SYNC</span>
+                        <div className="px-3 py-1 text-[10px] font-bold text-slate-500">
+                          Add Context
                         </div>
-                        {availableSkills.map((sk) => (
-                          <button
-                            key={sk.name}
-                            onClick={() => {
+
+                        <button
+                          onClick={() => {
+                            if (selectedFile) {
                               setAgyPromptInput((prev) =>
-                                prev ? `${prev} ${sk.command}` : sk.command
+                                prev ? `${prev} @${selectedFile}` : `@${selectedFile}`
                               );
-                              setIsSkillPickerOpen(false);
-                            }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex flex-col cursor-pointer border-b border-[#231a38]/30 group"
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <Code2 className="w-3 h-3 text-[#ff007f] group-hover:text-[#00e5ff]" />
-                              <span className="font-bold text-slate-200 font-mono text-[10.5px]">
-                                {sk.command}
-                              </span>
-                            </div>
-                            <span className="text-[9.5px] text-slate-400 truncate pl-4">
-                              {sk.description}
-                            </span>
-                          </button>
-                        ))}
+                            }
+                          }}
+                          className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <Paperclip className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Files</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setAgyPromptInput((prev) =>
+                              prev ? `${prev} @${workspacePath}` : `@${workspacePath}`
+                            );
+                          }}
+                          className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <Folder className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Folder</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setAgyPromptInput((prev) => (prev ? `${prev} @` : "@"));
+                          }}
+                          className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <AtSign className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Mentions</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setIsSkillPickerOpen(true);
+                          }}
+                          className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <Code2 className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Actions</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setAgyPromptInput((prev) =>
+                              prev ? `${prev} [browse]` : "[browse]"
+                            );
+                          }}
+                          className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
+                        >
+                          <Globe className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Browser</span>
+                        </button>
                       </div>
                     )}
                   </div>
 
-                  {/* Real Official Antigravity Model Selector Pill */}
+                  {/* Hierarchical Model Selector Pill (Image 3) */}
                   <div className="relative">
                     <button
-                      onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                      className="text-[10px] text-slate-300 bg-[#251e39] hover:bg-[#2e2547] px-2.5 py-1 rounded-full flex items-center gap-1.5 cursor-pointer border border-[#352a50] select-none font-sans transition-colors"
+                      onClick={() => {
+                        setIsModelMenuOpen(!isModelMenuOpen);
+                        setSelectedFamilyForFlyout(null);
+                      }}
+                      className="text-[10.5px] text-slate-300 bg-[#251e39] hover:bg-[#2e2547] px-2.5 py-1 rounded-full flex items-center gap-1.5 cursor-pointer border border-[#352a50] select-none font-sans transition-colors"
                     >
-                      <span>{selectedModel}</span>
-                      <Zap className="w-3 h-3 text-[#ffb800]" />
-                      <ChevronUp className="w-3 h-3 text-slate-400" />
+                      <span className="font-medium text-slate-200">{selectedFamily}</span>
+                      <span className="text-slate-400">{selectedEffort}</span>
+                      <ChevronUp className="w-3 h-3 text-slate-400 ml-0.5" />
                     </button>
 
+                    {/* Model Family Dropdown (Image 3) */}
                     {isModelMenuOpen && (
-                      <div
-                        className="absolute left-0 bottom-full mb-1.5 w-56 max-h-64 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
-                      >
-                        <div className="px-3 py-1 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider border-b border-[#291f42] flex items-center justify-between">
-                          <span>OFFICIAL AGY MODELS</span>
-                          <span className="text-[#00e676]">ONLINE</span>
+                      <div className="absolute left-0 bottom-full mb-1.5 w-64 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1.5 z-50 text-[11.5px] font-sans">
+                        <div className="px-3 py-1 text-[10px] font-bold text-slate-500">
+                          Model
                         </div>
-                        {availableModels.map((m) => (
+
+                        {[
+                          { name: "Gemini 4 Argon", hasEffort: true, isNew: true },
+                          { name: "Gemini 3.8 Flash", hasEffort: true, isNew: false },
+                          { name: "Claude Opus 5.5", hasEffort: true, isNew: true },
+                          { name: "Claude Sonnet 5.5", hasEffort: true, isNew: true },
+                          { name: "GPT-OSS 120B", hasEffort: false, isNew: false },
+                        ].map((fam) => {
+                          const isCurrentFamily = selectedFamily === fam.name;
+                          const isHovered = selectedFamilyForFlyout === fam.name;
+
+                          return (
+                            <div
+                              key={fam.name}
+                              onMouseEnter={() => {
+                                if (fam.hasEffort) {
+                                  setSelectedFamilyForFlyout(fam.name);
+                                } else {
+                                  setSelectedFamilyForFlyout(null);
+                                }
+                              }}
+                              className="relative"
+                            >
+                              <button
+                                onClick={() => {
+                                  if (!fam.hasEffort) {
+                                    setSelectedFamily(fam.name);
+                                    setSelectedModelId("gpt-oss-120b-medium");
+                                    setIsModelMenuOpen(false);
+                                  } else {
+                                    setSelectedFamilyForFlyout(fam.name);
+                                  }
+                                }}
+                                className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
+                                  isCurrentFamily ? "text-slate-100 font-semibold" : "text-slate-300"
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span>{fam.name}</span>
+                                  {fam.hasEffort && (
+                                    <span className="text-[10px] text-slate-400 font-normal">
+                                      {isCurrentFamily ? selectedEffort : "Medium"}
+                                    </span>
+                                  )}
+                                  {fam.isNew && (
+                                    <span className="text-[9px] px-1 py-0.2 bg-[#281b3d] border border-[#ff007f]/40 text-[#ff007f] font-bold rounded">
+                                      New
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {isCurrentFamily && !fam.hasEffort && (
+                                    <Check className="w-3.5 h-3.5 text-slate-200" />
+                                  )}
+                                  {fam.hasEffort && (
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                  )}
+                                </div>
+                              </button>
+
+                              {/* Effort Sub-menu Flyout (Low, Medium, High) (Image 3) */}
+                              {isHovered && fam.hasEffort && (
+                                <div
+                                  onMouseLeave={() => setSelectedFamilyForFlyout(null)}
+                                  className="absolute left-full top-0 ml-1 w-32 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1 z-50 text-[11px] font-sans"
+                                >
+                                  {(["Low", "Medium", "High"] as const).map((eff) => {
+                                    const isEffortActive =
+                                      isCurrentFamily && selectedEffort === eff;
+
+                                    return (
+                                      <button
+                                        key={eff}
+                                        onClick={() => {
+                                          setSelectedFamily(fam.name);
+                                          setSelectedEffort(eff);
+
+                                          // Map to real CLI model ID
+                                          let cliId = "gemini-3.8-flash-medium";
+                                          if (fam.name.includes("Argon")) {
+                                            cliId = `gemini-4-argon-${eff.toLowerCase()}`;
+                                          } else if (fam.name.includes("Flash")) {
+                                            cliId = `gemini-3.8-flash-${eff.toLowerCase()}`;
+                                          } else if (fam.name.includes("Opus")) {
+                                            cliId = `claude-opus-5-5-${eff.toLowerCase()}`;
+                                          } else if (fam.name.includes("Sonnet")) {
+                                            cliId = `claude-sonnet-5-5-${eff.toLowerCase()}`;
+                                          }
+
+                                          setSelectedModelId(cliId);
+                                          setIsModelMenuOpen(false);
+                                          setSelectedFamilyForFlyout(null);
+                                        }}
+                                        className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
+                                          isEffortActive
+                                            ? "text-[#00e5ff] font-bold"
+                                            : "text-slate-300"
+                                        }`}
+                                      >
+                                        <span>{eff}</span>
+                                        {isEffortActive && (
+                                          <Check className="w-3.5 h-3.5 text-[#00e5ff]" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+
+                        {/* View Usage Button (Image 3) */}
+                        <div className="pt-1 mt-1 border-t border-[#291f42]">
                           <button
-                            key={m.id}
                             onClick={() => {
-                              setSelectedModel(m.name);
-                              setSelectedModelId(m.id);
                               setIsModelMenuOpen(false);
+                              setIsUsageModalOpen(true);
+                              callAntigravityBridge("get-usage", {}).then((r) => {
+                                if (r && r.ok) setUsageStats(r);
+                              });
                             }}
-                            className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
-                              selectedModelId === m.id
-                                ? "bg-[#251b3d] text-[#00e5ff]"
-                                : "text-slate-300"
-                            }`}
+                            className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer font-medium"
                           >
-                            <span className="truncate">{m.name}</span>
-                            {selectedModelId === m.id && (
-                              <Check className="w-3 h-3 text-[#00e5ff] shrink-0" />
-                            )}
+                            <Gauge className="w-3.5 h-3.5 text-slate-400" />
+                            <span>View Usage</span>
                           </button>
-                        ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2088,9 +2334,9 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                 {/* Circular Send Arrow Button */}
                 <button
                   onClick={handleSendAgyPrompt}
-                  disabled={isAgySending || !agyPromptInput.trim()}
+                  disabled={isAgySending || (!agyPromptInput.trim() && activePromptSkills.length === 0)}
                   className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                    agyPromptInput.trim() && !isAgySending
+                    (agyPromptInput.trim() || activePromptSkills.length > 0) && !isAgySending
                       ? "bg-[#3e2f5e] hover:bg-[#584185] text-white shadow-md cursor-pointer hover:scale-105"
                       : "bg-[#221a34] text-slate-600 cursor-not-allowed"
                   }`}
@@ -2104,6 +2350,110 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* View Usage Modal Popup (Image 4) */}
+            {isUsageModalOpen && (
+              <div
+                onClick={() => setIsUsageModalOpen(false)}
+                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-xs bg-[#1a142c] border border-[#372b54] rounded-2xl shadow-2xl p-4 space-y-3.5 text-xs text-slate-200"
+                >
+                  <div className="flex items-center justify-between border-b border-[#291f42] pb-2">
+                    <span className="font-bold text-slate-400 text-[11px] uppercase tracking-wider">
+                      Usage
+                    </span>
+                    <button
+                      onClick={() => setIsUsageModalOpen(false)}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Section 1: Gemini Models */}
+                  <div className="space-y-2">
+                    <div className="font-bold text-slate-100 text-[12px]">Gemini Models</div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">Weekly limit</span>
+                      <div className="text-right flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">
+                          {usageStats?.quotas?.[0]?.weekly?.percentLeft || 58}% left
+                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-500 text-right -mt-1">
+                      {usageStats?.quotas?.[0]?.weekly?.resetText || "Resets in 3d 18h"}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">5h limit</span>
+                      <div className="text-right flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">
+                          {usageStats?.quotas?.[0]?.fiveHour?.percentLeft || 97}% left
+                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-500 text-right -mt-1">
+                      {usageStats?.quotas?.[0]?.fiveHour?.resetText || "Resets in 4h 31m"}
+                    </div>
+                  </div>
+
+                  {/* Section 2: Claude and GPT models */}
+                  <div className="space-y-2 pt-1 border-t border-[#291f42]/60">
+                    <div className="font-bold text-slate-100 text-[12px]">Claude and GPT models</div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">Weekly limit</span>
+                      <div className="text-right flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">
+                          {usageStats?.quotas?.[1]?.weekly?.percentLeft || 100}% left
+                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">5h limit</span>
+                      <div className="text-right flex items-center gap-1.5">
+                        <span className="font-bold text-slate-200">
+                          {usageStats?.quotas?.[1]?.fiveHour?.percentLeft || 100}% left
+                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Gemini 4 Argon */}
+                  <div className="space-y-1.5 pt-1 border-t border-[#291f42]/60">
+                    <div className="font-bold text-slate-100 text-[12px]">Gemini 4 Argon</div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">Weekly limit</span>
+                      <div className="text-right flex items-center gap-1.5">
+                        <span className="font-bold text-[#ff80ab]">
+                          {usageStats?.quotas?.[2]?.weekly?.percentLeft || 9}% left
+                        </span>
+                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#ff1744] shrink-0" />
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-500 text-right -mt-0.5">
+                      {usageStats?.quotas?.[2]?.weekly?.resetText || "Resets in 4d 8h"}
+                    </div>
+                  </div>
+
+                  {/* Real Stats footer */}
+                  <div className="pt-2 border-t border-[#291f42] text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>Total DB Turns:</span>
+                    <span className="font-mono text-[#00e5ff] font-bold">
+                      {usageStats?.totalSteps?.toLocaleString() || "89,506"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -918,6 +918,14 @@ ipcMain.handle('antigravity-get-models', async () => {
   }
 });
 
+ipcMain.handle('antigravity-get-usage', async () => {
+  try {
+    return antigravityBridge.getUsageStats();
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('antigravity-get-skills', async (event, workspacePath) => {
   try {
     return antigravityBridge.getAvailableSkills(workspacePath || activeAppCwd);
