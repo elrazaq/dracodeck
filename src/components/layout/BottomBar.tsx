@@ -6,7 +6,6 @@ import { GitStatusResult } from "../../vite-env";
 interface BottomBarProps {
   workspace: string;
   activeLanguage?: string;
-  onFormatCode?: () => void;
   onOpenTelemetry?: () => void;
   onOpenGitOps?: () => void;
 }
@@ -14,7 +13,6 @@ interface BottomBarProps {
 export const BottomBar: React.FC<BottomBarProps> = ({
   workspace,
   activeLanguage = "Markdown",
-  onFormatCode,
   onOpenTelemetry,
   onOpenGitOps,
 }) => {
@@ -28,7 +26,6 @@ export const BottomBar: React.FC<BottomBarProps> = ({
   const [jumpLine, setJumpLine] = useState("");
   const [encoding, setEncoding] = useState("UTF-8");
   const [lineEnding, setLineEnding] = useState("LF");
-  const [formatStatus, setFormatStatus] = useState<string | null>(null);
   const [isSyncingGit, setIsSyncingGit] = useState(false);
 
   const fetchRealGit = useCallback(async () => {
@@ -61,12 +58,6 @@ export const BottomBar: React.FC<BottomBarProps> = ({
       setIsSyncingGit(false);
       setShowBranchMenu(false);
     }
-  };
-
-  const handleTriggerFormat = () => {
-    onFormatCode?.();
-    setFormatStatus("FORMATTED");
-    setTimeout(() => setFormatStatus(null), 1800);
   };
 
   const handleJumpLine = (e: React.FormEvent) => {
@@ -218,16 +209,6 @@ export const BottomBar: React.FC<BottomBarProps> = ({
             >
               <Radio className="w-2.5 h-2.5 animate-pulse text-[#00e5ff]" />
               <span>Antigravity</span>
-            </button>
-          </DracoTooltip>
-
-          {/* Prettier Auto-Format Trigger Button */}
-          <DracoTooltip content="Auto-Format Code with Prettier" shortcut="Shift+Alt+F" position="top" accent="green">
-            <button
-              onClick={handleTriggerFormat}
-              className="flex items-center gap-1 bg-[#0b0813] hover:bg-[#161026] text-[#00e676] px-2 py-0.5 transition-colors cursor-pointer"
-            >
-              <Check className="w-3 h-3 text-[#00e676]" /><span>{formatStatus || "PRETTIER"}</span>
             </button>
           </DracoTooltip>
         </div>

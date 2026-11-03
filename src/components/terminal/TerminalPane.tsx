@@ -78,35 +78,36 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
   }, [outputLines]);
 
-  // Keep terminal CWD aligned with active workspace & reset port scope when switching workspace
+  // Reset port scope ONLY when workspacePath actually changes (no outputLines loop)
   useEffect(() => {
-    if (workspacePath && window.dracoAPI?.terminalSetCwd) {
-      window.dracoAPI.terminalSetCwd(workspacePath);
-    }
     if (prevWorkspaceRef.current !== workspacePath) {
       prevWorkspaceRef.current = workspacePath;
-      setSlayedAtLineIndex(outputLines.length);
+      setSlayedAtLineIndex(prevLineCountRef.current);
     }
-  }, [workspacePath, outputLines.length]);
+  }, [workspacePath]);
 
   // Hydrate persistent history from Electron backend so switching views never loses logs
   useEffect(() => {
     if (window.dracoAPI?.terminalGetHistory) {
       window.dracoAPI.terminalGetHistory().then((history) => {
         if (history && history.length > 0) {
-          prevLineCountRef.current = history.length;
-          setOutputLines(history);
+          const bounded = history.length > 500 ? history.slice(history.length - 500) : history;
+          prevLineCountRef.current = bounded.length;
+          setOutputLines(bounded);
         }
       });
     }
   }, []);
 
-  // Hook into Electron IPC terminal stream with cleanup
+  // Hook into Electron IPC terminal stream with cleanup & bounded memory buffer
   useEffect(() => {
     if (window.dracoAPI?.receive) {
       const cleanup = window.dracoAPI.receive("terminal-output", (data: string) => {
         const rawLines = data.split(/\r?\n/);
-        setOutputLines((prev) => [...prev, ...rawLines]);
+        setOutputLines((prev) => {
+          const next = [...prev, ...rawLines];
+          return next.length > 500 ? next.slice(next.length - 500) : next;
+        });
       });
       return () => {
         if (typeof cleanup === "function") {

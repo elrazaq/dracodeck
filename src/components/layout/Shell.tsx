@@ -311,9 +311,6 @@ export const Shell: React.FC = () => {
       <BottomBar
         workspace={currentEffectiveWorkspace || ""}
         activeLanguage={activeLang}
-        onFormatCode={() => {
-          window.dispatchEvent(new CustomEvent("dracode:editor-cmd", { detail: { action: "format" } }));
-        }}
         onOpenTelemetry={() => setActiveView("telemetry")}
         onOpenGitOps={() => setActiveView("gitops")}
       />

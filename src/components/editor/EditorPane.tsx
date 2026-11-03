@@ -6,8 +6,6 @@ import {
   Check,
   FileText,
   CornerDownLeft,
-  Eye,
-  EyeOff,
   Layout,
   Wand2,
   Terminal,
@@ -736,16 +734,6 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content="Auto-Format Code" shortcut="Shift+Alt+F" position="bottom" accent="green">
-            <button
-              onClick={handleFormat}
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border bg-[#161026] hover:bg-[#281b3d] text-[#00e676] border-[#261d38] hover:border-[#00e676]/50 transition-colors cursor-pointer"
-            >
-              <Wand2 className="w-3 h-3 text-[#00e676]" />
-              <span className="hidden sm:inline">FORMAT</span>
-            </button>
-          </DracoTooltip>
-
           <DracoTooltip content={isMinimapOn ? "Hide Code Minimap" : "Show Code Minimap"} position="bottom" accent="pink">
             <button
               onClick={() => setIsMinimapOn(!isMinimapOn)}
@@ -757,20 +745,6 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
             >
               <Layout className="w-3 h-3 text-[#ff007f]" />
               <span className="hidden sm:inline">MINIMAP</span>
-            </button>
-          </DracoTooltip>
-
-          <DracoTooltip content={isSyntaxOn ? "Disable Syntax Colors" : "Enable Syntax Colors"} position="bottom" accent="cyan">
-            <button
-              onClick={() => setIsSyntaxOn(!isSyntaxOn)}
-              className={`flex items-center gap-1 text-[10px] px-2 py-0.5 border transition-colors cursor-pointer ${
-                isSyntaxOn
-                  ? "bg-[#281b3d] text-[#00e5ff] border-[#00e5ff]/50"
-                  : "bg-[#161026] text-[#7a7194] border-[#261d38]"
-              }`}
-            >
-              {isSyntaxOn ? <Eye className="w-3 h-3 text-[#00e676]" /> : <EyeOff className="w-3 h-3" />}
-              <span className="hidden sm:inline">SYNTAX</span>
             </button>
           </DracoTooltip>
 
