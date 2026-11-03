@@ -388,6 +388,29 @@ ipcMain.handle('read-dir', async (event, dirPath) => {
   }
 });
 
+ipcMain.handle('read-image-base64', async (event, filePath) => {
+  try {
+    const buf = await fs.promises.readFile(filePath);
+    const ext = path.extname(filePath).toLowerCase().replace('.', '');
+    const mimeMap = {
+      svg: 'image/svg+xml',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      ico: 'image/x-icon',
+      bmp: 'image/bmp',
+      avif: 'image/avif',
+    };
+    const mime = mimeMap[ext] || 'image/png';
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch (err) {
+    console.error('Error reading image:', err);
+    throw err;
+  }
+});
+
 ipcMain.handle('read-file', async (event, filePath) => {
   try {
     return await fs.promises.readFile(filePath, 'utf-8');

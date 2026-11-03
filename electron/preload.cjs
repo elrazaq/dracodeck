@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   readDir: (dirPath) => ipcRenderer.invoke('read-dir', dirPath),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+  readImageBase64: (filePath) => ipcRenderer.invoke('read-image-base64', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
   deleteFile: (targetPath) => ipcRenderer.invoke('delete-file', targetPath),
   renameFile: (oldPath, newPath) => ipcRenderer.invoke('rename-file', oldPath, newPath),

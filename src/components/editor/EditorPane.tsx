@@ -48,6 +48,42 @@ interface EditorPaneProps {
   onToggleTerminal?: () => void;
 }
 
+const isImageFile = (fileName: string): boolean =>
+  /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(fileName || "");
+
+const RAINBOW_INDENT_STYLES = [
+  "bg-[#00e5ff]/[0.07] border-l border-[#00e5ff]/40",
+  "bg-[#ff007f]/[0.07] border-l border-[#ff007f]/40",
+  "bg-[#ffeb3b]/[0.07] border-l border-[#ffeb3b]/40",
+  "bg-[#00e676]/[0.07] border-l border-[#00e676]/40",
+  "bg-[#bb86fc]/[0.07] border-l border-[#bb86fc]/40",
+  "bg-[#ff8800]/[0.07] border-l border-[#ff8800]/40",
+];
+
+function renderRainbowIndent(rawLine: string) {
+  if (!rawLine) return null;
+  let spaces = 0;
+  for (let i = 0; i < rawLine.length; i++) {
+    if (rawLine[i] === " ") spaces += 1;
+    else if (rawLine[i] === "\t") spaces += 2;
+    else break;
+  }
+  const levels = Math.floor(spaces / 2);
+  if (levels <= 0) return null;
+  const guides = [];
+  for (let lvl = 0; lvl < Math.min(levels, 24); lvl++) {
+    const style = RAINBOW_INDENT_STYLES[lvl % RAINBOW_INDENT_STYLES.length];
+    guides.push(
+      <span
+        key={lvl}
+        style={{ left: `${lvl * 2}ch`, width: "2ch" }}
+        className={`absolute top-0 bottom-0 pointer-events-none ${style}`}
+      />
+    );
+  }
+  return <>{guides}</>;
+}
+
 export const EditorPane: React.FC<EditorPaneProps> = ({
   activeFile,
   onActiveFileChange,
@@ -60,6 +96,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const [tabs, setTabs] = useState<OpenTab[]>([]);
   const [activeTabPath, setActiveTabPath] = useState<string>("");
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [imagePreviewSrc, setImagePreviewSrc] = useState<string>("");
+  const [imageZoom, setImageZoom] = useState<number>(100);
+  const [imageDimensions, setImageDimensions] = useState<{ w: number; h: number } | null>(null);
+  const [imageGridBg, setImageGridBg] = useState<boolean>(true);
   const [isSyntaxOn, setIsSyntaxOn] = useState<boolean>(true);
   const [isMinimapOn, setIsMinimapOn] = useState<boolean>(true);
   const [viewportRatio, setViewportRatio] = useState<{ top: number; height: number }>({
@@ -161,6 +201,85 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
   const currentTab = tabs.find((t) => normalizePathKey(t.path) === normalizePathKey(activeTabPath));
 
+  // Load Image Preview source when active tab is an image file
+  useEffect(() => {
+    if (!currentTab || !isImageFile(currentTab.name)) {
+      setImagePreviewSrc("");
+      setImageDimensions(null);
+      return;
+    }
+    setImageZoom(100);
+    setImageDimensions(null);
+    let cancelled = false;
+    const loadImg = async () => {
+      if (window.dracoAPI?.readImageBase64) {
+        try {
+          const dataUrl = await window.dracoAPI.readImageBase64(currentTab.path);
+          if (!cancelled && dataUrl) {
+            setImagePreviewSrc(dataUrl);
+            return;
+          }
+        } catch {}
+      }
+      // Instant fallback via Vite /@fs/ dev server or file:// protocol
+      const normalized = currentTab.path.replace(/\\/g, "/");
+      const fallbackUrl = window.location.protocol.startsWith("http")
+        ? `/@fs/${normalized.startsWith("/") ? normalized.slice(1) : normalized}`
+        : `file:///${normalized}`;
+      if (!cancelled) {
+        setImagePreviewSrc(fallbackUrl);
+      }
+    };
+    loadImg();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTab?.path, currentTab?.name]);
+
+  // Broadcast live code content for real-time Problems tab & listen for jump-to-line
+  useEffect(() => {
+    if (!currentTab || isImageFile(currentTab.name)) {
+      window.dispatchEvent(
+        new CustomEvent("dracode:editor-diagnostics", {
+          detail: { path: "", name: "", content: "" },
+        })
+      );
+      return;
+    }
+    const timer = setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("dracode:editor-diagnostics", {
+          detail: {
+            path: currentTab.path,
+            name: currentTab.name,
+            content: currentTab.content,
+          },
+        })
+      );
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [currentTab?.path, currentTab?.name, currentTab?.content]);
+
+  useEffect(() => {
+    const handleJump = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || !textareaRef.current || !currentTab) return;
+      const targetLine = Math.max(1, detail.line || 1);
+      const allLines = currentTab.content.split("\n");
+      let charPos = 0;
+      for (let i = 0; i < Math.min(targetLine - 1, allLines.length); i++) {
+        charPos += allLines[i].length + 1;
+      }
+      const lineLen = allLines[targetLine - 1]?.length || 0;
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(charPos, charPos + lineLen);
+      const targetScroll = Math.max(0, (targetLine - 1) * 20 - textareaRef.current.clientHeight / 2);
+      textareaRef.current.scrollTo({ top: targetScroll, behavior: "smooth" });
+    };
+    window.addEventListener("dracode:jump-to-line", handleJump);
+    return () => window.removeEventListener("dracode:jump-to-line", handleJump);
+  }, [currentTab]);
+
   // Update active language for BottomBar
   useEffect(() => {
     if (currentTab && onLanguageChange) {
@@ -240,11 +359,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     onActiveFileChange?.(undefined);
   };
 
-  const lines = currentTab ? currentTab.content.split("\n") : [];
+  const lines = currentTab && !isImageFile(currentTab.name) ? currentTab.content.split("\n") : [];
 
   // Syntax highlighting memoization
   const tokenizedLines = useMemo(() => {
-    if (!currentTab) return [];
+    if (!currentTab || isImageFile(currentTab.name)) return [];
     return highlightCode(currentTab.content, currentTab.name);
   }, [currentTab?.content, currentTab?.name]);
 
@@ -905,14 +1024,101 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       {/* Code Editor Body */}
       <div className="flex-1 bg-[#0b0813] flex overflow-hidden">
         {currentTab ? (
+          isImageFile(currentTab.name) ? (
+            <div className="flex-1 flex flex-col bg-[#0b0813] overflow-hidden select-none">
+              {/* Image Preview Toolbar */}
+              <div className="h-8 bg-[#1c1c24] border-b border-[#2d2d3a] px-3 flex items-center justify-between text-[11px] text-[#cbd5e1]">
+                <div className="flex items-center gap-3 truncate">
+                  <span className="text-[#00e5ff] font-bold uppercase">IMAGE PREVIEW</span>
+                  <span className="text-[#94a3b8] truncate">{currentTab.path}</span>
+                  {imageDimensions && (
+                    <span className="px-1.5 py-0.5 bg-[#121218] border border-[#2d2d3a] text-[#00e676] text-[10px] font-bold rounded-xs">
+                      {imageDimensions.w} x {imageDimensions.h} px
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => setImageGridBg((p) => !p)}
+                    className={`px-2 py-0.5 border text-[10px] font-semibold rounded-xs cursor-pointer transition-colors ${
+                      imageGridBg
+                        ? "bg-[#2d2d3a] text-[#00e5ff] border-[#00e5ff]/40"
+                        : "bg-[#121218] text-[#94a3b8] border-[#2d2d3a]"
+                    }`}
+                  >
+                    GRID BG
+                  </button>
+                  <button
+                    onClick={() => setImageZoom((z) => Math.max(20, z - 25))}
+                    className="px-2 py-0.5 bg-[#121218] hover:bg-[#2d2d3a] border border-[#2d2d3a] text-[#e2e8f0] rounded-xs cursor-pointer font-bold"
+                  >
+                    -
+                  </button>
+                  <button
+                    onClick={() => setImageZoom(100)}
+                    className="px-2 py-0.5 bg-[#121218] hover:bg-[#2d2d3a] border border-[#2d2d3a] text-[#00e5ff] text-[10px] font-bold rounded-xs cursor-pointer min-w-[48px] text-center"
+                  >
+                    {imageZoom}%
+                  </button>
+                  <button
+                    onClick={() => setImageZoom((z) => Math.min(400, z + 25))}
+                    className="px-2 py-0.5 bg-[#121218] hover:bg-[#2d2d3a] border border-[#2d2d3a] text-[#e2e8f0] rounded-xs cursor-pointer font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Image Preview Canvas */}
+              <div
+                onWheel={(e) => {
+                  if (e.ctrlKey) {
+                    e.preventDefault();
+                    setImageZoom((z) =>
+                      e.deltaY < 0 ? Math.min(400, z + 15) : Math.max(20, z - 15)
+                    );
+                  }
+                }}
+                style={
+                  imageGridBg
+                    ? {
+                        backgroundImage:
+                          "linear-gradient(45deg, #16161e 25%, transparent 25%), linear-gradient(-45deg, #16161e 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #16161e 75%), linear-gradient(-45deg, transparent 75%, #16161e 75%)",
+                        backgroundSize: "20px 20px",
+                        backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+                      }
+                    : undefined
+                }
+                className="flex-1 overflow-auto flex items-center justify-center p-6 bg-[#0b0813]"
+              >
+                {imagePreviewSrc ? (
+                  <img
+                    src={imagePreviewSrc}
+                    alt={currentTab.name}
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      setImageDimensions({ w: img.naturalWidth, h: img.naturalHeight });
+                    }}
+                    style={{
+                      transform: `scale(${imageZoom / 100})`,
+                      transformOrigin: "center center",
+                    }}
+                    className="max-w-full max-h-full object-contain shadow-[0_12px_40px_rgba(0,0,0,0.85)] border border-[#2d2d3a] transition-transform duration-100"
+                  />
+                ) : (
+                  <span className="text-[#7a7194] text-xs">Loading image preview...</span>
+                )}
+              </div>
+            </div>
+          ) : (
           <div className="flex-1 flex overflow-hidden">
-            {/* Line Numbers Gutter */}
+            {/* Dark Gray Line Numbers Gutter with Brighter Text */}
             <div
               ref={gutterRef}
-              className="w-12 bg-[#0e0a19] text-[#443a57] select-none text-right pr-2 pt-3 border-r border-[#261d38] font-mono overflow-hidden"
+              className="w-12 bg-[#1c1c24] text-[#a1a1b5] select-none text-right pr-2.5 pt-3 border-r border-[#2d2d3a] font-mono overflow-hidden"
             >
               {lines.map((_, i) => (
-                <div key={i} className="h-5 leading-5 text-[11px]">
+                <div key={i} className="h-5 leading-5 text-[11px] hover:text-[#e2e8f0]">
                   {i + 1}
                 </div>
               ))}
@@ -923,7 +1129,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               onContextMenu={handleContextMenu}
               className="flex-1 relative overflow-hidden bg-[#0b0813]"
             >
-              {/* Syntax Highlighted Underlay */}
+              {/* Syntax Highlighted Underlay + Rainbow Indent */}
               {isSyntaxOn && (
                 <pre
                   ref={preRef}
@@ -931,7 +1137,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
                   className="absolute inset-0 p-3 pt-3 font-mono text-[11px] leading-5 pointer-events-none select-none overflow-hidden whitespace-pre m-0 border-none bg-transparent"
                 >
                   {tokenizedLines.map((lineTokens, lineIdx) => (
-                    <div key={lineIdx} className="h-5 leading-5">
+                    <div key={lineIdx} className="h-5 leading-5 relative">
+                      {renderRainbowIndent(lines[lineIdx] || "")}
                       {lineTokens.length === 0 ? " " : lineTokens.map((tok, tokIdx) => renderToken(tok, tokIdx))}
                     </div>
                   ))}
@@ -993,6 +1200,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
               </DracoTooltip>
             )}
           </div>
+          )
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center bg-[#090610] text-[#7a7194] p-6 select-none relative overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(#261d3833_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />

@@ -287,6 +287,7 @@ declare global {
       selectFolder: () => Promise<string | null>;
       readDir: (dirPath: string) => Promise<FileItem[]>;
       readFile: (filePath: string) => Promise<string>;
+      readImageBase64?: (filePath: string) => Promise<string>;
       writeFile: (filePath: string, content: string) => Promise<boolean>;
       deleteFile: (targetPath: string) => Promise<boolean>;
       renameFile: (oldPath: string, newPath: string) => Promise<boolean>;

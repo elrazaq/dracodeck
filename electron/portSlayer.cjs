@@ -43,9 +43,21 @@ const PROTECTED_PROCESSES = new Set([
   'spoolsv.exe',
   'fontdrvhost.exe',
   'dwm.exe',
+  'electron.exe',
+  'dracodeck.exe',
 ]);
 
 const PROTECTED_PIDS = new Set([0, 4]);
+
+function getDracoInternalPort() {
+  try {
+    if (process.env.VITE_DEV_SERVER_URL) {
+      const m = process.env.VITE_DEV_SERVER_URL.match(/:(\d+)/);
+      if (m) return parseInt(m[1], 10);
+    }
+  } catch {}
+  return 5173;
+}
 
 function getProcessMap() {
   return new Promise((resolve) => {
@@ -127,7 +139,8 @@ function scanWin32Ports() {
         const procName = processMap.get(pid) || 'unknown';
         const lowerName = procName.toLowerCase();
 
-        const isSelf = pid === selfPid;
+        const internalPort = getDracoInternalPort();
+        const isSelf = pid === selfPid || (process.ppid && pid === process.ppid) || port === internalPort;
         const isProtected = isSelf || PROTECTED_PIDS.has(pid) || PROTECTED_PROCESSES.has(lowerName);
         const label = KNOWN_DEV_PORTS[port] || (procName !== 'unknown' ? procName : `TCP Port ${port}`);
 
@@ -167,7 +180,7 @@ function killWin32Process(pid, forceTree = true) {
       return;
     }
 
-    if (PROTECTED_PIDS.has(targetPid) || targetPid === process.pid) {
+    if (PROTECTED_PIDS.has(targetPid) || targetPid === process.pid || (process.ppid && targetPid === process.ppid)) {
       resolve({ success: false, error: `PID ${targetPid} is protected by system guard.` });
       return;
     }
@@ -251,7 +264,11 @@ function killPortProcess(targetPort) {
         return;
       }
       const ports = await scanWin32Ports();
-      const matches = ports.filter((p) => p.port === portNum && p.state === 'LISTENING');
+      if (portNum === getDracoInternalPort()) {
+        resolve({ success: false, error: `Port ${portNum} is Dracodeck's own runtime port and cannot be slayed.` });
+        return;
+      }
+      const matches = ports.filter((p) => p.port === portNum && p.state === 'LISTENING' && !p.isSelf && !p.isProtected);
       if (matches.length === 0) {
         resolve({ success: false, error: `No active listening process on port ${portNum}` });
         return;
