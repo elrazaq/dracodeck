@@ -153,8 +153,32 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [isProviderMenuOpen, setIsProviderMenuOpen] = useState(false);
   const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false);
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("Gemini 4 Argon High");
+  const [selectedModel, setSelectedModel] = useState("Gemini 4 Argon (High)");
+  const [selectedModelId, setSelectedModelId] = useState("gemini-4-argon-high");
+  const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; effort: string }>>([
+    { id: "gemini-4-argon-high", name: "Gemini 4 Argon (High)", effort: "high" },
+    { id: "gemini-4-argon-medium", name: "Gemini 4 Argon (Medium)", effort: "medium" },
+    { id: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)", effort: "high" },
+    { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)", effort: "medium" },
+    { id: "claude-opus-5-5-high", name: "Claude Opus 5.5 (High)", effort: "high" },
+    { id: "claude-sonnet-5-5-high", name: "Claude Sonnet 5.5 (High)", effort: "high" },
+    { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", effort: "medium" },
+  ]);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+
+  // Real Antigravity Skills & Actions
+  const [availableSkills, setAvailableSkills] = useState<Array<{ name: string; command: string; description: string }>>([
+    { name: "caveman", command: "/caveman", description: "Terse caveman voice: answer first, fluff gone, technical facts kept." },
+    { name: "design-taste-frontend", command: "/design-taste-frontend", description: "Anti-slop frontend art direction and typography." },
+    { name: "hallmark", command: "/hallmark", description: "Authentic design tokens and evidence-based presentation." },
+    { name: "ponytail", command: "/ponytail", description: "Lazy senior dev mode: simplest minimal solution, extreme YAGNI." },
+    { name: "ponytail-audit", command: "/ponytail-audit", description: "Quality audit of codebase for bugs, bloat and bottlenecks." },
+    { name: "ponytail-review", command: "/ponytail-review", description: "Quality code review line by line." },
+  ]);
+  const [isSkillPickerOpen, setIsSkillPickerOpen] = useState(false);
+
+  // Collapsible 'Worked for Xm / steps' state per assistant message
+  const [openWorkedMap, setOpenWorkedMap] = useState<Record<string, boolean>>({});
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Refresh Real Git Telemetry (Adaptive Resolution + Branches + Logs + Identity)
@@ -262,6 +286,12 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       } else if (action === "get-messages" && window.dracoAPI?.antigravityGetMessages) {
         const res = await window.dracoAPI.antigravityGetMessages(payload.conversationId);
         if (res && !String(res.error || "").includes("No handler registered")) return res;
+      } else if (action === "get-models" && window.dracoAPI?.antigravityGetModels) {
+        const res = await window.dracoAPI.antigravityGetModels();
+        if (res && !String(res.error || "").includes("No handler registered")) return res;
+      } else if (action === "get-skills" && window.dracoAPI?.antigravityGetSkills) {
+        const res = await window.dracoAPI.antigravityGetSkills(payload?.workspacePath);
+        if (res && !String(res.error || "").includes("No handler registered")) return res;
       }
     } catch {}
 
@@ -295,6 +325,20 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         if (res && res.ok) {
           setAgyState(res);
           setConnectedScopeRef(targetWorkspace);
+
+          // Fetch real available models from agy.exe
+          callAntigravityBridge("get-models", {}).then((mRes) => {
+            if (mRes && mRes.ok && Array.isArray(mRes.models) && mRes.models.length > 0) {
+              setAvailableModels(mRes.models);
+            }
+          });
+
+          // Fetch real available skills
+          callAntigravityBridge("get-skills", { workspacePath: targetWorkspace }).then((sRes) => {
+            if (sRes && sRes.ok && Array.isArray(sRes.skills) && sRes.skills.length > 0) {
+              setAvailableSkills(sRes.skills);
+            }
+          });
           if (opts.showBanner) {
             if (res.autoCreatedProject) {
               setAgyStatusNotice(
@@ -366,6 +410,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         projectName: agyState?.projectName || "workspace",
         conversationId: activeId,
         prompt: cleanPrompt,
+        model: selectedModelId,
       });
 
       if (res && Array.isArray(res.messages) && res.messages.length > 0) {
@@ -1828,40 +1873,78 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                         return nodes;
                       };
 
+                      const hasInternalSteps = Boolean(
+                        msg.thinking || (msg.tools && msg.tools.length > 0) || msg.stepIndex
+                      );
+                      const isWorkedOpen = openWorkedMap[msg.id] ?? false;
+
                       return (
-                        <div key={msg.id} className="space-y-1.5 select-text">
-                          {msg.thinking && (
-                            <div className="text-[10px] text-slate-400 italic bg-[#171226] p-2 rounded-lg border-l-2 border-[#5b468c] line-clamp-3">
-                              {msg.thinking}
+                        <div key={msg.id} className="space-y-2 select-text font-sans">
+                          {/* Collapsible Worked for Xm / Steps Header (Images 1 & 2) */}
+                          {hasInternalSteps && (
+                            <div>
+                              <button
+                                onClick={() =>
+                                  setOpenWorkedMap((prev) => ({
+                                    ...prev,
+                                    [msg.id]: !isWorkedOpen,
+                                  }))
+                                }
+                                className="text-[11.5px] text-[#4ea8de] hover:underline flex items-center gap-1 cursor-pointer font-sans font-medium select-none"
+                              >
+                                <span>
+                                  Worked for {msg.stepIndex ? `${msg.stepIndex} steps` : "a few steps"}
+                                </span>
+                                <ChevronRight
+                                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                    isWorkedOpen ? "rotate-90" : ""
+                                  }`}
+                                />
+                              </button>
+
+                              {isWorkedOpen && (
+                                <div className="mt-1.5 bg-[#171226] border border-[#2d2448] p-2.5 rounded-lg space-y-2 text-xs font-mono">
+                                  {msg.thinking && (
+                                    <div className="text-[10.5px] text-slate-400 italic bg-[#100b1c] p-2 rounded border-l-2 border-[#5b468c] whitespace-pre-wrap leading-relaxed">
+                                      {msg.thinking}
+                                    </div>
+                                  )}
+
+                                  {msg.tools && msg.tools.length > 0 && (
+                                    <div className="space-y-1">
+                                      {msg.tools.map((t, idx) => (
+                                        <div
+                                          key={`${msg.id}-t-${idx}`}
+                                          className="flex items-center gap-1.5 px-2 py-1 bg-[#100b1c] border border-[#2d2448] rounded text-[10px]"
+                                        >
+                                          {t.name.includes("file") ||
+                                          t.name.includes("read") ||
+                                          t.name.includes("edit") ? (
+                                            <FileCode className="w-3 h-3 text-[#00e676] shrink-0" />
+                                          ) : (
+                                            <Terminal className="w-3 h-3 text-[#ff8800] shrink-0" />
+                                          )}
+                                          <span className="text-[#00e5ff] font-bold shrink-0">
+                                            {t.name}
+                                          </span>
+                                          {t.summary && (
+                                            <span className="text-slate-400 truncate">
+                                              {t.summary}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
 
+                          {/* Concise Summary / Outcome Report */}
                           <div className="text-slate-200 leading-relaxed text-xs">
                             {renderBlocks(msg.content)}
                           </div>
-
-                          {msg.tools && msg.tools.length > 0 && (
-                            <div className="space-y-1 pt-1">
-                              {msg.tools.map((t, idx) => (
-                                <div
-                                  key={`${msg.id}-t-${idx}`}
-                                  className="flex items-center gap-1.5 px-2 py-1 bg-[#171226] border border-[#2d2448] rounded text-[10px]"
-                                >
-                                  {t.name.includes("file") || t.name.includes("read") || t.name.includes("edit") ? (
-                                    <FileCode className="w-3 h-3 text-[#00e676] shrink-0" />
-                                  ) : (
-                                    <Terminal className="w-3 h-3 text-[#ff8800] shrink-0" />
-                                  )}
-                                  <span className="text-[#00e5ff] font-mono font-bold shrink-0">
-                                    {t.name}
-                                  </span>
-                                  {t.summary && (
-                                    <span className="text-slate-400 truncate">{t.summary}</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       );
                     })
@@ -1914,19 +1997,51 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
               <div className="flex items-center justify-between pt-1">
                 <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      setAgyPromptInput((prev) =>
-                        prev ? `${prev}\n/caveman /hallmark /ponytail` : "/caveman /hallmark /ponytail"
-                      );
-                    }}
-                    className="w-6 h-6 rounded-full hover:bg-[#281f3e] flex items-center justify-center text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
-                    title="Add actions or skill tags"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Skill Picker Popover Button (+) */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsSkillPickerOpen(!isSkillPickerOpen)}
+                      className="w-6 h-6 rounded-full hover:bg-[#281f3e] flex items-center justify-center text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                      title="Insert Slash Command / Skill"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
 
-                  {/* Model Selector Pill */}
+                    {isSkillPickerOpen && (
+                      <div
+                        className="absolute left-0 bottom-full mb-2 w-64 max-h-64 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
+                      >
+                        <div className="px-3 py-1.5 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider border-b border-[#291f42] flex items-center justify-between">
+                          <span>AVAILABLE SKILLS ({availableSkills.length})</span>
+                          <span className="text-[#00e5ff]">CLI SYNC</span>
+                        </div>
+                        {availableSkills.map((sk) => (
+                          <button
+                            key={sk.name}
+                            onClick={() => {
+                              setAgyPromptInput((prev) =>
+                                prev ? `${prev} ${sk.command}` : sk.command
+                              );
+                              setIsSkillPickerOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex flex-col cursor-pointer border-b border-[#231a38]/30 group"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Code2 className="w-3 h-3 text-[#ff007f] group-hover:text-[#00e5ff]" />
+                              <span className="font-bold text-slate-200 font-mono text-[10.5px]">
+                                {sk.command}
+                              </span>
+                            </div>
+                            <span className="text-[9.5px] text-slate-400 truncate pl-4">
+                              {sk.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Real Official Antigravity Model Selector Pill */}
                   <div className="relative">
                     <button
                       onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
@@ -1939,27 +2054,30 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
                     {isModelMenuOpen && (
                       <div
-                        onClick={() => setIsModelMenuOpen(false)}
-                        className="absolute left-0 bottom-full mb-1.5 w-48 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
+                        className="absolute left-0 bottom-full mb-1.5 w-56 max-h-64 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
                       >
-                        {[
-                          "Gemini 4 Argon High",
-                          "Gemini 3.8 Flash High",
-                          "Gemini 3.8 Pro",
-                          "Antigravity CLI Live",
-                        ].map((m) => (
+                        <div className="px-3 py-1 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider border-b border-[#291f42] flex items-center justify-between">
+                          <span>OFFICIAL AGY MODELS</span>
+                          <span className="text-[#00e676]">ONLINE</span>
+                        </div>
+                        {availableModels.map((m) => (
                           <button
-                            key={m}
+                            key={m.id}
                             onClick={() => {
-                              setSelectedModel(m);
+                              setSelectedModel(m.name);
+                              setSelectedModelId(m.id);
                               setIsModelMenuOpen(false);
                             }}
                             className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
-                              selectedModel === m ? "bg-[#251b3d] text-[#00e5ff]" : "text-slate-300"
+                              selectedModelId === m.id
+                                ? "bg-[#251b3d] text-[#00e5ff]"
+                                : "text-slate-300"
                             }`}
                           >
-                            <span>{m}</span>
-                            {selectedModel === m && <Check className="w-3 h-3 text-[#00e5ff]" />}
+                            <span className="truncate">{m.name}</span>
+                            {selectedModelId === m.id && (
+                              <Check className="w-3 h-3 text-[#00e5ff] shrink-0" />
+                            )}
                           </button>
                         ))}
                       </div>

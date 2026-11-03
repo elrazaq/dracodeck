@@ -35,6 +35,16 @@ function dracoAntigravityDevPlugin() {
             res.end(JSON.stringify(result));
             return;
           }
+          if (req.url.startsWith("/__draco_antigravity/get-models")) {
+            const result = await bridge.getAvailableModels();
+            res.end(JSON.stringify(result));
+            return;
+          }
+          if (req.url.startsWith("/__draco_antigravity/get-skills")) {
+            const result = bridge.getAvailableSkills(body.workspacePath);
+            res.end(JSON.stringify(result));
+            return;
+          }
           if (req.url.startsWith("/__draco_antigravity/get-messages")) {
             const result = bridge.getSessionMessages(body.conversationId);
             res.end(JSON.stringify(result));

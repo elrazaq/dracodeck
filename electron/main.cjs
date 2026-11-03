@@ -910,6 +910,22 @@ ipcMain.handle('antigravity-send-prompt', async (event, payload) => {
   }
 });
 
+ipcMain.handle('antigravity-get-models', async () => {
+  try {
+    return await antigravityBridge.getAvailableModels();
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('antigravity-get-skills', async (event, workspacePath) => {
+  try {
+    return antigravityBridge.getAvailableSkills(workspacePath || activeAppCwd);
+  } catch (err) {
+    return { ok: false, error: err.message, skills: [] };
+  }
+});
+
 ipcMain.handle('antigravity-get-messages', async (event, conversationId) => {
   try {
     return antigravityBridge.getSessionMessages(conversationId);

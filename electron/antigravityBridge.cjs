@@ -354,6 +354,13 @@ function sendPrompt(payload = {}) {
     const args = ['-p', '--output-format', 'text', '--add-dir', workspacePath];
     const sessInfo = pendingSessions.get(conversationId);
 
+    if (payload.model) {
+      args.push('--model', String(payload.model));
+    }
+    if (payload.effort) {
+      args.push('--effort', String(payload.effort));
+    }
+
     if (existsOnDisk) {
       args.push('--conversation', conversationId);
     } else if (sessInfo && sessInfo.isNewProject) {
@@ -435,6 +442,92 @@ function sendPrompt(payload = {}) {
   });
 }
 
+
+async function getAvailableModels() {
+  const agyBin = getAgyBinaryPath();
+  const defaultModels = [
+    { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', effort: 'high' },
+    { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)', effort: 'medium' },
+    { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', effort: 'high' },
+    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash (Medium)', effort: 'medium' },
+    { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 (High)', effort: 'high' },
+    { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 (High)', effort: 'high' },
+    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)', effort: 'medium' },
+  ];
+
+  return new Promise((resolve) => {
+    execFile(agyBin, ['models'], { timeout: 8000 }, (err, stdout) => {
+      if (err || !stdout) {
+        resolve({ ok: true, models: defaultModels, source: 'fallback' });
+        return;
+      }
+      try {
+        const lines = stdout.split(/\r?\n/).filter(Boolean);
+        const parsed = [];
+        for (const line of lines) {
+          if (line.includes('Fetching available models')) continue;
+          const parts = line.split('\t');
+          if (parts.length >= 2) {
+            const id = parts[0].trim();
+            const name = parts[1].trim();
+            parsed.push({
+              id,
+              name,
+              effort: id.includes('high') ? 'high' : id.includes('medium') ? 'medium' : 'low',
+            });
+          }
+        }
+        resolve({
+          ok: true,
+          models: parsed.length > 0 ? parsed : defaultModels,
+          source: 'agy.exe',
+        });
+      } catch {
+        resolve({ ok: true, models: defaultModels, source: 'fallback' });
+      }
+    });
+  });
+}
+
+function getAvailableSkills(workspacePath) {
+  const skills = [];
+  const checkedNames = new Set();
+
+  function scanDir(dir) {
+    if (!dir || !fs.existsSync(dir)) return;
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const ent of entries) {
+        if (ent.isDirectory()) {
+          const skillFile = path.join(dir, ent.name, 'SKILL.md');
+          if (fs.existsSync(skillFile) && !checkedNames.has(ent.name)) {
+            checkedNames.add(ent.name);
+            let desc = '';
+            try {
+              const content = fs.readFileSync(skillFile, 'utf-8');
+              const match = content.match(/description:\s*([^\r\n]+)/i);
+              if (match) desc = match[1].trim();
+            } catch {}
+            skills.push({
+              name: ent.name,
+              command: `/${ent.name}`,
+              description: desc || `Skill: ${ent.name}`,
+              path: skillFile,
+            });
+          }
+        }
+      }
+    } catch {}
+  }
+
+  if (workspacePath) {
+    scanDir(path.join(workspacePath, '.agents', 'skills'));
+  }
+  scanDir(path.join(getAntigravityRoot(), 'builtin', 'skills'));
+
+  return { ok: true, skills };
+}
+
 function getSessionMessages(conversationId) {
   return {
     ok: true,
@@ -448,4 +541,6 @@ module.exports = {
   connectScope,
   sendPrompt,
   getSessionMessages,
+  getAvailableModels,
+  getAvailableSkills,
 };
