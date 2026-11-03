@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   FolderTree,
   GitBranch,
@@ -23,6 +23,18 @@ import {
   Link2,
   FolderGit2,
   ChevronRight,
+  MoreHorizontal,
+  Maximize2,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  MoreVertical,
+  Columns,
+  PanelLeft,
+  ArrowDown,
+  ArrowRight,
+  Code2,
+  Zap,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -136,6 +148,14 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [agyPromptInput, setAgyPromptInput] = useState("");
   const [agyStatusNotice, setAgyStatusNotice] = useState<string | null>(null);
   const [connectedScopeRef, setConnectedScopeRef] = useState<string>("");
+
+  // Antigravity UI State (Matching Official Antigravity Chat Layout)
+  const [isProviderMenuOpen, setIsProviderMenuOpen] = useState(false);
+  const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false);
+  const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("Gemini 4 Argon High");
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Refresh Real Git Telemetry (Adaptive Resolution + Branches + Logs + Identity)
   const refreshGit = useCallback(async () => {
@@ -680,56 +700,116 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
   return (
     <div className="h-full bg-[#161026] flex flex-col select-none overflow-hidden border-r border-[#261d38] font-mono text-xs relative">
-      {/* Top Brand Header for Dracode Multi-Sidebar */}
-      <div className="h-8 min-h-[32px] bg-[#100b1c] border-b border-[#261d38] px-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 truncate">
-          <DracodeLogo size={17} />
-          <span className="font-bold tracking-wider text-[#e2e8f0] text-[11px]">
-            DRACODE
-          </span>
-          <span className="text-[9px] px-1.5 py-0.2 bg-[#281b3d] border border-[#ff007f]/40 text-[#00e5ff] font-bold uppercase">
-            {mode === "explorer" ? "EXPLORER" : mode === "git" ? "DRACOOPS GIT" : "AI AGENT"}
-          </span>
-        </div>
+      {/* Top Header: Dynamic between Explorer/Git and Sleek Antigravity Chat */}
+      {mode === "agent" ? (
+        <div className="h-9 min-h-[36px] bg-[#141021] border-b border-[#241c38] px-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="px-2.5 py-0.5 bg-[#251e38] text-slate-100 font-medium text-xs rounded-md shadow-xs select-none flex items-center gap-1.5">
+              <span>Chat</span>
+              {(isAgentLoading || isAgyConnecting) && (
+                <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#00e5ff]" />
+              )}
+            </span>
+          </div>
 
-        {mode === "git" && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2 text-slate-400 relative">
             <button
-              onClick={() => setShowIdentityModal(true)}
-              className="text-[#7a7194] hover:text-[#00e676] p-1 cursor-pointer"
-              title={
-                userConfig?.hasIdentity
-                  ? `Git Author: ${userConfig.name} <${userConfig.email}>`
-                  : "Setup Git Author Identity"
-              }
+              onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
+              className="hover:text-slate-200 p-1 cursor-pointer rounded hover:bg-[#201933]"
+              title="More options"
             >
-              <UserCheck className={`w-3.5 h-3.5 ${userConfig?.hasIdentity ? "text-[#00e676]" : "text-[#ff8800]"}`} />
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {isOptionsMenuOpen && (
+              <div
+                onClick={() => setIsOptionsMenuOpen(false)}
+                className="absolute right-8 top-full mt-1 w-48 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
+              >
+                <button
+                  onClick={() => {
+                    setAgentSubView(agentSubView === "chat" ? "telemetry" : "chat");
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center justify-between"
+                >
+                  <span>View: {agentSubView === "chat" ? "Telemetry Stream" : "Live Chat"}</span>
+                  <Activity className="w-3 h-3 text-[#00e5ff]" />
+                </button>
+                <button
+                  onClick={() => {
+                    connectAntigravityScope(workspacePath, { createNewSession: true, showBanner: true });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center justify-between"
+                >
+                  <span>+ New Session</span>
+                  <Plus className="w-3 h-3 text-[#ff007f]" />
+                </button>
+                <button
+                  onClick={() => {
+                    refreshAgentSessions();
+                    if (workspacePath) connectAntigravityScope(workspacePath, { createNewSession: false });
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center justify-between"
+                >
+                  <span>Refresh Connection</span>
+                  <RefreshCw className="w-3 h-3 text-[#00e676]" />
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={() => {}}
+              className="hover:text-slate-200 p-1 cursor-pointer rounded hover:bg-[#201933]"
+              title="Maximize"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={refreshGit}
-              className="text-[#7a7194] hover:text-[#00e5ff] p-1 cursor-pointer"
-              title="Refresh DracoOps Git Telemetry"
+              onClick={() => setMode("explorer")}
+              className="hover:text-slate-200 p-1 cursor-pointer rounded hover:bg-[#201933]"
+              title="Close"
             >
-              <RefreshCw className={`w-3 h-3 ${isGitBusy ? "animate-spin text-[#00e5ff]" : ""}`} />
+              <X className="w-4 h-4" />
             </button>
           </div>
-        )}
+        </div>
+      ) : (
+        /* Top Brand Header for Dracode Multi-Sidebar in Explorer / Git */
+        <div className="h-8 min-h-[32px] bg-[#100b1c] border-b border-[#261d38] px-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2 truncate">
+            <DracodeLogo size={17} />
+            <span className="font-bold tracking-wider text-[#e2e8f0] text-[11px]">
+              DRACODE
+            </span>
+            <span className="text-[9px] px-1.5 py-0.2 bg-[#281b3d] border border-[#ff007f]/40 text-[#00e5ff] font-bold uppercase">
+              {mode === "explorer" ? "EXPLORER" : "DRACOOPS GIT"}
+            </span>
+          </div>
 
-        {mode === "agent" && (
-          <button
-            onClick={() => {
-              refreshAgentSessions();
-              if (workspacePath) {
-                connectAntigravityScope(workspacePath, { createNewSession: false });
-              }
-            }}
-            className="text-[#7a7194] hover:text-[#ff007f] p-1 cursor-pointer"
-            title="Refresh Antigravity Project & Agent Stream"
-          >
-            <RefreshCw className={`w-3 h-3 ${isAgentLoading || isAgyConnecting ? "animate-spin text-[#ff007f]" : ""}`} />
-          </button>
-        )}
-      </div>
+          {mode === "git" && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowIdentityModal(true)}
+                className="text-[#7a7194] hover:text-[#00e676] p-1 cursor-pointer"
+                title={
+                  userConfig?.hasIdentity
+                    ? `Git Author: ${userConfig.name} <${userConfig.email}>`
+                    : "Setup Git Author Identity"
+                }
+              >
+                <UserCheck className={`w-3.5 h-3.5 ${userConfig?.hasIdentity ? "text-[#00e676]" : "text-[#ff8800]"}`} />
+              </button>
+              <button
+                onClick={refreshGit}
+                className="text-[#7a7194] hover:text-[#00e5ff] p-1 cursor-pointer"
+                title="Refresh DracoOps Git Telemetry"
+              >
+                <RefreshCw className={`w-3 h-3 ${isGitBusy ? "animate-spin text-[#00e5ff]" : ""}`} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Dynamic Sidebar Content Area */}
       <div className="flex-1 overflow-hidden flex flex-col">
@@ -1315,462 +1395,602 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
           </div>
         )}
 
-        {/* 03. AGENT MODE (M8: Multi-Agent Picker + Official Google Antigravity Live Bridge) */}
+        {/* 03. AGENT MODE: Pixel-Perfect Antigravity Chat Experience */}
         {mode === "agent" && (
-          <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5">
-              {/* 1. Multi-Agent Provider Selector (Antigravity, Copilot, Codex, Claude, Cursor) */}
-              <div className="bg-[#120c1f] border border-[#261d38] p-2 space-y-1.5">
-                <div className="flex items-center justify-between text-[9.5px]">
-                  <span className="text-[#7a7194] font-bold uppercase tracking-wider">
-                    SELECT AI AGENT PROVIDER
-                  </span>
-                  <span className="text-[#00e676] font-bold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#00e676] animate-pulse" />
-                    <span>OFFICIAL CLI</span>
-                  </span>
-                </div>
+          <div className="flex-1 overflow-hidden flex flex-col bg-[#141021] text-xs font-sans relative">
+            {/* 1. Provider Picker Row (⌄ Antigravity Dropdown) */}
+            <div className="relative px-3 pt-2 pb-1 bg-[#141021]">
+              <button
+                onClick={() => setIsProviderMenuOpen(!isProviderMenuOpen)}
+                className="flex items-center gap-1.5 text-slate-100 font-bold text-[13px] hover:text-white cursor-pointer select-none"
+              >
+                <ChevronDown className="w-4 h-4 text-slate-300" />
+                <span>
+                  {selectedProvider === "antigravity"
+                    ? "Antigravity"
+                    : selectedProvider === "copilot"
+                    ? "GitHub Copilot"
+                    : selectedProvider === "codex"
+                    ? "OpenAI Codex"
+                    : selectedProvider === "claude"
+                    ? "Anthropic Claude"
+                    : "Cursor"}
+                </span>
+              </button>
 
-                <div className="grid grid-cols-5 gap-1">
-                  {(
-                    [
-                      { id: "antigravity", label: "ANTIGRAVITY", live: true },
-                      { id: "copilot", label: "COPILOT", live: false },
-                      { id: "codex", label: "CODEX", live: false },
-                      { id: "claude", label: "CLAUDE", live: false },
-                      { id: "cursor", label: "CURSOR", live: false },
-                    ] as const
-                  ).map((prov) => {
-                    const isSelected = selectedProvider === prov.id;
-                    return (
-                      <button
-                        key={prov.id}
-                        onClick={() => {
-                          setSelectedProvider(prov.id);
-                          if (prov.id === "antigravity" && workspacePath) {
-                            connectAntigravityScope(workspacePath, {
-                              createNewSession: true,
-                              showBanner: true,
-                            });
-                          }
-                        }}
-                        className={`py-1.5 px-1 border text-[8.5px] font-bold tracking-tight flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors relative ${
-                          isSelected
-                            ? prov.id === "antigravity"
-                              ? "bg-[#281b3d] border-[#ff007f] text-[#00e5ff] shadow-[0_0_10px_rgba(255,0,127,0.25)]"
-                              : "bg-[#1a132e] border-[#00e5ff] text-[#e2e8f0]"
-                            : "bg-[#0b0813] border-[#261d38] text-[#7a7194] hover:text-[#e2e8f0] hover:border-[#443a57]"
-                        }`}
-                        title={
-                          prov.id === "antigravity"
-                            ? "Connect Live Google Antigravity Project & Start New Session"
-                            : `Switch to ${prov.label} Provider`
+              {isProviderMenuOpen && (
+                <div
+                  onClick={() => setIsProviderMenuOpen(false)}
+                  className="absolute left-3 top-full mt-1 w-52 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1.5 z-50 text-[11px] font-sans"
+                >
+                  <div className="px-3 py-1 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider">
+                    Select AI Provider
+                  </div>
+                  {[
+                    { id: "antigravity", name: "Google Antigravity", badge: "Live CLI" },
+                    { id: "copilot", name: "GitHub Copilot", badge: "Standby" },
+                    { id: "codex", name: "OpenAI Codex", badge: "Standby" },
+                    { id: "claude", name: "Anthropic Claude", badge: "Standby" },
+                    { id: "cursor", name: "Cursor Composer", badge: "Standby" },
+                  ].map((prov) => (
+                    <button
+                      key={prov.id}
+                      onClick={() => {
+                        setSelectedProvider(prov.id as any);
+                        setIsProviderMenuOpen(false);
+                        if (prov.id === "antigravity" && workspacePath) {
+                          connectAntigravityScope(workspacePath, {
+                            createNewSession: true,
+                            showBanner: true,
+                          });
                         }
-                      >
-                        <div className="flex items-center gap-1">
-                          <Cpu className={`w-3 h-3 ${isSelected ? "text-[#ff007f]" : "text-[#7a7194]"}`} />
-                          {prov.live && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#00e676]" />
-                          )}
-                        </div>
-                        <span className="truncate w-full text-center">{prov.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 2. Primary Provider: Official Google Antigravity Live Connection */}
-              {selectedProvider === "antigravity" ? (
-                <>
-                  {/* Scope Project & Session Provisioning Card */}
-                  <div className="bg-[#120c1f] border border-[#261d38] p-2 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 truncate">
-                        <Sparkles className="w-3.5 h-3.5 text-[#ff007f] shrink-0" />
-                        <span className="text-[10px] font-bold text-[#e2e8f0] truncate">
-                          PROJECT:{" "}
-                          <span className="text-[#00e5ff]">
-                            {agyState?.projectName ||
-                              workspacePath.split(/[/\\]/).filter(Boolean).pop() ||
-                              "workspace"}
-                          </span>
-                        </span>
-                      </div>
-
-                      <span
-                        className={`text-[8.5px] px-1.5 py-0.5 font-bold border shrink-0 ${
-                          agyState?.autoCreatedProject
-                            ? "bg-[#ff007f]/15 border-[#ff007f] text-[#ff007f]"
-                            : "bg-[#00e676]/15 border-[#00e676]/60 text-[#00e676]"
-                        }`}
-                      >
-                        {isAgyConnecting
-                          ? "SYNCING..."
-                          : agyState?.autoCreatedProject
-                          ? "NEW PROJECT"
-                          : "LINKED PROJECT"}
-                      </span>
-                    </div>
-
-                    {/* Auto-Provisioning Banner Notice */}
-                    {agyStatusNotice && (
-                      <div className="flex items-center justify-between gap-1 bg-[#0b0813] border border-[#00e5ff]/60 px-2 py-1 text-[9.5px] text-[#00e5ff]">
-                        <span className="truncate">{agyStatusNotice}</span>
-                        <button
-                          onClick={() => setAgyStatusNotice(null)}
-                          className="text-[#7a7194] hover:text-[#e2e8f0] cursor-pointer shrink-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Active Session Selector + New Session Action */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[9.5px]">
-                        <span className="text-[#7a7194] font-bold">
-                          PROJECT SESSIONS ({agyState?.sessions?.length || 0})
-                        </span>
-                        <button
-                          onClick={() =>
-                            connectAntigravityScope(workspacePath, {
-                              createNewSession: true,
-                              showBanner: true,
-                            })
-                          }
-                          disabled={isAgyConnecting}
-                          className="px-1.5 py-0.5 bg-[#281b3d] hover:bg-[#382654] text-[#00e5ff] border border-[#ff007f]/50 text-[9px] font-bold flex items-center gap-1 cursor-pointer"
-                          title="Create New Conversation Session in this Project"
-                        >
-                          <Plus className="w-2.5 h-2.5 text-[#ff007f]" />
-                          <span>NEW SESSION</span>
-                        </button>
-                      </div>
-
-                      {agyState?.sessions && agyState.sessions.length > 0 && (
-                        <select
-                          value={agyState.activeSessionId}
-                          onChange={(e) => handleSelectAgySession(e.target.value)}
-                          className="w-full bg-[#0b0813] border border-[#261d38] focus:border-[#00e5ff] text-[#00e5ff] text-[10px] p-1 outline-none font-mono cursor-pointer"
-                        >
-                          {agyState.sessions.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.isNew ? "[NEW] " : ""}
-                              {s.title} ({s.stepCount} steps)
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-
-                    {/* Sub-View Switcher: Live Chat vs Telemetry Stream */}
-                    <div className="grid grid-cols-2 gap-1 pt-0.5">
-                      <button
-                        onClick={() => setAgentSubView("chat")}
-                        className={`py-1 text-[9.5px] font-bold border cursor-pointer ${
-                          agentSubView === "chat"
-                            ? "bg-[#ff007f] border-[#ff007f] text-white"
-                            : "bg-[#0b0813] border-[#261d38] text-[#7a7194] hover:text-[#e2e8f0]"
-                        }`}
-                      >
-                        LIVE CHAT ({agyState?.messages?.length || 0})
-                      </button>
-                      <button
-                        onClick={() => setAgentSubView("telemetry")}
-                        className={`py-1 text-[9.5px] font-bold border cursor-pointer ${
-                          agentSubView === "telemetry"
-                            ? "bg-[#00e5ff] border-[#00e5ff] text-[#0b0813]"
-                            : "bg-[#0b0813] border-[#261d38] text-[#7a7194] hover:text-[#e2e8f0]"
-                        }`}
-                      >
-                        TELEMETRY ({agentEvents.length})
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* SUB-VIEW A: Live Antigravity Conversation Stream */}
-                  {agentSubView === "chat" ? (
-                    <div className="space-y-2">
-                      {!agyState?.messages || agyState.messages.length === 0 ? (
-                        <div className="p-4 text-center text-[#7a7194] bg-[#120c1f] border border-[#261d38] space-y-1">
-                          <Sparkles className="w-5 h-5 mx-auto text-[#ff007f]" />
-                          <p className="text-[10px] text-[#e2e8f0] font-bold">
-                            Antigravity Session Ready
-                          </p>
-                          <p className="text-[9.5px]">
-                            Scope linked to{" "}
-                            <span className="text-[#00e5ff]">{workspacePath}</span>. Type a prompt
-                            below to chat live with Google Antigravity.
-                          </p>
-                        </div>
-                      ) : (
-                        agyState.messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`p-2 border text-[10px] space-y-1 select-text ${
-                              msg.role === "user"
-                                ? "bg-[#1a1128] border-[#ff007f]/60"
-                                : "bg-[#120c1f] border-[#261d38]"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between text-[9px]">
-                              <span
-                                className={`font-bold uppercase ${
-                                  msg.role === "user" ? "text-[#ff007f]" : "text-[#00e5ff]"
-                                }`}
-                              >
-                                {msg.role === "user" ? "YOU // OPERATOR" : "ANTIGRAVITY // AGENT"}
-                              </span>
-                              <span className="text-[#7a7194]">
-                                {msg.stepIndex !== undefined ? `STEP #${msg.stepIndex}` : "LIVE"}
-                              </span>
-                            </div>
-
-                            {msg.thinking && (
-                              <p className="text-[9.5px] text-[#94a3b8] italic bg-[#0b0813] p-1 border-l-2 border-[#7a7194] line-clamp-3">
-                                {msg.thinking}
-                              </p>
-                            )}
-
-                            {msg.content && (
-                              <div className="text-[#e2e8f0] whitespace-pre-wrap break-words leading-relaxed">
-                                {msg.content}
-                              </div>
-                            )}
-
-                            {msg.tools && msg.tools.length > 0 && (
-                              <div className="space-y-1 pt-1">
-                                {msg.tools.map((t, idx) => (
-                                  <div
-                                    key={`${msg.id}-tool-${idx}`}
-                                    className="flex items-center gap-1.5 px-1.5 py-1 bg-[#0b0813] border border-[#261d38] text-[9.5px]"
-                                  >
-                                    <Terminal className="w-3 h-3 text-[#00e676] shrink-0" />
-                                    <span className="text-[#00e5ff] font-bold shrink-0">
-                                      {t.name}
-                                    </span>
-                                    {t.summary && (
-                                      <span className="text-[#94a3b8] truncate">{t.summary}</span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      )}
-
-                      {isAgySending && (
-                        <div className="p-2 bg-[#120c1f] border border-[#00e5ff] text-[10px] flex items-center gap-2 text-[#00e5ff]">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#ff007f] shrink-0" />
-                          <span>Antigravity CLI executing in project scope...</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    /* SUB-VIEW B: Raw JSONL Cognitive Telemetry Stream */
-                    <div className="space-y-1.5">
-                      {agentSessions.length > 0 && (
-                        <select
-                          value={activeConvId}
-                          onChange={async (e) => {
-                            const id = e.target.value;
-                            setActiveConvId(id);
-                            if (window.dracoAPI?.attachTelemetry) {
-                              const res = await window.dracoAPI.attachTelemetry(id, 40);
-                              if (res.success && res.history) {
-                                setAgentEvents(res.history);
-                              }
-                            }
-                          }}
-                          className="w-full bg-[#0b0813] border border-[#261d38] text-[#00e5ff] text-[10px] p-1 outline-none font-mono"
-                        >
-                          {agentSessions.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.id.slice(0, 8)}... ({s.lineEstimate} steps)
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      <div className="grid grid-cols-2 gap-1 text-[9.5px] bg-[#0b0813] p-1.5 border border-[#261d38]">
-                        <div>
-                          <span className="text-[#7a7194]">IN TOKENS:</span>{" "}
-                          <span className="text-[#00e5ff] font-bold">
-                            {totalTokens.input.toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[#7a7194]">OUT TOKENS:</span>{" "}
-                          <span className="text-[#ff007f] font-bold">
-                            {totalTokens.output.toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      {agentEvents.length === 0 ? (
-                        <div className="p-4 text-center text-[#7a7194] bg-[#120c1f] border border-[#261d38]">
-                          <Activity className="w-5 h-5 mx-auto mb-1 text-[#443a57]" />
-                          <p className="text-[10px]">No telemetry events recorded yet.</p>
-                        </div>
-                      ) : (
-                        agentEvents
-                          .slice()
-                          .reverse()
-                          .slice(0, 20)
-                          .map((ev) => (
-                            <div
-                              key={ev.id}
-                              className="bg-[#120c1f] border border-[#261d38] p-2 space-y-1 text-[10px]"
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="text-[#00e5ff] font-bold">
-                                  STEP #{ev.stepIndex}
-                                </span>
-                                <span className="text-[9px] text-[#7a7194]">
-                                  {ev.type.replace("_", " ")}
-                                </span>
-                              </div>
-
-                              {ev.userPrompt && (
-                                <p className="text-[#ff007f] line-clamp-2 bg-[#0b0813] p-1 border-l-2 border-[#ff007f]">
-                                  {ev.userPrompt}
-                                </p>
-                              )}
-
-                              {ev.modelThinking && (
-                                <p className="text-[#94a3b8] italic line-clamp-2">
-                                  {ev.modelThinking}
-                                </p>
-                              )}
-
-                              {ev.toolCalls && ev.toolCalls.length > 0 && (
-                                <div className="space-y-1 pt-0.5">
-                                  {ev.toolCalls.map((tc) => (
-                                    <div
-                                      key={tc.id}
-                                      onClick={() => {
-                                        if (tc.filePath) {
-                                          const name =
-                                            tc.filePath.split(/[/\\]/).pop() || tc.filePath;
-                                          onOpenFile(tc.filePath, name, true);
-                                        }
-                                      }}
-                                      onDoubleClick={() => {
-                                        if (tc.filePath) {
-                                          const name =
-                                            tc.filePath.split(/[/\\]/).pop() || tc.filePath;
-                                          onOpenFile(tc.filePath, name, false);
-                                        }
-                                      }}
-                                      className={`flex items-center gap-1.5 px-1.5 py-1 bg-[#0b0813] border border-[#261d38] ${
-                                        tc.filePath ? "hover:border-[#00e5ff] cursor-pointer" : ""
-                                      }`}
-                                    >
-                                      {tc.command ? (
-                                        <Terminal className="w-3 h-3 text-[#ff8800] shrink-0" />
-                                      ) : (
-                                        <FileCode className="w-3 h-3 text-[#00e676] shrink-0" />
-                                      )}
-                                      <span className="text-[#e2e8f0] font-bold truncate">
-                                        {tc.name}
-                                      </span>
-                                      {tc.filePath && (
-                                        <span className="text-[#00e5ff] truncate ml-auto">
-                                          {tc.filePath.split(/[/\\]/).pop()}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                      )}
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* 3. Secondary Agent Providers (Copilot, Codex, Claude, Cursor) */
-                <div className="bg-[#120c1f] border border-[#261d38] p-3 space-y-2.5 text-[10px]">
-                  <div className="flex items-center justify-between border-b border-[#261d38] pb-2">
-                    <div className="flex items-center gap-1.5 text-[#00e5ff] font-bold uppercase">
-                      <Cpu className="w-3.5 h-3.5 text-[#ff007f]" />
-                      <span>{selectedProvider} CLI ADAPTER</span>
-                    </div>
-                    <span className="px-1.5 py-0.5 bg-[#281b3d] border border-[#7a7194]/40 text-[#94a3b8] text-[8.5px] font-bold">
-                      STANDBY
-                    </span>
-                  </div>
-
-                  <p className="text-[#94a3b8] leading-relaxed">
-                    Provider <span className="text-[#e2e8f0] font-bold uppercase">{selectedProvider}</span> is registered in the multi-agent slot for scope{" "}
-                    <span className="text-[#00e5ff]">{workspacePath}</span>. Primary live project & session orchestration is active on{" "}
-                    <span className="text-[#ff007f] font-bold">Google Antigravity</span>.
-                  </p>
-
-                  <button
-                    onClick={() => {
-                      setSelectedProvider("antigravity");
-                      connectAntigravityScope(workspacePath, {
-                        createNewSession: true,
-                        showBanner: true,
-                      });
-                    }}
-                    className="w-full py-1.5 bg-[#ff007f] hover:bg-[#d5006d] text-white font-bold text-[10px] cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>CONNECT LIVE ANTIGRAVITY SESSION</span>
-                  </button>
+                      }}
+                      className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
+                        selectedProvider === prov.id ? "bg-[#251b3d] text-[#00e5ff]" : "text-slate-300"
+                      }`}
+                    >
+                      <span className="font-medium">{prov.name}</span>
+                      <span className="text-[9px] text-slate-500">{prov.badge}</span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Bottom Live Antigravity Chat Composer (Pinned inside Agent Tab) */}
-            {selectedProvider === "antigravity" && (
-              <div className="p-2 bg-[#100b1c] border-t border-[#261d38] space-y-1.5">
-                <div className="flex items-center justify-between text-[9px] text-[#7a7194]">
+            {/* 2. Sub-Toolbar: PanelLeft, Search, / Session Title, Plus, More, Columns */}
+            <div className="px-3 py-1.5 flex items-center gap-2 border-b border-[#241c38] bg-[#141021] text-slate-400">
+              <button
+                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
+                title="Sidebar layout"
+              >
+                <PanelLeft className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={() => setIsSessionMenuOpen(!isSessionMenuOpen)}
+                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
+                title="Search or switch session"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Breadcrumb / Session Pill */}
+              <div className="relative flex-1 min-w-0">
+                <button
+                  onClick={() => setIsSessionMenuOpen(!isSessionMenuOpen)}
+                  className="w-full text-left truncate text-[11px] text-slate-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-[#201933] cursor-pointer"
+                  title={
+                    agyState?.sessions?.find((s) => s.id === agyState.activeSessionId)?.title ||
+                    "Current Session"
+                  }
+                >
+                  <span className="text-slate-500 font-mono">/</span>
                   <span className="truncate">
-                    TARGET:{" "}
-                    <span className="text-[#00e5ff] font-bold">
-                      {agyState?.projectName || "scope"}
-                    </span>{" "}
-                    // {agyState?.activeSessionId ? agyState.activeSessionId.slice(0, 8) : "new"}
+                    {agyState?.sessions?.find((s) => s.id === agyState.activeSessionId)?.title ||
+                      (agyState?.projectName ? `${agyState.projectName} // Live Session` : "Session")}
                   </span>
-                  <span className="text-[#00e676] font-bold">AGY.EXE LIVE</span>
-                </div>
-                <div className="flex items-end gap-1.5">
-                  <textarea
-                    value={agyPromptInput}
-                    onChange={(e) => setAgyPromptInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendAgyPrompt();
-                      }
-                    }}
-                    placeholder="Ask Antigravity in this project scope (Enter to send)..."
-                    rows={2}
-                    disabled={isAgySending}
-                    className="flex-1 bg-[#0b0813] border border-[#261d38] focus:border-[#ff007f] p-1.5 text-[10.5px] text-[#e2e8f0] outline-none resize-none font-mono select-text"
-                  />
-                  <button
-                    onClick={handleSendAgyPrompt}
-                    disabled={isAgySending || !agyPromptInput.trim()}
-                    className="h-[46px] px-2.5 bg-[#ff007f] hover:bg-[#d5006d] disabled:opacity-40 text-white text-[10px] font-bold cursor-pointer flex flex-col items-center justify-center gap-0.5 shrink-0"
-                    title="Send Prompt to Official Google Antigravity CLI"
+                </button>
+
+                {isSessionMenuOpen && (
+                  <div
+                    onClick={() => setIsSessionMenuOpen(false)}
+                    className="absolute left-0 top-full mt-1 w-64 max-h-72 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    <span className="text-[8.5px]">SEND</span>
-                  </button>
-                </div>
+                    <div className="px-3 py-1.5 text-[9.5px] font-bold text-slate-500 border-b border-[#291f42] flex items-center justify-between">
+                      <span>PROJECT SESSIONS ({agyState?.sessions?.length || 0})</span>
+                      <button
+                        onClick={() => {
+                          setIsSessionMenuOpen(false);
+                          connectAntigravityScope(workspacePath, {
+                            createNewSession: true,
+                            showBanner: true,
+                          });
+                        }}
+                        className="text-[#ff007f] hover:underline cursor-pointer"
+                      >
+                        + New
+                      </button>
+                    </div>
+
+                    {!agyState?.sessions || agyState.sessions.length === 0 ? (
+                      <div className="px-3 py-2 text-slate-500 text-center">No sessions found</div>
+                    ) : (
+                      agyState.sessions.map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            setIsSessionMenuOpen(false);
+                            handleSelectAgySession(s.id);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex flex-col cursor-pointer border-b border-[#231a38]/40 ${
+                            agyState.activeSessionId === s.id
+                              ? "bg-[#251b3d] text-[#00e5ff]"
+                              : "text-slate-300"
+                          }`}
+                        >
+                          <span className="truncate font-medium">{s.title}</span>
+                          <span className="text-[9.5px] text-slate-500">
+                            {s.stepCount} steps •{" "}
+                            {s.lastModified ? new Date(s.lastModified).toLocaleDateString() : ""}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={() =>
+                  connectAntigravityScope(workspacePath, {
+                    createNewSession: true,
+                    showBanner: true,
+                  })
+                }
+                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
+                title="New Session"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
+                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
+                title="Session options"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
+                title="Layout toggle"
+              >
+                <Columns className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Status Notice Banner */}
+            {agyStatusNotice && (
+              <div className="mx-3 mt-1.5 px-2.5 py-1 rounded-md bg-[#201933] border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] flex items-center justify-between select-none">
+                <span className="truncate">{agyStatusNotice}</span>
+                <button
+                  onClick={() => setAgyStatusNotice(null)}
+                  className="text-slate-400 hover:text-white ml-1 cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
             )}
+
+            {/* 3. Messages Stream */}
+            <div
+              ref={chatScrollRef}
+              className="flex-1 overflow-y-auto px-3.5 py-3 space-y-4 relative"
+            >
+              {agentSubView === "telemetry" ? (
+                /* Raw Telemetry View */
+                <div className="space-y-2 font-mono">
+                  <div className="flex items-center justify-between pb-1 text-[10px] text-slate-400">
+                    <span>COGNITIVE TELEMETRY STREAM</span>
+                    <button
+                      onClick={() => setAgentSubView("chat")}
+                      className="text-[#00e5ff] hover:underline cursor-pointer"
+                    >
+                      Back to Chat
+                    </button>
+                  </div>
+
+                  {agentSessions.length > 0 && (
+                    <select
+                      value={activeConvId}
+                      onChange={async (e) => {
+                        const id = e.target.value;
+                        setActiveConvId(id);
+                        if (window.dracoAPI?.attachTelemetry) {
+                          const res = await window.dracoAPI.attachTelemetry(id, 40);
+                          if (res.success && res.history) setAgentEvents(res.history);
+                        }
+                      }}
+                      className="w-full bg-[#1b152d] border border-[#2b2144] text-[#00e5ff] text-[10px] p-1 rounded font-mono"
+                    >
+                      {agentSessions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.id.slice(0, 8)}... ({s.lineEstimate} steps)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-1 text-[9.5px] bg-[#141021] p-1.5 rounded border border-[#2b2144]">
+                    <div>
+                      <span className="text-slate-500">IN TOKENS:</span>{" "}
+                      <span className="text-[#00e5ff] font-bold">{totalTokens.input.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">OUT TOKENS:</span>{" "}
+                      <span className="text-[#ff007f] font-bold">{totalTokens.output.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  {agentEvents.length === 0 ? (
+                    <div className="p-4 text-center text-slate-500 bg-[#19132b] rounded-xl border border-[#2b2144]">
+                      No telemetry recorded
+                    </div>
+                  ) : (
+                    agentEvents.slice().reverse().slice(0, 25).map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="bg-[#19132b] border border-[#2b2144] rounded-lg p-2.5 space-y-1 text-[10.5px]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[#00e5ff] font-mono font-bold">STEP #{ev.stepIndex}</span>
+                          <span className="text-[9px] text-slate-500">{ev.type}</span>
+                        </div>
+                        {ev.userPrompt && (
+                          <p className="text-[#ff007f] font-mono">{ev.userPrompt}</p>
+                        )}
+                        {ev.modelThinking && (
+                          <p className="text-slate-400 italic line-clamp-2">{ev.modelThinking}</p>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : (
+                /* Live Antigravity Chat Stream */
+                <>
+                  {!agyState?.messages || agyState.messages.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 bg-[#1a142c] rounded-2xl border border-[#2d2448] space-y-2 mt-4">
+                      <Sparkles className="w-6 h-6 mx-auto text-[#ff007f]" />
+                      <p className="text-xs text-slate-200 font-semibold">
+                        Antigravity Session Ready
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">
+                        Scope linked to <span className="text-[#00e5ff] font-mono">{workspacePath}</span>.
+                        Ask anything below to chat live with Google Antigravity.
+                      </p>
+                    </div>
+                  ) : (
+                    agyState.messages.map((msg) => {
+                      if (msg.role === "user") {
+                        // Extract prompt text and slash command badges
+                        const lines = msg.content.split("\n");
+                        const tags: string[] = [];
+                        const textLines: string[] = [];
+
+                        for (const l of lines) {
+                          const m = l.match(/\/([a-zA-Z0-9_-]+)/g);
+                          if (m) {
+                            m.forEach((t) => tags.push(t.replace("/", "")));
+                            const rest = l.replace(/\/([a-zA-Z0-9_-]+)/g, "").trim();
+                            if (rest) textLines.push(rest);
+                          } else {
+                            textLines.push(l);
+                          }
+                        }
+
+                        const cleanText = textLines.join("\n").trim() || msg.content;
+                        const uniqueTags = Array.from(new Set(tags));
+
+                        return (
+                          <div
+                            key={msg.id}
+                            className="bg-[#201a33] border border-[#2e2648] rounded-2xl p-3 shadow-md space-y-2 select-text"
+                          >
+                            <div className="text-slate-100 text-xs leading-relaxed whitespace-pre-wrap font-medium">
+                              {cleanText}
+                            </div>
+
+                            {uniqueTags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                {uniqueTags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#181328] border border-[#342b52] text-[10.5px] text-slate-300 font-sans select-none"
+                                  >
+                                    <Code2 className="w-3 h-3 text-slate-400" />
+                                    <span>{tag}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Assistant message: Clean Antigravity formatting
+                      const renderBlocks = (raw: string) => {
+                        const mLines = raw.split("\n");
+                        const nodes: React.ReactNode[] = [];
+                        let inCode = false;
+                        let codeBuf: string[] = [];
+
+                        for (let i = 0; i < mLines.length; i++) {
+                          const line = mLines[i];
+                          const tr = line.trim();
+
+                          if (tr.startsWith("```")) {
+                            if (inCode) {
+                              nodes.push(
+                                <pre
+                                  key={`cb-${i}`}
+                                  className="p-2.5 rounded-lg bg-[#0e0a19] border border-[#261d38] font-mono text-[10.5px] text-[#00e5ff] overflow-x-auto my-1.5 leading-relaxed"
+                                >
+                                  <code>{codeBuf.join("\n")}</code>
+                                </pre>
+                              );
+                              codeBuf = [];
+                              inCode = false;
+                            } else {
+                              inCode = true;
+                            }
+                            continue;
+                          }
+
+                          if (inCode) {
+                            codeBuf.push(line);
+                            continue;
+                          }
+
+                          if (!tr) {
+                            nodes.push(<div key={`sp-${i}`} className="h-1.5" />);
+                            continue;
+                          }
+
+                          // Helper for inline styles
+                          const formatLine = (txt: string) => {
+                            const segs = txt.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+                            return segs.map((s, idx) => {
+                              if (s.startsWith("`") && s.endsWith("`")) {
+                                return (
+                                  <code
+                                    key={idx}
+                                    className="px-1.5 py-0.5 rounded bg-[#1e1732] border border-[#392d57] text-[#ffb86c] text-[10.5px] font-mono inline-block mx-0.5"
+                                  >
+                                    {s.slice(1, -1)}
+                                  </code>
+                                );
+                              }
+                              if (s.startsWith("**") && s.endsWith("**")) {
+                                return (
+                                  <strong key={idx} className="font-semibold text-slate-100">
+                                    {s.slice(2, -2)}
+                                  </strong>
+                                );
+                              }
+                              return <span key={idx}>{s}</span>;
+                            });
+                          };
+
+                          // Numbered List (e.g. 1. Multi-Agent Provider Selector ...)
+                          const numM = tr.match(/^(\d+)\.\s+(.*)/);
+                          if (numM) {
+                            nodes.push(
+                              <div
+                                key={`num-${i}`}
+                                className="flex items-start gap-1.5 my-1 text-slate-200 leading-relaxed text-xs"
+                              >
+                                <span className="font-bold text-slate-300 shrink-0">{numM[1]}.</span>
+                                <div className="flex-1">{formatLine(numM[2])}</div>
+                              </div>
+                            );
+                            continue;
+                          }
+
+                          // Bullet List (e.g. • or - or *)
+                          const bulM = tr.match(/^[-*•]\s+(.*)/);
+                          if (bulM) {
+                            nodes.push(
+                              <div
+                                key={`bul-${i}`}
+                                className="flex items-start gap-2 my-0.5 ml-3 text-slate-300 leading-relaxed text-xs"
+                              >
+                                <span className="text-slate-400 select-none text-[10px] leading-5">•</span>
+                                <div className="flex-1">{formatLine(bulM[1])}</div>
+                              </div>
+                            );
+                            continue;
+                          }
+
+                          // Heading-like line (e.g. Ringkasan Implementasi:)
+                          const isHeading = tr.endsWith(":") && tr.length < 60;
+                          nodes.push(
+                            <p
+                              key={`p-${i}`}
+                              className={`leading-relaxed text-xs my-0.5 ${
+                                isHeading ? "font-semibold text-slate-100 mt-2 mb-1" : "text-slate-200"
+                              }`}
+                            >
+                              {formatLine(tr)}
+                            </p>
+                          );
+                        }
+
+                        return nodes;
+                      };
+
+                      return (
+                        <div key={msg.id} className="space-y-1.5 select-text">
+                          {msg.thinking && (
+                            <div className="text-[10px] text-slate-400 italic bg-[#171226] p-2 rounded-lg border-l-2 border-[#5b468c] line-clamp-3">
+                              {msg.thinking}
+                            </div>
+                          )}
+
+                          <div className="text-slate-200 leading-relaxed text-xs">
+                            {renderBlocks(msg.content)}
+                          </div>
+
+                          {msg.tools && msg.tools.length > 0 && (
+                            <div className="space-y-1 pt-1">
+                              {msg.tools.map((t, idx) => (
+                                <div
+                                  key={`${msg.id}-t-${idx}`}
+                                  className="flex items-center gap-1.5 px-2 py-1 bg-[#171226] border border-[#2d2448] rounded text-[10px]"
+                                >
+                                  {t.name.includes("file") || t.name.includes("read") || t.name.includes("edit") ? (
+                                    <FileCode className="w-3 h-3 text-[#00e676] shrink-0" />
+                                  ) : (
+                                    <Terminal className="w-3 h-3 text-[#ff8800] shrink-0" />
+                                  )}
+                                  <span className="text-[#00e5ff] font-mono font-bold shrink-0">
+                                    {t.name}
+                                  </span>
+                                  {t.summary && (
+                                    <span className="text-slate-400 truncate">{t.summary}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+
+                  {isAgySending && (
+                    <div className="p-3 bg-[#1a142c] border border-[#372b54] rounded-xl text-xs flex items-center gap-2.5 text-[#00e5ff]">
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#ff007f] shrink-0" />
+                      <span>Antigravity is thinking and executing...</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Floating Down Arrow Button */}
+            {agyState?.messages && agyState.messages.length > 2 && (
+              <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                <button
+                  onClick={() => {
+                    chatScrollRef.current?.scrollTo({
+                      top: chatScrollRef.current.scrollHeight,
+                      behavior: "smooth",
+                    });
+                  }}
+                  className="w-7 h-7 rounded-full bg-[#201a33] hover:bg-[#2c2347] border border-[#382b57] text-slate-300 hover:text-white flex items-center justify-center shadow-2xl transition-all cursor-pointer pointer-events-auto hover:scale-110"
+                  title="Scroll to latest message"
+                >
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* 4. Bottom Capsule Composer (Matching Antigravity Floating Pill) */}
+            <div className="m-2.5 p-3 rounded-2xl bg-[#1b152d] border border-[#2f254b] shadow-2xl space-y-2 shrink-0">
+              <textarea
+                value={agyPromptInput}
+                onChange={(e) => setAgyPromptInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendAgyPrompt();
+                  }
+                }}
+                placeholder="Ask anything, @ to mention, / for actions"
+                rows={2}
+                disabled={isAgySending}
+                className="w-full bg-transparent border-none outline-none text-xs text-slate-100 placeholder:text-slate-500 resize-none font-sans min-h-[42px] leading-relaxed select-text"
+              />
+
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setAgyPromptInput((prev) =>
+                        prev ? `${prev}\n/caveman /hallmark /ponytail` : "/caveman /hallmark /ponytail"
+                      );
+                    }}
+                    className="w-6 h-6 rounded-full hover:bg-[#281f3e] flex items-center justify-center text-slate-400 hover:text-slate-200 cursor-pointer transition-colors"
+                    title="Add actions or skill tags"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Model Selector Pill */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                      className="text-[10px] text-slate-300 bg-[#251e39] hover:bg-[#2e2547] px-2.5 py-1 rounded-full flex items-center gap-1.5 cursor-pointer border border-[#352a50] select-none font-sans transition-colors"
+                    >
+                      <span>{selectedModel}</span>
+                      <Zap className="w-3 h-3 text-[#ffb800]" />
+                      <ChevronUp className="w-3 h-3 text-slate-400" />
+                    </button>
+
+                    {isModelMenuOpen && (
+                      <div
+                        onClick={() => setIsModelMenuOpen(false)}
+                        className="absolute left-0 bottom-full mb-1.5 w-48 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
+                      >
+                        {[
+                          "Gemini 4 Argon High",
+                          "Gemini 3.8 Flash High",
+                          "Gemini 3.8 Pro",
+                          "Antigravity CLI Live",
+                        ].map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              setSelectedModel(m);
+                              setIsModelMenuOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
+                              selectedModel === m ? "bg-[#251b3d] text-[#00e5ff]" : "text-slate-300"
+                            }`}
+                          >
+                            <span>{m}</span>
+                            {selectedModel === m && <Check className="w-3 h-3 text-[#00e5ff]" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Circular Send Arrow Button */}
+                <button
+                  onClick={handleSendAgyPrompt}
+                  disabled={isAgySending || !agyPromptInput.trim()}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                    agyPromptInput.trim() && !isAgySending
+                      ? "bg-[#3e2f5e] hover:bg-[#584185] text-white shadow-md cursor-pointer hover:scale-105"
+                      : "bg-[#221a34] text-slate-600 cursor-not-allowed"
+                  }`}
+                  title="Send prompt to Antigravity (Enter)"
+                >
+                  {isAgySending ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-300" />
+                  ) : (
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Bottom Icon Mode Switcher Bar (Explorer | Git | Agent) */}
+{/* Bottom Icon Mode Switcher Bar (Explorer | Git | Agent) */}
       <div className="h-10 min-h-[40px] bg-[#0e0918] border-t border-[#261d38] grid grid-cols-3 divide-x divide-[#261d38]">
         <DracoTooltip content="Dracode File Explorer" position="top" accent="cyan">
           <button
