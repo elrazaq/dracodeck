@@ -542,36 +542,45 @@ ipcMain.handle('lint-code-diagnostics', async (event, fileName, content) => {
     const ext = (fileName || '').split('.').pop().toLowerCase();
     if (!['js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs'].includes(ext)) return [];
     const ts = require('typescript');
+    const compilerOptions = {
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      experimentalDecorators: true,
+      emitDecoratorMetadata: true,
+      allowJs: true,
+      isolatedModules: true,
+    };
+    if (ext.endsWith('x')) {
+      compilerOptions.jsx = ts.JsxEmit.ReactJSX;
+    }
     const result = ts.transpileModule(content || '', {
-      fileName: fileName || 'module.tsx',
+      fileName: fileName || 'module.ts',
       reportDiagnostics: true,
-      compilerOptions: {
-        target: ts.ScriptTarget.Latest,
-        jsx: ext.endsWith('x') ? ts.JsxEmit.ReactJSX : ts.JsxEmit.None,
-        allowJs: true,
-      },
+      compilerOptions,
     });
     if (!result.diagnostics || result.diagnostics.length === 0) return [];
-    return result.diagnostics.map((d, idx) => {
-      let line = 1;
-      let col = 1;
-      if (d.file && typeof d.start === 'number') {
-        const pos = d.file.getLineAndCharacterOfPosition(d.start);
-        line = pos.line + 1;
-        col = pos.character + 1;
-      }
-      const msg = ts.flattenDiagnosticMessageText(d.messageText, '\n');
-      return {
-        id: `tsc-ast-${line}-${col}-${idx}`,
-        file: (fileName || '').split(/[/\\]/).pop() || fileName,
-        filePath: fileName,
-        line,
-        col,
-        severity: d.category === ts.DiagnosticCategory.Warning ? 'warning' : 'error',
-        message: `TS${d.code}: ${msg}`,
-        source: 'TS Compiler',
-      };
-    });
+    return result.diagnostics
+      .filter((d) => d.code !== 6046)
+      .map((d, idx) => {
+        let line = 1;
+        let col = 1;
+        if (d.file && typeof d.start === 'number') {
+          const pos = d.file.getLineAndCharacterOfPosition(d.start);
+          line = pos.line + 1;
+          col = pos.character + 1;
+        }
+        const msg = ts.flattenDiagnosticMessageText(d.messageText, '\n');
+        return {
+          id: `tsc-ast-${line}-${col}-${idx}`,
+          file: (fileName || '').split(/[/\\]/).pop() || fileName,
+          filePath: fileName,
+          line,
+          col,
+          severity: d.category === ts.DiagnosticCategory.Warning ? 'warning' : 'error',
+          message: `TS${d.code}: ${msg}`,
+          source: 'TS Compiler',
+        };
+      });
   } catch {
     return [];
   }

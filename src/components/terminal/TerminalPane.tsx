@@ -116,38 +116,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  // Listen to real-time code changes from EditorPane to compute live Problems (AST + Multi-Language Validator)
+  // Listen to real-time code changes from EditorPane to compute live Problems via official AST parsers
   useEffect(() => {
-    let latestReqId = 0;
-
-    const evaluatePayload = async (detail: { name?: string; path?: string; content?: string }) => {
+    const evaluatePayload = (detail: { name?: string; path?: string; content?: string }) => {
       if (!detail || typeof detail.content !== "string" || !detail.name) {
         setEditorDiagnostics([]);
         return;
       }
-      const reqId = ++latestReqId;
-      const localItems = analyzeCodeProblems(detail.name, detail.path || "", detail.content);
-      setEditorDiagnostics(localItems);
-
-      if (window.dracoAPI?.lintCodeDiagnostics) {
-        try {
-          const ipcItems = await window.dracoAPI.lintCodeDiagnostics(detail.name, detail.content);
-          if (reqId === latestReqId && Array.isArray(ipcItems) && ipcItems.length > 0) {
-            const merged = [...localItems];
-            for (const item of ipcItems) {
-              const existsOnLine = merged.some((m) => m.line === item.line);
-              if (!existsOnLine) {
-                merged.push({
-                  ...item,
-                  filePath: detail.path || item.filePath,
-                });
-              }
-            }
-            merged.sort((a, b) => a.line - b.line);
-            setEditorDiagnostics(merged);
-          }
-        } catch {}
-      }
+      const items = analyzeCodeProblems(detail.name, detail.path || "", detail.content);
+      setEditorDiagnostics(items);
     };
 
     const handleEditorCode = (e: Event) => {
