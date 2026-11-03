@@ -16,6 +16,9 @@ import {
   Copy,
   Scissors,
   ClipboardPaste,
+  Undo2,
+  Redo2,
+  AlertTriangle,
 } from "lucide-react";
 import { highlightCode, Token } from "./syntaxHighlighter";
 import { formatCode } from "./codeFormatter";
@@ -26,8 +29,21 @@ export interface OpenTab {
   path: string;
   name: string;
   content: string;
+  savedContent?: string;
   isDirty?: boolean;
   isPreview?: boolean;
+}
+
+interface HistorySnapshot {
+  content: string;
+  start: number;
+  end: number;
+}
+
+interface TabHistory {
+  undo: HistorySnapshot[];
+  redo: HistorySnapshot[];
+  lastTime: number;
 }
 
 function normalizePathKey(p: string): string {
@@ -113,8 +129,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
   const [useRegex, setUseRegex] = useState(false);
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0);
 
-  // Context Menu State
+  // Context Menu & Unsaved Changes Prompt State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [unsavedPromptTarget, setUnsavedPromptTarget] = useState<
+    { mode: "single"; tab: OpenTab } | { mode: "all"; count: number } | null
+  >(null);
+
+  // Per-tab Undo / Redo History Stack
+  const historyRef = useRef<Record<string, TabHistory>>({});
 
   // Minimap Dragging State & Window Virtualization Refs
   const isDraggingMinimap = useRef(false);
@@ -173,6 +195,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           path: activeFile.path,
           name: activeFile.name,
           content,
+          savedContent: content,
           isDirty: false,
           isPreview: wantPreview,
         };
@@ -300,15 +323,99 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   }, [currentTab, onLanguageChange]);
 
-  const handleContentChange = (newContent: string) => {
+  const handleContentChange = (newContent: string, forceHistoryBreak: boolean = false) => {
     const activeNorm = normalizePathKey(activeTabPath);
+    const curStart = textareaRef.current?.selectionStart ?? 0;
+    const curEnd = textareaRef.current?.selectionEnd ?? 0;
+
     setTabs((prev) =>
-      prev.map((t) =>
-        normalizePathKey(t.path) === activeNorm
-          ? { ...t, content: newContent, isDirty: true, isPreview: false }
-          : t
-      )
+      prev.map((t) => {
+        if (normalizePathKey(t.path) !== activeNorm) return t;
+        if (t.content !== newContent) {
+          if (!historyRef.current[activeNorm]) {
+            historyRef.current[activeNorm] = { undo: [], redo: [], lastTime: 0 };
+          }
+          const hist = historyRef.current[activeNorm];
+          const now = Date.now();
+          const lenDiff = Math.abs(newContent.length - t.content.length);
+          const shouldPush =
+            forceHistoryBreak ||
+            hist.undo.length === 0 ||
+            now - hist.lastTime > 400 ||
+            lenDiff > 1 ||
+            newContent[curStart] === "\n" ||
+            newContent[curStart] === " ";
+
+          if (shouldPush) {
+            hist.undo.push({ content: t.content, start: curStart, end: curEnd });
+            if (hist.undo.length > 150) hist.undo.shift();
+          }
+          hist.lastTime = now;
+          hist.redo = [];
+        }
+        const nextDirty =
+          t.savedContent !== undefined ? newContent !== t.savedContent : true;
+        return { ...t, content: newContent, isDirty: nextDirty, isPreview: false };
+      })
     );
+  };
+
+  const handleUndo = () => {
+    if (!currentTab) return;
+    const activeNorm = normalizePathKey(currentTab.path);
+    const hist = historyRef.current[activeNorm];
+    if (!hist || hist.undo.length === 0) return;
+
+    const prevSnap = hist.undo.pop()!;
+    const curStart = textareaRef.current?.selectionStart ?? 0;
+    const curEnd = textareaRef.current?.selectionEnd ?? 0;
+    hist.redo.push({ content: currentTab.content, start: curStart, end: curEnd });
+    hist.lastTime = 0;
+
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (normalizePathKey(t.path) !== activeNorm) return t;
+        const nextDirty =
+          t.savedContent !== undefined ? prevSnap.content !== t.savedContent : false;
+        return { ...t, content: prevSnap.content, isDirty: nextDirty };
+      })
+    );
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(prevSnap.start, prevSnap.end);
+      }
+    });
+  };
+
+  const handleRedo = () => {
+    if (!currentTab) return;
+    const activeNorm = normalizePathKey(currentTab.path);
+    const hist = historyRef.current[activeNorm];
+    if (!hist || hist.redo.length === 0) return;
+
+    const nextSnap = hist.redo.pop()!;
+    const curStart = textareaRef.current?.selectionStart ?? 0;
+    const curEnd = textareaRef.current?.selectionEnd ?? 0;
+    hist.undo.push({ content: currentTab.content, start: curStart, end: curEnd });
+    hist.lastTime = 0;
+
+    setTabs((prev) =>
+      prev.map((t) => {
+        if (normalizePathKey(t.path) !== activeNorm) return t;
+        const nextDirty =
+          t.savedContent !== undefined ? nextSnap.content !== t.savedContent : true;
+        return { ...t, content: nextSnap.content, isDirty: nextDirty };
+      })
+    );
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(nextSnap.start, nextSnap.end);
+      }
+    });
   };
 
   const pinTab = (path: string) => {
@@ -322,7 +429,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     if (!currentTab) return;
     const formatted = formatCode(currentTab.content, currentTab.name);
     if (formatted !== currentTab.content) {
-      handleContentChange(formatted);
+      handleContentChange(formatted, true);
       setSaveStatus("FORMATTED");
       setTimeout(() => setSaveStatus(null), 2000);
     }
@@ -336,7 +443,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         const activeNorm = normalizePathKey(activeTabPath);
         setTabs((prev) =>
           prev.map((t) =>
-            normalizePathKey(t.path) === activeNorm ? { ...t, isDirty: false } : t
+            normalizePathKey(t.path) === activeNorm
+              ? { ...t, savedContent: t.content, isDirty: false }
+              : t
           )
         );
         setSaveStatus("SAVED");
@@ -347,9 +456,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   };
 
-  const closeTab = (e: React.MouseEvent, path: string) => {
-    e.stopPropagation();
+  const forceCloseTab = (path: string) => {
     const targetNorm = normalizePathKey(path);
+    delete historyRef.current[targetNorm];
     const filtered = tabs.filter((t) => normalizePathKey(t.path) !== targetNorm);
     setTabs(filtered);
 
@@ -363,10 +472,74 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     }
   };
 
+  const closeTab = (e: React.MouseEvent | null, path: string) => {
+    if (e) e.stopPropagation();
+    const targetNorm = normalizePathKey(path);
+    const targetTab = tabs.find((t) => normalizePathKey(t.path) === targetNorm);
+    if (targetTab && targetTab.isDirty) {
+      setUnsavedPromptTarget({ mode: "single", tab: targetTab });
+      return;
+    }
+    forceCloseTab(path);
+  };
+
   const closeAllTabs = () => {
+    const dirtyTabs = tabs.filter((t) => t.isDirty);
+    if (dirtyTabs.length > 0) {
+      if (dirtyTabs.length === 1) {
+        setUnsavedPromptTarget({ mode: "single", tab: dirtyTabs[0] });
+      } else {
+        setUnsavedPromptTarget({ mode: "all", count: dirtyTabs.length });
+      }
+      return;
+    }
+    historyRef.current = {};
     setTabs([]);
     setActiveTabPath("");
     onActiveFileChange?.(undefined);
+  };
+
+  const handleConfirmSaveAndClose = async () => {
+    if (!unsavedPromptTarget) return;
+    if (unsavedPromptTarget.mode === "single") {
+      const tabToSave = unsavedPromptTarget.tab;
+      if (window.dracoAPI?.writeFile) {
+        try {
+          await window.dracoAPI.writeFile(tabToSave.path, tabToSave.content);
+        } catch {}
+      }
+      setUnsavedPromptTarget(null);
+      forceCloseTab(tabToSave.path);
+    } else {
+      const dirtyTabs = tabs.filter((t) => t.isDirty);
+      if (window.dracoAPI?.writeFile) {
+        for (const t of dirtyTabs) {
+          try {
+            await window.dracoAPI.writeFile(t.path, t.content);
+          } catch {}
+        }
+      }
+      setUnsavedPromptTarget(null);
+      historyRef.current = {};
+      setTabs([]);
+      setActiveTabPath("");
+      onActiveFileChange?.(undefined);
+    }
+  };
+
+  const handleConfirmDiscardAndClose = () => {
+    if (!unsavedPromptTarget) return;
+    if (unsavedPromptTarget.mode === "single") {
+      const targetPath = unsavedPromptTarget.tab.path;
+      setUnsavedPromptTarget(null);
+      forceCloseTab(targetPath);
+    } else {
+      setUnsavedPromptTarget(null);
+      historyRef.current = {};
+      setTabs([]);
+      setActiveTabPath("");
+      onActiveFileChange?.(undefined);
+    }
   };
 
   const lines = useMemo(() => {
@@ -615,6 +788,25 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       return;
     }
 
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      handleRedo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "w") {
+      e.preventDefault();
+      if (activeTabPath) closeTab(null, activeTabPath);
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
       e.preventDefault();
       setIsFindOpen(true);
@@ -733,17 +925,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           break;
         case "close-tab":
           if (activeTabPath) {
-            const targetNorm = normalizePathKey(activeTabPath);
-            const filtered = tabs.filter((t) => normalizePathKey(t.path) !== targetNorm);
-            setTabs(filtered);
-            if (filtered.length === 0) {
-              setActiveTabPath("");
-              onActiveFileChange?.(undefined);
-            } else {
-              const nextTab = filtered[filtered.length - 1];
-              setActiveTabPath(nextTab.path);
-              onActiveFileChange?.({ path: nextTab.path, name: nextTab.name });
-            }
+            closeTab(null, activeTabPath);
           }
           break;
         case "close-all":
@@ -768,12 +950,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           handlePaste();
           break;
         case "undo":
-          textareaRef.current?.focus();
-          document.execCommand("undo");
+          handleUndo();
           break;
         case "redo":
-          textareaRef.current?.focus();
-          document.execCommand("redo");
+          handleRedo();
           break;
         case "duplicate-line":
           handleDuplicateLine();
@@ -1385,6 +1565,59 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
         )}
       </div>
 
+      {/* Unsaved Changes Confirmation Modal */}
+      {unsavedPromptTarget && (
+        <div
+          onClick={() => setUnsavedPromptTarget(null)}
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 select-none"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md bg-[#120c1f] border border-[#ff007f]/60 shadow-[0_20px_60px_rgba(0,0,0,0.95)] p-5 font-mono text-xs"
+          >
+            <div className="flex items-center gap-2.5 text-[#ff8800] font-bold text-sm mb-2">
+              <AlertTriangle className="w-4 h-4 text-[#ff8800] shrink-0" />
+              <span>UNSAVED CHANGES DETECTED</span>
+            </div>
+            <p className="text-[#cbd5e1] text-[11px] leading-relaxed mb-5">
+              {unsavedPromptTarget.mode === "single" ? (
+                <>
+                  Do you want to save the changes you made to{" "}
+                  <span className="text-[#00e5ff] font-bold">{unsavedPromptTarget.tab.name}</span>?
+                  Your changes will be lost if you don&apos;t save them.
+                </>
+              ) : (
+                <>
+                  You have unsaved changes in{" "}
+                  <span className="text-[#00e5ff] font-bold">{unsavedPromptTarget.count} files</span>
+                  . Do you want to save them before closing?
+                </>
+              )}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setUnsavedPromptTarget(null)}
+                className="px-3 py-1.5 bg-[#1c1c24] hover:bg-[#2d2d3a] text-[#94a3b8] hover:text-[#e2e8f0] border border-[#2d2d3a] text-[11px] font-semibold cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDiscardAndClose}
+                className="px-3 py-1.5 bg-[#ff1744]/15 hover:bg-[#ff1744] text-[#ff1744] hover:text-white border border-[#ff1744]/50 text-[11px] font-bold cursor-pointer transition-colors"
+              >
+                Don&apos;t Save
+              </button>
+              <button
+                onClick={handleConfirmSaveAndClose}
+                className="px-3 py-1.5 bg-[#00e676]/20 hover:bg-[#00e676] text-[#00e676] hover:text-[#0b0813] border border-[#00e676] text-[11px] font-bold cursor-pointer transition-colors"
+              >
+                Save &amp; Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cyberdeck Right-Click Context Menu */}
       {contextMenu && (
         <div
@@ -1392,6 +1625,33 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
           onClick={(e) => e.stopPropagation()}
           className="fixed z-50 w-56 bg-[#120c1f] border border-[#ff007f]/50 shadow-[0_15px_45px_rgba(0,0,0,0.9)] py-1.5 text-xs font-mono select-none"
         >
+          <div
+            onClick={() => {
+              handleUndo();
+              setContextMenu(null);
+            }}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#00e5ff] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Undo2 className="w-3.5 h-3.5 text-[#00e5ff]" />
+              <span>Undo</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+Z</span>
+          </div>
+          <div
+            onClick={() => {
+              handleRedo();
+              setContextMenu(null);
+            }}
+            className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#00e676] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
+          >
+            <span className="flex items-center gap-2">
+              <Redo2 className="w-3.5 h-3.5 text-[#00e676]" />
+              <span>Redo</span>
+            </span>
+            <span className="text-[10px] text-[#7a7194]">Ctrl+Y</span>
+          </div>
+          <div className="my-1 border-t border-[#261d38]" />
           <div
             onClick={handleCut}
             className="px-3 py-1.5 hover:bg-[#281b3d] hover:text-[#ff007f] cursor-pointer flex items-center justify-between text-[#cbd5e1]"
