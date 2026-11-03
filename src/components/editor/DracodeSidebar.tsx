@@ -31,7 +31,7 @@ import {
   MoreVertical,
   Columns,
   PanelLeft,
-  ArrowDown,
+  ArrowUp,
   ArrowRight,
   Code2,
   Paperclip,
@@ -144,6 +144,8 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       tools?: Array<{ name: string; summary: string }>;
       timestamp: string;
       stepIndex?: number;
+      durationText?: string;
+      stepCount?: number;
     }>;
   } | null>(null);
   const [isAgyConnecting, setIsAgyConnecting] = useState(false);
@@ -173,7 +175,6 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
   // Context Menu (+) and Usage Modal States
   const [isAddContextOpen, setIsAddContextOpen] = useState(false);
-  const [isUsageModalOpen, setIsUsageModalOpen] = useState(false);
   const [selectedFamilyForFlyout, setSelectedFamilyForFlyout] = useState<string | null>(null);
   const [usageStats, setUsageStats] = useState<any>(null);
 
@@ -187,6 +188,8 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   // Collapsible 'Worked for Xm / steps' state per assistant message
   const [openWorkedMap, setOpenWorkedMap] = useState<Record<string, boolean>>({});
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isUsageInlineOpen, setIsUsageInlineOpen] = useState(false);
 
   // Refresh Real Git Telemetry (Adaptive Resolution + Branches + Logs + Identity)
   const refreshGit = useCallback(async () => {
@@ -1651,7 +1654,12 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
             {/* 3. Messages Stream */}
             <div
               ref={chatScrollRef}
-              className="flex-1 overflow-y-auto px-3.5 py-3 space-y-4 relative"
+              onScroll={(e) => {
+                const t = e.currentTarget;
+                const canScroll = t.scrollHeight > t.clientHeight + 40;
+                setShowScrollTop(canScroll && t.scrollTop > 80);
+              }}
+              className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-3 space-y-4 relative w-full max-w-full"
             >
               {agentSubView === "telemetry" ? (
                 /* Raw Telemetry View */
@@ -1895,13 +1903,18 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       };
 
                       const hasInternalSteps = Boolean(
-                        msg.thinking || (msg.tools && msg.tools.length > 0) || msg.stepIndex
+                        msg.thinking || (msg.tools && msg.tools.length > 0) || msg.durationText
                       );
                       const isWorkedOpen = openWorkedMap[msg.id] ?? false;
+                      const workedLabel = msg.durationText
+                        ? `Worked for ${msg.durationText}`
+                        : msg.stepCount && msg.stepCount > 1
+                        ? `Worked for ${msg.stepCount} steps`
+                        : "Worked for a few seconds";
 
                       return (
                         <div key={msg.id} className="space-y-2 select-text font-sans">
-                          {/* Collapsible Worked for Xm / Steps Header (Images 1 & 2) */}
+                          {/* Single Collapsible Worked Header per Turn */}
                           {hasInternalSteps && (
                             <div>
                               <button
@@ -1913,9 +1926,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                 }
                                 className="text-[11.5px] text-[#4ea8de] hover:underline flex items-center gap-1 cursor-pointer font-sans font-medium select-none"
                               >
-                                <span>
-                                  Worked for {msg.stepIndex ? `${msg.stepIndex} steps` : "a few steps"}
-                                </span>
+                                <span>{workedLabel}</span>
                                 <ChevronRight
                                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
                                     isWorkedOpen ? "rotate-90" : ""
@@ -1981,22 +1992,20 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
               )}
             </div>
 
-            {/* Floating Down Arrow Button */}
-            {agyState?.messages && agyState.messages.length > 2 && (
-              <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                <button
-                  onClick={() => {
-                    chatScrollRef.current?.scrollTo({
-                      top: chatScrollRef.current.scrollHeight,
-                      behavior: "smooth",
-                    });
-                  }}
-                  className="w-7 h-7 rounded-full bg-[#201a33] hover:bg-[#2c2347] border border-[#382b57] text-slate-300 hover:text-white flex items-center justify-center shadow-2xl transition-all cursor-pointer pointer-events-auto hover:scale-110"
-                  title="Scroll to latest message"
-                >
-                  <ArrowDown className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {/* Floating Scroll-to-Top Button (Only appears when scrolled down) */}
+            {showScrollTop && (
+              <button
+                onClick={() => {
+                  chatScrollRef.current?.scrollTo({
+                    top: 0,
+                    behavior: "smooth",
+                  });
+                }}
+                className="absolute top-12 right-3 z-30 w-7 h-7 rounded-full bg-[#201838]/90 hover:bg-[#2e234e] border border-[#3f2e5e] text-slate-300 hover:text-white flex items-center justify-center shadow-xl transition-all cursor-pointer backdrop-blur-xs hover:scale-110"
+                title="Scroll to top"
+              >
+                <ArrowUp className="w-3.5 h-3.5 text-[#00e5ff]" />
+              </button>
             )}
 
             {/* 4. Bottom Capsule Composer (Matching Antigravity Floating Pill) */}
@@ -2024,13 +2033,9 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                 </div>
               )}
 
-              {/* Slash Command Autocomplete Popover */}
+              {/* Sleek Minimalist Slash Command Autocomplete */}
               {isSkillPickerOpen && (
-                <div className="absolute left-3 bottom-full mb-2 w-72 max-h-64 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1 z-50 text-[11px] font-sans">
-                  <div className="px-3 py-1.5 text-[9.5px] font-bold text-slate-500 uppercase tracking-wider border-b border-[#291f42] flex items-center justify-between">
-                    <span>SKILLS & ACTIONS</span>
-                    <span className="text-[#00e5ff]">AUTOCOMPLETE</span>
-                  </div>
+                <div className="absolute left-2 right-2 bottom-full mb-1.5 max-h-48 overflow-y-auto bg-[#161124] border border-[#2d2246] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans">
                   {availableSkills
                     .filter((sk) =>
                       slashSearch ? sk.name.toLowerCase().includes(slashSearch.toLowerCase()) : true
@@ -2042,20 +2047,19 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                           if (!activePromptSkills.includes(sk.name)) {
                             setActivePromptSkills((prev) => [...prev, sk.name]);
                           }
-                          // Remove the typed / or /query from input
                           setAgyPromptInput((prev) => prev.replace(/\/[a-zA-Z0-9_-]*$/, "").trim());
                           setIsSkillPickerOpen(false);
                           setSlashSearch("");
                         }}
-                        className="w-full text-left px-3 py-2 hover:bg-[#291f42] flex flex-col cursor-pointer border-b border-[#231a38]/30 group"
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#261d3d] flex items-center justify-between cursor-pointer border-b border-[#231a38]/20 group"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded bg-[#251b3d] border border-[#ff007f]/40 text-[#00e5ff] font-bold font-sans text-[10.5px]">
+                          <span className="text-[#00e5ff] font-mono font-bold text-xs">/</span>
+                          <span className="font-bold text-slate-100 group-hover:text-[#00e5ff] text-xs">
                             {sk.name}
                           </span>
-                          <span className="text-slate-400 font-mono text-[10px]">/{sk.name}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 line-clamp-1 mt-0.5 pl-1">
+                        <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
                           {sk.description}
                         </span>
                       </button>
@@ -2191,10 +2195,10 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       <ChevronUp className="w-3 h-3 text-slate-400 ml-0.5" />
                     </button>
 
-                    {/* Model Family Dropdown (Image 3) */}
+                    {/* Responsive Model & Usage Dropdown (Zero Horizontal Scrollbar) */}
                     {isModelMenuOpen && (
-                      <div className="absolute left-0 bottom-full mb-1.5 w-64 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1.5 z-50 text-[11.5px] font-sans">
-                        <div className="px-3 py-1 text-[10px] font-bold text-slate-500">
+                      <div className="absolute left-0 bottom-full mb-1.5 w-64 max-w-[calc(100vw-36px)] bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1.5 z-50 text-[11.5px] font-sans box-border overflow-hidden">
+                        <div className="px-3 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                           Model
                         </div>
 
@@ -2206,20 +2210,10 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                           { name: "GPT-OSS 120B", hasEffort: false, isNew: false },
                         ].map((fam) => {
                           const isCurrentFamily = selectedFamily === fam.name;
-                          const isHovered = selectedFamilyForFlyout === fam.name;
+                          const isExpanded = selectedFamilyForFlyout === fam.name;
 
                           return (
-                            <div
-                              key={fam.name}
-                              onMouseEnter={() => {
-                                if (fam.hasEffort) {
-                                  setSelectedFamilyForFlyout(fam.name);
-                                } else {
-                                  setSelectedFamilyForFlyout(null);
-                                }
-                              }}
-                              className="relative"
-                            >
+                            <div key={fam.name} className="border-b border-[#231a38]/30 last:border-b-0">
                               <button
                                 onClick={() => {
                                   if (!fam.hasEffort) {
@@ -2227,8 +2221,11 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                     setSelectedModelId("gpt-oss-120b-medium");
                                     setIsModelMenuOpen(false);
                                   } else {
-                                    setSelectedFamilyForFlyout(fam.name);
+                                    setSelectedFamilyForFlyout(isExpanded ? null : fam.name);
                                   }
+                                }}
+                                onMouseEnter={() => {
+                                  if (fam.hasEffort) setSelectedFamilyForFlyout(fam.name);
                                 }}
                                 className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
                                   isCurrentFamily ? "text-slate-100 font-semibold" : "text-slate-300"
@@ -2253,17 +2250,18 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                     <Check className="w-3.5 h-3.5 text-slate-200" />
                                   )}
                                   {fam.hasEffort && (
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                    <ChevronRight
+                                      className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                                        isExpanded ? "rotate-90" : ""
+                                      }`}
+                                    />
                                   )}
                                 </div>
                               </button>
 
-                              {/* Effort Sub-menu Flyout (Low, Medium, High) (Image 3) */}
-                              {isHovered && fam.hasEffort && (
-                                <div
-                                  onMouseLeave={() => setSelectedFamilyForFlyout(null)}
-                                  className="absolute left-full top-0 ml-1 w-32 bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-xl py-1 z-50 text-[11px] font-sans"
-                                >
+                              {/* Inline Effort Segmented Selector (Responsive, Zero Overflow) */}
+                              {fam.hasEffort && isExpanded && (
+                                <div className="px-3 py-1 bg-[#140f24] border-t border-[#291f42] flex items-center gap-1">
                                   {(["Low", "Medium", "High"] as const).map((eff) => {
                                     const isEffortActive =
                                       isCurrentFamily && selectedEffort === eff;
@@ -2275,7 +2273,6 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                           setSelectedFamily(fam.name);
                                           setSelectedEffort(eff);
 
-                                          // Map to real CLI model ID
                                           let cliId = "gemini-3.8-flash-medium";
                                           if (fam.name.includes("Argon")) {
                                             cliId = `gemini-4-argon-${eff.toLowerCase()}`;
@@ -2291,16 +2288,13 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                                           setIsModelMenuOpen(false);
                                           setSelectedFamilyForFlyout(null);
                                         }}
-                                        className={`w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer ${
+                                        className={`flex-1 py-1 text-center rounded text-[10px] font-bold cursor-pointer transition-colors ${
                                           isEffortActive
-                                            ? "text-[#00e5ff] font-bold"
-                                            : "text-slate-300"
+                                            ? "bg-[#251b3d] text-[#00e5ff] border border-[#ff007f]/40"
+                                            : "text-slate-400 hover:text-white hover:bg-[#201836]"
                                         }`}
                                       >
-                                        <span>{eff}</span>
-                                        {isEffortActive && (
-                                          <Check className="w-3.5 h-3.5 text-[#00e5ff]" />
-                                        )}
+                                        {eff}
                                       </button>
                                     );
                                   })}
@@ -2310,21 +2304,87 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                           );
                         })}
 
-                        {/* View Usage Button (Image 3) */}
-                        <div className="pt-1 mt-1 border-t border-[#291f42]">
+                        {/* View Usage Hover / Toggle Row (Responsive Inside Dropdown) */}
+                        <div
+                          className="pt-1 mt-1 border-t border-[#291f42]"
+                          onMouseEnter={() => {
+                            setIsUsageInlineOpen(true);
+                            callAntigravityBridge("get-usage", {}).then((r) => {
+                              if (r && r.ok) setUsageStats(r);
+                            });
+                          }}
+                        >
                           <button
                             onClick={() => {
-                              setIsModelMenuOpen(false);
-                              setIsUsageModalOpen(true);
+                              setIsUsageInlineOpen(!isUsageInlineOpen);
                               callAntigravityBridge("get-usage", {}).then((r) => {
                                 if (r && r.ok) setUsageStats(r);
                               });
                             }}
-                            className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer font-medium"
+                            className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-300 hover:text-white flex items-center justify-between cursor-pointer font-medium"
                           >
-                            <Gauge className="w-3.5 h-3.5 text-slate-400" />
-                            <span>View Usage</span>
+                            <div className="flex items-center gap-2">
+                              <Gauge className="w-3.5 h-3.5 text-slate-400" />
+                              <span>View Usage</span>
+                            </div>
+                            <ChevronRight
+                              className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                                isUsageInlineOpen ? "rotate-90" : ""
+                              }`}
+                            />
                           </button>
+
+                          {/* Inline Responsive Usage HUD (Image 4) */}
+                          {isUsageInlineOpen && (
+                            <div className="mx-2 mb-1.5 p-2.5 rounded-lg bg-[#140f24] border border-[#2d2246] space-y-2 text-[10.5px]">
+                              {/* Gemini Models */}
+                              <div>
+                                <div className="font-bold text-slate-200">Gemini Models</div>
+                                <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                                  <span>Weekly limit</span>
+                                  <div className="flex items-center gap-1 font-bold text-slate-200">
+                                    <span>{usageStats?.quotas?.[0]?.weekly?.percentLeft || 58}% left</span>
+                                    <span className="w-2 h-2 rounded-full border border-[#00e676]" />
+                                  </div>
+                                </div>
+                                <div className="text-[9px] text-slate-500 text-right">
+                                  {usageStats?.quotas?.[0]?.weekly?.resetText || "Resets in 3d 18h"}
+                                </div>
+                              </div>
+
+                              {/* Claude and GPT models */}
+                              <div className="pt-1 border-t border-[#231a38]">
+                                <div className="font-bold text-slate-200">Claude and GPT models</div>
+                                <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                                  <span>Weekly limit</span>
+                                  <div className="flex items-center gap-1 font-bold text-slate-200">
+                                    <span>{usageStats?.quotas?.[1]?.weekly?.percentLeft || 100}% left</span>
+                                    <span className="w-2 h-2 rounded-full border border-[#00e676]" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Gemini 4 Argon */}
+                              <div className="pt-1 border-t border-[#231a38]">
+                                <div className="font-bold text-slate-200">Gemini 4 Argon</div>
+                                <div className="flex items-center justify-between text-slate-400 text-[10px]">
+                                  <span>Weekly limit</span>
+                                  <div className="flex items-center gap-1 font-bold text-[#ff80ab]">
+                                    <span>{usageStats?.quotas?.[2]?.weekly?.percentLeft || 9}% left</span>
+                                    <span className="w-2 h-2 rounded-full border border-[#ff1744]" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Total DB Turns */}
+                              <div className="pt-1 border-t border-[#231a38] text-[9.5px] text-slate-400 flex items-center justify-between">
+                                <span>DB Turns:</span>
+                                <span className="font-mono text-[#00e5ff] font-bold">
+                                  {usageStats?.totalSteps?.toLocaleString() || "89,506"}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -2350,115 +2410,11 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                 </button>
               </div>
             </div>
-
-            {/* View Usage Modal Popup (Image 4) */}
-            {isUsageModalOpen && (
-              <div
-                onClick={() => setIsUsageModalOpen(false)}
-                className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans select-none"
-              >
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-xs bg-[#1a142c] border border-[#372b54] rounded-2xl shadow-2xl p-4 space-y-3.5 text-xs text-slate-200"
-                >
-                  <div className="flex items-center justify-between border-b border-[#291f42] pb-2">
-                    <span className="font-bold text-slate-400 text-[11px] uppercase tracking-wider">
-                      Usage
-                    </span>
-                    <button
-                      onClick={() => setIsUsageModalOpen(false)}
-                      className="text-slate-400 hover:text-white cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Section 1: Gemini Models */}
-                  <div className="space-y-2">
-                    <div className="font-bold text-slate-100 text-[12px]">Gemini Models</div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Weekly limit</span>
-                      <div className="text-right flex items-center gap-1.5">
-                        <span className="font-bold text-slate-200">
-                          {usageStats?.quotas?.[0]?.weekly?.percentLeft || 58}% left
-                        </span>
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-slate-500 text-right -mt-1">
-                      {usageStats?.quotas?.[0]?.weekly?.resetText || "Resets in 3d 18h"}
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">5h limit</span>
-                      <div className="text-right flex items-center gap-1.5">
-                        <span className="font-bold text-slate-200">
-                          {usageStats?.quotas?.[0]?.fiveHour?.percentLeft || 97}% left
-                        </span>
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-slate-500 text-right -mt-1">
-                      {usageStats?.quotas?.[0]?.fiveHour?.resetText || "Resets in 4h 31m"}
-                    </div>
-                  </div>
-
-                  {/* Section 2: Claude and GPT models */}
-                  <div className="space-y-2 pt-1 border-t border-[#291f42]/60">
-                    <div className="font-bold text-slate-100 text-[12px]">Claude and GPT models</div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Weekly limit</span>
-                      <div className="text-right flex items-center gap-1.5">
-                        <span className="font-bold text-slate-200">
-                          {usageStats?.quotas?.[1]?.weekly?.percentLeft || 100}% left
-                        </span>
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">5h limit</span>
-                      <div className="text-right flex items-center gap-1.5">
-                        <span className="font-bold text-slate-200">
-                          {usageStats?.quotas?.[1]?.fiveHour?.percentLeft || 100}% left
-                        </span>
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#00e676] shrink-0" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Section 3: Gemini 4 Argon */}
-                  <div className="space-y-1.5 pt-1 border-t border-[#291f42]/60">
-                    <div className="font-bold text-slate-100 text-[12px]">Gemini 4 Argon</div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400">Weekly limit</span>
-                      <div className="text-right flex items-center gap-1.5">
-                        <span className="font-bold text-[#ff80ab]">
-                          {usageStats?.quotas?.[2]?.weekly?.percentLeft || 9}% left
-                        </span>
-                        <span className="w-2.5 h-2.5 rounded-full border-2 border-[#ff1744] shrink-0" />
-                      </div>
-                    </div>
-                    <div className="text-[10px] text-slate-500 text-right -mt-0.5">
-                      {usageStats?.quotas?.[2]?.weekly?.resetText || "Resets in 4d 8h"}
-                    </div>
-                  </div>
-
-                  {/* Real Stats footer */}
-                  <div className="pt-2 border-t border-[#291f42] text-[10px] text-slate-400 flex items-center justify-between">
-                    <span>Total DB Turns:</span>
-                    <span className="font-mono text-[#00e5ff] font-bold">
-                      {usageStats?.totalSteps?.toLocaleString() || "89,506"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
 
-{/* Bottom Icon Mode Switcher Bar (Explorer | Git | Agent) */}
+      {/* Bottom Icon Mode Switcher Bar (Explorer | Git | Agent) */}
       <div className="h-10 min-h-[40px] bg-[#0e0918] border-t border-[#261d38] grid grid-cols-3 divide-x divide-[#261d38]">
         <DracoTooltip content="Dracode File Explorer" position="top" accent="cyan">
           <button

@@ -80,14 +80,31 @@ function querySummariesDb() {
   }
 }
 
+function formatTurnDuration(startTime, endTime) {
+  if (!startTime || !endTime) return 'a few seconds';
+  try {
+    const ms = Math.max(0, new Date(endTime).getTime() - new Date(startTime).getTime());
+    if (ms >= 60000) {
+      const mins = Math.max(1, Math.round(ms / 60000));
+      return `${mins}m`;
+    }
+    if (ms >= 1000) {
+      const secs = Math.max(1, Math.round(ms / 1000));
+      return `${secs}s`;
+    }
+    return 'a few seconds';
+  } catch {
+    return 'a few seconds';
+  }
+}
+
 function readTranscriptMessages(conversationId, maxMessages = 60) {
   if (!conversationId) return [];
-  const messages = [];
+  const rawList = [];
 
-  // Check if there are pending local messages for a newly created session
   const pending = pendingSessions.get(conversationId);
   if (pending && Array.isArray(pending.messages)) {
-    messages.push(...pending.messages);
+    rawList.push(...pending.messages);
   }
 
   const logPath = path.join(
@@ -97,57 +114,114 @@ function readTranscriptMessages(conversationId, maxMessages = 60) {
     'logs',
     'transcript.jsonl'
   );
-  if (!fs.existsSync(logPath)) {
-    return messages;
+
+  if (fs.existsSync(logPath)) {
+    try {
+      const content = fs.readFileSync(logPath, 'utf-8');
+      const lines = content.split(/\r?\n/).filter(Boolean);
+      const recentLines = lines.slice(-250);
+
+      for (const line of recentLines) {
+        try {
+          const step = JSON.parse(line);
+          if (!step || typeof step !== 'object') continue;
+
+          if (step.type === 'USER_INPUT' && typeof step.content === 'string') {
+            const reqMatch = step.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+            const cleanText = (reqMatch ? reqMatch[1] : step.content).trim();
+            if (cleanText && !cleanText.startsWith('[Message] timestamp=')) {
+              rawList.push({
+                type: 'user',
+                id: `step-${step.step_index}-user`,
+                role: 'user',
+                content: cleanText,
+                timestamp: step.created_at || new Date().toISOString(),
+                stepIndex: step.step_index,
+              });
+            }
+          } else if (step.type === 'PLANNER_RESPONSE') {
+            const text = typeof step.content === 'string' ? step.content.trim() : '';
+            const thinking = typeof step.thinking === 'string' ? step.thinking.trim() : '';
+            const tools = Array.isArray(step.tool_calls)
+              ? step.tool_calls.map((t) => ({
+                  name: t.name || 'tool',
+                  summary: t.args?.toolSummary || t.args?.Path || t.args?.CommandLine || '',
+                }))
+              : [];
+
+            rawList.push({
+              type: 'assistant_step',
+              stepIndex: step.step_index,
+              timestamp: step.created_at || new Date().toISOString(),
+              text,
+              thinking,
+              tools,
+            });
+          }
+        } catch {}
+      }
+    } catch {}
   }
 
-  try {
-    const content = fs.readFileSync(logPath, 'utf-8');
-    const lines = content.split(/\r?\n/).filter(Boolean);
-    const recentLines = lines.slice(-160);
+  // Collapse consecutive assistant steps into a single cohesive turn per user request
+  const messages = [];
+  let curAssistantTurn = null;
 
-    for (const line of recentLines) {
-      try {
-        const step = JSON.parse(line);
-        if (!step || typeof step !== 'object') continue;
-
-        if (step.type === 'USER_INPUT' && typeof step.content === 'string') {
-          const reqMatch = step.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
-          const cleanText = (reqMatch ? reqMatch[1] : step.content).trim();
-          if (cleanText && !cleanText.startsWith('[Message] timestamp=')) {
-            messages.push({
-              id: `step-${step.step_index}-user`,
-              role: 'user',
-              content: cleanText,
-              timestamp: step.created_at || new Date().toISOString(),
-              stepIndex: step.step_index,
-            });
-          }
-        } else if (step.type === 'PLANNER_RESPONSE') {
-          const text = typeof step.content === 'string' ? step.content.trim() : '';
-          const thinking = typeof step.thinking === 'string' ? step.thinking.trim() : '';
-          const tools = Array.isArray(step.tool_calls)
-            ? step.tool_calls.map((t) => ({
-                name: t.name || 'tool',
-                summary: t.args?.toolSummary || t.args?.Path || t.args?.CommandLine || '',
-              }))
-            : [];
-
-          if (text || tools.length > 0) {
-            messages.push({
-              id: `step-${step.step_index}-agent`,
-              role: 'assistant',
-              content: text,
-              thinking: thinking ? thinking.slice(0, 300) : undefined,
-              tools,
-              timestamp: step.created_at || new Date().toISOString(),
-              stepIndex: step.step_index,
-            });
-          }
+  for (const item of rawList) {
+    if (item.type === 'user' || item.role === 'user') {
+      if (curAssistantTurn) {
+        curAssistantTurn.durationText = formatTurnDuration(curAssistantTurn.startTime, curAssistantTurn.endTime);
+        curAssistantTurn.thinking = Array.isArray(curAssistantTurn.thinking)
+          ? curAssistantTurn.thinking.slice(-3).join('\n')
+          : curAssistantTurn.thinking;
+        messages.push(curAssistantTurn);
+        curAssistantTurn = null;
+      }
+      messages.push({
+        id: item.id || `user-${Date.now()}`,
+        role: 'user',
+        content: item.content,
+        timestamp: item.timestamp,
+        stepIndex: item.stepIndex,
+      });
+    } else {
+      if (!curAssistantTurn) {
+        curAssistantTurn = {
+          id: `asst-${item.stepIndex || Date.now()}`,
+          role: 'assistant',
+          content: item.text || item.content || '',
+          thinking: item.thinking ? [item.thinking] : [],
+          tools: [...(item.tools || [])],
+          startTime: item.timestamp,
+          endTime: item.timestamp,
+          stepCount: 1,
+          stepIndex: item.stepIndex,
+          timestamp: item.timestamp,
+        };
+      } else {
+        curAssistantTurn.stepCount++;
+        curAssistantTurn.endTime = item.timestamp;
+        curAssistantTurn.timestamp = item.timestamp;
+        if (item.text || item.content) {
+          curAssistantTurn.content = item.text || item.content;
         }
-      } catch {}
+        if (item.thinking) {
+          curAssistantTurn.thinking.push(item.thinking);
+        }
+        if (Array.isArray(item.tools) && item.tools.length > 0) {
+          curAssistantTurn.tools.push(...item.tools);
+        }
+      }
     }
-  } catch {}
+  }
+
+  if (curAssistantTurn) {
+    curAssistantTurn.durationText = formatTurnDuration(curAssistantTurn.startTime, curAssistantTurn.endTime);
+    curAssistantTurn.thinking = Array.isArray(curAssistantTurn.thinking)
+      ? curAssistantTurn.thinking.slice(-3).join('\n')
+      : curAssistantTurn.thinking;
+    messages.push(curAssistantTurn);
+  }
 
   return messages.slice(-maxMessages);
 }
