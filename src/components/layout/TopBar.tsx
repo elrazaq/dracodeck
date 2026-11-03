@@ -31,6 +31,7 @@ interface MenuItem {
 export const TopBar: React.FC<TopBarProps> = ({
   workspace,
   scopedWorkspace,
+  activeView = "editor",
   onSelectView,
   onChangeWorkspace,
   onExitScope,
@@ -353,10 +354,12 @@ export const TopBar: React.FC<TopBarProps> = ({
             DRACODECK <span className="text-[#ff007f] font-normal hidden sm:inline">// KALI RUNTIME</span>
           </span>
 
-          <span className="text-[#443a57] shrink-0">|</span>
+          {activeView === "editor" && (
+            <>
+              <span className="text-[#443a57] shrink-0">|</span>
 
-          {/* Single-Line Interactive Menu Bar (File, Edit, Selection, View, Workplace, Help) */}
-          <div ref={menuContainerRef} className="flex items-center gap-0.5 shrink-0">
+              {/* Single-Line Interactive Menu Bar (File, Edit, Selection, View, Workplace, Help) */}
+              <div ref={menuContainerRef} className="flex items-center gap-0.5 shrink-0">
             {menuOrder.map((m) => {
               const isOpen = openMenu === m.id;
               return (
@@ -410,6 +413,8 @@ export const TopBar: React.FC<TopBarProps> = ({
               );
             })}
           </div>
+            </>
+          )}
 
           <span className="text-[#443a57] hidden md:inline shrink-0">|</span>
 

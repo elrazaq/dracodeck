@@ -640,13 +640,6 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
       {/* Dracode Editor Tab Bar */}
       <div className="h-8 min-h-[32px] max-h-8 flex-shrink-0 bg-[#120c1f] border-b border-[#261d38] flex items-center justify-between select-none relative z-20 overflow-hidden">
-        {/* Dracode Identity Badge */}
-        <div className="h-full px-2.5 bg-[#0e0918] border-r border-[#261d38] flex items-center gap-1.5 flex-shrink-0">
-          <DracodeLogo size={15} />
-          <span className="text-[10px] font-bold tracking-wider text-[#ff007f]">
-            DRACODE
-          </span>
-        </div>
 
         {/* Scrollable Tabs Container (Horizontal Wheel Synced, Vertical Wheel Converted) */}
         <div

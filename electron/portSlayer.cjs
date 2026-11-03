@@ -89,7 +89,7 @@ function scanWin32Ports() {
     const processMap = await getProcessMap();
     const selfPid = process.pid;
 
-    execFile('netstat.exe', ['-ano', '-p', 'tcp'], { windowsHide: true }, (err, stdout) => {
+    execFile('netstat.exe', ['-ano'], { windowsHide: true }, (err, stdout) => {
       if (err || !stdout) {
         resolve([]);
         return;
@@ -251,13 +251,20 @@ function killPortProcess(targetPort) {
         return;
       }
       const ports = await scanWin32Ports();
-      const match = ports.find((p) => p.port === portNum && p.state === 'LISTENING');
-      if (!match) {
+      const matches = ports.filter((p) => p.port === portNum && p.state === 'LISTENING');
+      if (matches.length === 0) {
         resolve({ success: false, error: `No active listening process on port ${portNum}` });
         return;
       }
-      const killResult = await killWin32Process(match.pid, true);
-      resolve({ ...killResult, port: portNum, processName: match.processName });
+      const uniquePids = [...new Set(matches.map((m) => m.pid))];
+      let lastRes = { success: false };
+      for (const pid of uniquePids) {
+        const res = await killWin32Process(pid, true);
+        if (res.success) {
+          lastRes = { ...res, port: portNum, processName: matches[0].processName };
+        }
+      }
+      resolve(lastRes.success ? lastRes : { success: false, error: `Failed to terminate PID(s) on port ${portNum}` });
     } catch (err) {
       resolve({ success: false, error: err.message });
     }

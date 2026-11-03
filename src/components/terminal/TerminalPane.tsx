@@ -6,7 +6,6 @@ import {
   RotateCw,
   Zap,
   X,
-  Square,
   Globe,
   ExternalLink,
   Copy,
@@ -24,6 +23,11 @@ interface TerminalPaneProps {
   workspacePath?: string;
   onOpenBrowser?: (url: string) => void;
 }
+
+const stripAnsi = (str: string): string =>
+  str
+    .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
+    .replace(/\x1b\][^\x07]*\x07/g, "");
 
 export const TerminalPane: React.FC<TerminalPaneProps> = ({
   workspacePath,
@@ -44,29 +48,53 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [copySelectionFeedback, setCopySelectionFeedback] = useState<boolean>(false);
+  const [slayedAtLineIndex, setSlayedAtLineIndex] = useState<number>(-1);
 
-  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const outputContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isMouseSelectingRef = useRef<boolean>(false);
+  const prevLineCountRef = useRef<number>(outputLines.length);
+  const prevWorkspaceRef = useRef<string | undefined>(workspacePath);
 
   const currentTab = tabs.find((t) => t.id === activeTabId);
 
-  // Auto-scroll to bottom on new output
+  // Auto-scroll to bottom ONLY when new lines arrive AND user has no active text selection
   useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const lineCountIncreased = outputLines.length > prevLineCountRef.current;
+    prevLineCountRef.current = outputLines.length;
+
+    if (!lineCountIncreased) return;
+    if (isMouseSelectingRef.current) return;
+
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+
+    const container = outputContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [outputLines]);
 
-  // Keep terminal CWD aligned with active workspace
+  // Keep terminal CWD aligned with active workspace & reset port scope when switching workspace
   useEffect(() => {
     if (workspacePath && window.dracoAPI?.terminalSetCwd) {
       window.dracoAPI.terminalSetCwd(workspacePath);
     }
-  }, [workspacePath]);
+    if (prevWorkspaceRef.current !== workspacePath) {
+      prevWorkspaceRef.current = workspacePath;
+      setSlayedAtLineIndex(outputLines.length);
+    }
+  }, [workspacePath, outputLines.length]);
 
   // Hydrate persistent history from Electron backend so switching views never loses logs
   useEffect(() => {
     if (window.dracoAPI?.terminalGetHistory) {
       window.dracoAPI.terminalGetHistory().then((history) => {
         if (history && history.length > 0) {
+          prevLineCountRef.current = history.length;
           setOutputLines(history);
         }
       });
@@ -88,14 +116,44 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
   }, []);
 
-  // Detect active localhost / dev server URL from recent output lines
+  // Detect active localhost / dev server URL WITH port from recent cleaned output lines in current scope
   const detectedDevUrl = useMemo(() => {
-    for (let i = outputLines.length - 1; i >= Math.max(0, outputLines.length - 35); i--) {
-      const match = outputLines[i].match(/https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/[^\s"'<>]*)?/i);
-      if (match) return match[0];
+    const minIdx = Math.max(slayedAtLineIndex, outputLines.length - 45, 0);
+    for (let i = outputLines.length - 1; i >= minIdx; i--) {
+      const clean = stripAnsi(outputLines[i]);
+      const match = clean.match(
+        /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\])(:\d+)(?:\/[^\s"'<>()[\]{}]*)?/i
+      );
+      if (match) {
+        return match[0]
+          .replace("0.0.0.0", "localhost")
+          .replace("[::1]", "localhost")
+          .replace("[::]", "localhost");
+      }
     }
     return null;
-  }, [outputLines]);
+  }, [outputLines, slayedAtLineIndex]);
+
+  // Detect active port in current scope (from dev server URL or EADDRINUSE / port-in-use message)
+  const detectedPort = useMemo(() => {
+    if (detectedDevUrl) {
+      const m = detectedDevUrl.match(/:(\d+)/);
+      if (m) return parseInt(m[1], 10);
+    }
+    const minIdx = Math.max(slayedAtLineIndex, outputLines.length - 30, 0);
+    for (let i = outputLines.length - 1; i >= minIdx; i--) {
+      const clean = stripAnsi(outputLines[i]);
+      const inUseMatch =
+        clean.match(/port\s+(\d+)\s+is\s+(?:already\s+)?in\s+use/i) ||
+        clean.match(/EADDRINUSE.*?:(\d+)/i);
+      if (inUseMatch) {
+        return parseInt(inUseMatch[1], 10);
+      }
+    }
+    return null;
+  }, [detectedDevUrl, outputLines, slayedAtLineIndex]);
+
+  const hasActivePort = detectedPort !== null;
 
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
@@ -110,6 +168,26 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       onOpenBrowser(url);
     } else {
       window.open(url, "_blank");
+    }
+  };
+
+  const handleContainerClick = () => {
+    // Do NOT focus input or scroll if user has highlighted (blocked) text
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      return;
+    }
+    inputRef.current?.focus({ preventScroll: true });
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    const selection = window.getSelection();
+    const selectedText = selection ? selection.toString() : "";
+    if (selectedText.length > 0) {
+      e.preventDefault();
+      navigator.clipboard.writeText(selectedText);
+      setCopySelectionFeedback(true);
+      setTimeout(() => setCopySelectionFeedback(false), 1800);
     }
   };
 
@@ -145,16 +223,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setCurrentInput("");
   };
 
-  const handleStopProcess = () => {
-    // Send \x03 (SIGINT / Ctrl+C) to ConPTY to stop active foreground command (e.g. npm run dev)
-    // Shell process and working directory are preserved!
-    if (window.dracoAPI?.send) {
-      window.dracoAPI.send("terminal-input", "\x03");
-    }
-    setOutputLines((prev) => [...prev, "^C"]);
-    setCurrentInput("");
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleSendCommand(currentInput);
@@ -177,9 +245,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           setCurrentInput("");
         }
       }
-    } else if (e.ctrlKey && e.key === "c") {
-      handleStopProcess();
-    } else if (e.ctrlKey && e.key === "l") {
+    } else if (e.ctrlKey && e.key.toLowerCase() === "c") {
+      const selection = window.getSelection()?.toString();
+      if (selection && selection.length > 0) {
+        navigator.clipboard.writeText(selection);
+        setCopySelectionFeedback(true);
+        setTimeout(() => setCopySelectionFeedback(false), 1800);
+        return;
+      }
+      if (window.dracoAPI?.send) {
+        window.dracoAPI.send("terminal-input", "\x03");
+      }
+      setOutputLines((prev) => [...prev, "^C"]);
+      setCurrentInput("");
+    } else if (e.ctrlKey && e.key.toLowerCase() === "l") {
       e.preventDefault();
       handleClear();
     }
@@ -187,6 +266,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleClear = async () => {
     setOutputLines([]);
+    setSlayedAtLineIndex(-1);
     if (window.dracoAPI?.terminalClearHistory) {
       await window.dracoAPI.terminalClearHistory();
     }
@@ -197,6 +277,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   };
 
   const handleRestart = async () => {
+    setSlayedAtLineIndex(-1);
     setOutputLines(["[Restarting ConPTY session...]", ""]);
     if (window.dracoAPI?.terminalInit) {
       await window.dracoAPI.terminalInit(workspacePath);
@@ -204,7 +285,22 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   };
 
   const handleSlayPorts = async () => {
-    const devPorts = [5174, 5173, 4200, 3000, 8080, 8000];
+    const portToKill = detectedPort;
+    const devPorts = Array.from(
+      new Set([
+        ...(portToKill ? [portToKill] : []),
+        5174,
+        5173,
+        4200,
+        3000,
+        8080,
+        8000,
+      ])
+    );
+
+    // Mark current output lines as slayed so toolbar pills clear immediately
+    setSlayedAtLineIndex(outputLines.length + 10);
+
     let killed = 0;
     if (window.dracoAPI?.slayerKillPort) {
       for (const port of devPorts) {
@@ -214,16 +310,23 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             killed++;
             setOutputLines((prev) => [
               ...prev,
-              `[Slayer] Terminated zombie process on port ${port} (${res.processName}).`,
+              `[Slayer] Terminated process on port :${port} (${res.processName}).`,
             ]);
           }
         } catch {}
       }
     }
+
+    // Also terminate the active ConPTY child process tree (e.g. ng serve / npm run dev on IPv6)
+    // and respawn clean shell in active workspacePath without wiping existing terminal logs
+    if (window.dracoAPI?.terminalInit) {
+      await window.dracoAPI.terminalInit(workspacePath);
+    }
+
     if (killed === 0) {
       setOutputLines((prev) => [
         ...prev,
-        "[Slayer] Dev ports (5174/5173/4200/3000/8080/8000) verified clean.",
+        `[Slayer] Active dev server${portToKill ? ` on port :${portToKill}` : ""} stopped & process tree freed.`,
       ]);
     }
   };
@@ -255,7 +358,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   };
 
   const renderLineWithLinks = (line: string, lineIdx: number) => {
-    const clean = line.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+    const clean = stripAnsi(line);
     if (!clean) return <div key={lineIdx} className="h-4" />;
 
     const urlRegex = /(https?:\/\/[^\s"'<>()[\]{}]+)/g;
@@ -327,9 +430,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     );
   };
 
+  const openPillUrl = detectedDevUrl || (detectedPort ? `http://localhost:${detectedPort}/` : null);
+
   return (
     <div
-      onClick={() => inputRef.current?.focus()}
+      onClick={handleContainerClick}
+      onContextMenu={handleContextMenu}
       className="h-full bg-[#0b0813] flex flex-col font-mono text-xs overflow-hidden border-t border-[#261d38]"
     >
       {/* Terminal Tab Bar */}
@@ -384,35 +490,29 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
         {/* Terminal Action Tools */}
         <div className="flex items-center gap-1.5 text-[10px] text-[#7a7194] shrink-0 pl-2 select-none">
-          {detectedDevUrl && (
-            <DracoTooltip content={`Open ${detectedDevUrl} in DracoBrowser`} position="bottom" accent="cyan">
+          {copySelectionFeedback && (
+            <span className="flex items-center gap-1 px-2 py-0.5 bg-[#00e676]/15 border border-[#00e676]/40 text-[#00e676] font-bold">
+              <Check className="w-3 h-3" />
+              <span>COPIED</span>
+            </span>
+          )}
+
+          {openPillUrl && (
+            <DracoTooltip content={`Open ${openPillUrl} in DracoBrowser`} position="bottom" accent="cyan">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleOpenUrl(detectedDevUrl);
+                  handleOpenUrl(openPillUrl);
                 }}
-                className="flex items-center gap-1.5 px-2 py-0.5 bg-[#00e5ff]/10 hover:bg-[#00e5ff]/25 border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] font-bold cursor-pointer transition-colors mr-1"
+                className="flex items-center gap-1.5 px-2 py-0.5 bg-[#00e5ff]/10 hover:bg-[#00e5ff]/25 border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] font-bold cursor-pointer transition-colors"
               >
                 <Globe className="w-3 h-3 text-[#00e5ff] animate-pulse" />
                 <span className="hidden md:inline">OPEN</span>
-                <span>{detectedDevUrl.replace(/^https?:\/\//, "")}</span>
+                <span>{openPillUrl.replace(/^https?:\/\//, "")}</span>
                 <ExternalLink className="w-2.5 h-2.5 opacity-80" />
               </button>
             </DracoTooltip>
           )}
-
-          <DracoTooltip content="Stop Active Process (Sends Ctrl+C SIGINT)" position="bottom" accent="pink">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleStopProcess();
-              }}
-              className="flex items-center gap-1 bg-[#ff8800]/15 hover:bg-[#ff8800]/30 text-[#ff8800] border border-[#ff8800]/40 px-2 py-0.5 font-bold transition-colors cursor-pointer"
-            >
-              <Square className="w-3 h-3 fill-[#ff8800]/30" />
-              <span>STOP (Ctrl+C)</span>
-            </button>
-          </DracoTooltip>
 
           <DracoTooltip content="Clear Screen (Keeps Current Folder)" shortcut="Ctrl+L" position="bottom" accent="cyan">
             <button
@@ -440,24 +540,39 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             </button>
           </DracoTooltip>
 
-          <DracoTooltip content="Kill Zombie Dev Ports (3000, 4200, 5173, 8080)" position="bottom" accent="pink">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleSlayPorts();
-              }}
-              className="flex items-center gap-1 bg-[#ff1744]/15 hover:bg-[#ff1744]/30 text-[#ff1744] hover:text-white px-2 py-0.5 border border-[#ff1744]/40 font-bold transition-colors cursor-pointer text-[10px]"
+          {hasActivePort && (
+            <DracoTooltip
+              content={`Stop Active Dev Server & Free Port${detectedPort ? ` :${detectedPort}` : ""}`}
+              position="bottom"
+              accent="pink"
             >
-              <Zap className="w-3 h-3" />
-              <span>SLAY PORTS</span>
-            </button>
-          </DracoTooltip>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSlayPorts();
+                }}
+                className="flex items-center gap-1 bg-[#ff1744]/15 hover:bg-[#ff1744]/30 text-[#ff1744] hover:text-white px-2 py-0.5 border border-[#ff1744]/40 font-bold transition-colors cursor-pointer text-[10px]"
+              >
+                <Zap className="w-3 h-3" />
+                <span>{detectedPort ? `SLAY PORT :${detectedPort}` : "SLAY PORTS"}</span>
+              </button>
+            </DracoTooltip>
+          )}
         </div>
       </div>
 
       {/* Terminal Screen Canvas or Clean Empty State */}
       {currentTab ? (
-        <div className="flex-1 p-3 overflow-y-auto bg-[#0b0813] text-[#cbd5e1] leading-5 space-y-0.5 cursor-text font-mono text-[11px] select-text">
+        <div
+          ref={outputContainerRef}
+          onMouseDown={() => {
+            isMouseSelectingRef.current = true;
+          }}
+          onMouseUp={() => {
+            isMouseSelectingRef.current = false;
+          }}
+          className="flex-1 p-3 overflow-y-auto bg-[#0b0813] text-[#cbd5e1] leading-5 space-y-0.5 cursor-text font-mono text-[11px] select-text"
+        >
           {outputLines.map((line, idx) => renderLineWithLinks(line, idx))}
 
           {/* Active Command Prompt Line */}
@@ -475,8 +590,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
               className="flex-1 bg-transparent text-[#e2e8f0] outline-none border-none font-mono text-[11px] caret-[#ff007f]"
             />
           </div>
-
-          <div ref={terminalEndRef} />
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center bg-[#090610] text-[#7a7194] gap-2.5 p-4 select-none">
