@@ -546,8 +546,75 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
     handleContentChange(updated);
   };
 
-  // Global Keyboard Shortcuts (Ctrl+F, Ctrl+H, Ctrl+S, Ctrl+`)
+  // Global Keyboard Shortcuts (Tab / Shift+Tab Indent, Ctrl+F, Ctrl+H, Ctrl+S, Ctrl+`)
   const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const ta = e.currentTarget;
+      const value = ta.value;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const indentStr = "  ";
+
+      // Single cursor without Shift: insert 2 spaces at cursor
+      if (start === end && !e.shiftKey) {
+        const updated = value.slice(0, start) + indentStr + value.slice(end);
+        handleContentChange(updated);
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = start + indentStr.length;
+            textareaRef.current.selectionEnd = start + indentStr.length;
+          }
+        });
+        return;
+      }
+
+      // Multi-line selection or Shift+Tab outdent
+      const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+      const selectedBlock = value.slice(lineStart, end);
+      const blockLines = selectedBlock.split("\n");
+
+      if (!e.shiftKey) {
+        const indentedLines = blockLines.map((l) => indentStr + l);
+        const replacement = indentedLines.join("\n");
+        const updated = value.slice(0, lineStart) + replacement + value.slice(end);
+        handleContentChange(updated);
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = start + indentStr.length;
+            textareaRef.current.selectionEnd = end + indentStr.length * blockLines.length;
+          }
+        });
+      } else {
+        let removedFirst = 0;
+        let removedTotal = 0;
+        const outdentedLines = blockLines.map((l, idx) => {
+          if (l.startsWith("  ")) {
+            if (idx === 0) removedFirst = 2;
+            removedTotal += 2;
+            return l.slice(2);
+          } else if (l.startsWith(" ") || l.startsWith("\t")) {
+            if (idx === 0) removedFirst = 1;
+            removedTotal += 1;
+            return l.slice(1);
+          }
+          return l;
+        });
+        if (removedTotal > 0) {
+          const replacement = outdentedLines.join("\n");
+          const updated = value.slice(0, lineStart) + replacement + value.slice(end);
+          handleContentChange(updated);
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = Math.max(lineStart, start - removedFirst);
+              textareaRef.current.selectionEnd = Math.max(lineStart, end - removedTotal);
+            }
+          });
+        }
+      }
+      return;
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
       e.preventDefault();
       setIsFindOpen(true);
