@@ -132,10 +132,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       evaluatePayload(detail);
     };
 
-    // Immediately evaluate if EditorPane already has an active file loaded
+    // Immediately evaluate if EditorPane already has an active file loaded, and request fresh state
     if ((window as any).__dracoLastEditorState) {
       evaluatePayload((window as any).__dracoLastEditorState);
+    } else {
+      setEditorDiagnostics([]);
     }
+    window.dispatchEvent(new CustomEvent("dracode:request-diagnostics"));
 
     window.addEventListener("dracode:editor-diagnostics", handleEditorCode);
     return () => window.removeEventListener("dracode:editor-diagnostics", handleEditorCode);
@@ -184,7 +187,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [outputLines]);
 
   const allProblems = useMemo(
-    () => [...editorDiagnostics, ...terminalDiagnostics],
+    () =>
+      [...editorDiagnostics, ...terminalDiagnostics].filter(
+        (p) => !p.message.includes("TS6046") && p.source !== "TS Compiler"
+      ),
     [editorDiagnostics, terminalDiagnostics]
   );
 

@@ -1,4 +1,6 @@
-import * as ts from "typescript";
+import * as tsNamespace from "typescript";
+
+const ts: typeof tsNamespace = (tsNamespace as any).default || tsNamespace;
 
 export interface CodeDiagnosticItem {
   id: string;
@@ -30,11 +32,10 @@ const HTML_VOID_ELEMENTS = new Set([
 
 /**
  * Official AST & Native Parser Diagnostics Engine (VS Code / Monaco Architecture)
- * - JS / JSX / TS / TSX / MJS / CJS: Official Microsoft TypeScript Compiler AST (ts.transpileModule)
+ * - JS / JSX / TS / TSX / MJS / CJS: Official Microsoft TypeScript AST Parser (ts.createSourceFile -> parseDiagnostics)
  * - JSON: Native V8 JSON.parse with line/column mapping
  * - XML / SVG: Native Chromium DOMParser('application/xml')
  * - HTML: Multi-line comment/script/style-aware DOM tag tree parser
- * - Zero regex keyword-guessing heuristics -> Zero false positives on Angular/React/Vue
  */
 export function analyzeCodeProblems(
   fileName: string,
@@ -44,55 +45,53 @@ export function analyzeCodeProblems(
   if (!fileName || !content) return [];
   const ext = fileName.split(".").pop()?.toLowerCase() || "";
 
-  // 1. TypeScript & JavaScript Family — Official Microsoft TypeScript AST Parser
+  // 1. TypeScript & JavaScript Family — Official Microsoft TypeScript AST Parser (ts.createSourceFile)
   if (["ts", "tsx", "js", "jsx", "mjs", "cjs"].includes(ext)) {
-    const isJsx = ext === "tsx" || ext === "jsx";
-    const compilerOptions: ts.CompilerOptions = {
-      target: ts.ScriptTarget.ESNext,
-      module: ts.ModuleKind.ESNext,
-      experimentalDecorators: true,
-      emitDecoratorMetadata: true,
-      allowJs: true,
-      isolatedModules: true,
-    };
-    if (isJsx) {
-      compilerOptions.jsx = ts.JsxEmit.ReactJSX;
-    }
-
     try {
-      const result = ts.transpileModule(content, {
-        fileName,
-        reportDiagnostics: true,
-        compilerOptions,
-      });
+      const scriptKind =
+        ext === "tsx"
+          ? ts.ScriptKind.TSX
+          : ext === "jsx"
+          ? ts.ScriptKind.JSX
+          : ext === "js" || ext === "mjs" || ext === "cjs"
+          ? ts.ScriptKind.JS
+          : ts.ScriptKind.TS;
 
-      if (!result.diagnostics || result.diagnostics.length === 0) {
+      const sourceFile = ts.createSourceFile(
+        fileName,
+        content,
+        ts.ScriptTarget.Latest,
+        true,
+        scriptKind
+      );
+
+      const parseDiagnostics: tsNamespace.DiagnosticWithLocation[] =
+        (sourceFile as any).parseDiagnostics || [];
+
+      if (parseDiagnostics.length === 0) {
         return [];
       }
 
-      return result.diagnostics
-        .filter((d) => d.code !== 6046) // Never emit CLI option flag warnings
-        .slice(0, 50)
-        .map((d, idx) => {
-          let line = 1;
-          let col = 1;
-          if (d.file && typeof d.start === "number") {
-            const pos = d.file.getLineAndCharacterOfPosition(d.start);
-            line = pos.line + 1;
-            col = pos.character + 1;
-          }
-          const msg = ts.flattenDiagnosticMessageText(d.messageText, " ");
-          return {
-            id: `ts-${filePath}-${line}-${col}-${idx}`,
-            file: fileName,
-            filePath,
-            line,
-            col,
-            severity: d.category === ts.DiagnosticCategory.Warning ? "warning" : "error",
-            message: `TS${d.code}: ${msg}`,
-            source: "TypeScript AST",
-          };
-        });
+      return parseDiagnostics.slice(0, 50).map((d, idx) => {
+        let line = 1;
+        let col = 1;
+        if (typeof d.start === "number") {
+          const pos = sourceFile.getLineAndCharacterOfPosition(d.start);
+          line = pos.line + 1;
+          col = pos.character + 1;
+        }
+        const msg = ts.flattenDiagnosticMessageText(d.messageText, " ");
+        return {
+          id: `ts-${filePath}-${line}-${col}-${idx}`,
+          file: fileName,
+          filePath,
+          line,
+          col,
+          severity: d.category === ts.DiagnosticCategory.Warning ? "warning" : "error",
+          message: `TS${d.code}: ${msg}`,
+          source: "TypeScript AST",
+        };
+      });
     } catch {
       return [];
     }
@@ -172,7 +171,6 @@ export function analyzeCodeProblems(
   // 4. HTML / HTM — Multi-line comment/script/style-cleaned tag structural parser
   if (ext === "html" || ext === "htm") {
     const diagnostics: CodeDiagnosticItem[] = [];
-    // Replace comments, script bodies, and style bodies with newline-preserving spaces
     const cleaned = content
       .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, " "))
       .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, (m) => m.replace(/[^\n]/g, " "))

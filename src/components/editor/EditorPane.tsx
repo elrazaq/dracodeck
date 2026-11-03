@@ -246,13 +246,13 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
 
   // Broadcast live code content for real-time Problems tab & listen for jump-to-line
   useEffect(() => {
-    if (!currentTab || isImageFile(currentTab.name)) {
-      const emptyPayload = { path: "", name: "", content: "" };
-      (window as any).__dracoLastEditorState = emptyPayload;
-      window.dispatchEvent(new CustomEvent("dracode:editor-diagnostics", { detail: emptyPayload }));
-      return;
-    }
-    const timer = setTimeout(() => {
+    const publishDiagnostics = () => {
+      if (!currentTab || isImageFile(currentTab.name)) {
+        const emptyPayload = { path: "", name: "", content: "" };
+        (window as any).__dracoLastEditorState = emptyPayload;
+        window.dispatchEvent(new CustomEvent("dracode:editor-diagnostics", { detail: emptyPayload }));
+        return;
+      }
       const payload = {
         path: currentTab.path,
         name: currentTab.name,
@@ -260,8 +260,14 @@ export const EditorPane: React.FC<EditorPaneProps> = ({
       };
       (window as any).__dracoLastEditorState = payload;
       window.dispatchEvent(new CustomEvent("dracode:editor-diagnostics", { detail: payload }));
-    }, 120);
-    return () => clearTimeout(timer);
+    };
+
+    const timer = setTimeout(publishDiagnostics, 100);
+    window.addEventListener("dracode:request-diagnostics", publishDiagnostics);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("dracode:request-diagnostics", publishDiagnostics);
+    };
   }, [currentTab?.path, currentTab?.name, currentTab?.content]);
 
   useEffect(() => {
