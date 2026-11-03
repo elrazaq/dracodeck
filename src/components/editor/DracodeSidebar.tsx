@@ -27,10 +27,7 @@ import {
   Maximize2,
   ChevronDown,
   ChevronUp,
-  Search,
   MoreVertical,
-  Columns,
-  PanelLeft,
   ArrowUp,
   ArrowRight,
   Code2,
@@ -39,6 +36,8 @@ import {
   AtSign,
   Gauge,
   Trash2,
+  Square,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ExplorerView } from "../explorer/ExplorerView";
 import { DracodeLogo } from "../common/DracodeLogo";
@@ -152,8 +151,12 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
   const [isAgyConnecting, setIsAgyConnecting] = useState(false);
   const [isAgySending, setIsAgySending] = useState(false);
   const [agyPromptInput, setAgyPromptInput] = useState("");
+  const [lastSentPrompt, setLastSentPrompt] = useState("");
+  const [attachedFiles, setAttachedFiles] = useState<
+    Array<{ name: string; path?: string; base64?: string; type: "file" | "image" }>
+  >([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [agyStatusNotice, setAgyStatusNotice] = useState<string | null>(null);
-  const [connectedScopeRef, setConnectedScopeRef] = useState<string>("");
 
   // Antigravity UI State (Matching Official Antigravity Chat Layout)
   const [isProviderMenuOpen, setIsProviderMenuOpen] = useState(false);
@@ -312,6 +315,12 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
           payload.workspacePath
         );
         if (res && !String(res.error || "").includes("No handler registered")) return res;
+      } else if (action === "stop-prompt" && window.dracoAPI?.antigravityStopPrompt) {
+        const res = await window.dracoAPI.antigravityStopPrompt(payload.conversationId);
+        if (res && !String(res.error || "").includes("No handler registered")) return res;
+      } else if (action === "save-attachment" && window.dracoAPI?.antigravitySaveAttachment) {
+        const res = await window.dracoAPI.antigravitySaveAttachment(payload);
+        if (res && !String(res.error || "").includes("No handler registered")) return res;
       }
     } catch {}
 
@@ -344,7 +353,6 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         });
         if (res && res.ok) {
           setAgyState(res);
-          setConnectedScopeRef(targetWorkspace);
 
           // Fetch real available skills
           callAntigravityBridge("get-skills", { workspacePath: targetWorkspace }).then((sRes) => {
@@ -428,19 +436,91 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     }
   };
 
+  const handleStopAgyPrompt = async () => {
+    if (!isAgySending) return;
+    await callAntigravityBridge("stop-prompt", {
+      conversationId: agyState?.activeSessionId,
+    });
+    setIsAgySending(false);
+    if (lastSentPrompt) {
+      setAgyPromptInput(lastSentPrompt);
+    }
+    setAgyStatusNotice("Execution stopped. Prompt restored.");
+    setTimeout(() => setAgyStatusNotice(null), 3000);
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const base64 = reader.result as string;
+            const res = await callAntigravityBridge("save-attachment", {
+              base64Data: base64,
+              fileName: file.name || "pasted_image.png",
+              conversationId: agyState?.activeSessionId,
+            });
+            if (res && res.ok && res.filePath) {
+              setAttachedFiles((prev) => [
+                ...prev,
+                { name: res.fileName || file.name || "pasted_image.png", path: res.filePath, type: "image" },
+              ]);
+            } else {
+              setAttachedFiles((prev) => [
+                ...prev,
+                { name: file.name || "pasted_image.png", base64, type: "image" },
+              ]);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+        return;
+      }
+    }
+  };
+
+  const handleSelectFilesFromDisk = async (asDirectory = false) => {
+    if (window.dracoAPI?.selectFiles) {
+      const res = await window.dracoAPI.selectFiles({
+        properties: asDirectory ? ["openDirectory"] : ["openFile", "multiSelections"],
+      });
+      if (res && res.ok && Array.isArray(res.paths)) {
+        res.paths.forEach((p) => {
+          const name = p.split(/[\\/]/).pop() || p;
+          setAttachedFiles((prev) => [
+            ...prev,
+            { name, path: p, type: "file" },
+          ]);
+        });
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
   const handleSendAgyPrompt = async () => {
     const cleanPrompt = agyPromptInput.trim();
-    if (!cleanPrompt || isAgySending) return;
+    if ((!cleanPrompt && activePromptSkills.length === 0 && attachedFiles.length === 0) || isAgySending) return;
+    setLastSentPrompt(cleanPrompt);
     setAgyPromptInput("");
     setIsAgySending(true);
 
     const activeId = agyState?.activeSessionId || "";
     
-    // Combine active skill badges into the outgoing prompt
+    // Combine attached files & skills into outgoing prompt
+    const attachmentLines = attachedFiles
+      .map((f) => (f.type === "image" ? `[Attachment: image/png (${f.path || f.name})]` : `[Attachment: file (${f.path || f.name})]`))
+      .join("\n");
     const skillPrefix = activePromptSkills.length > 0 
       ? activePromptSkills.map(s => `/${s}`).join(" ") + "\n"
       : "";
-    const finalPromptToSend = skillPrefix + cleanPrompt;
+    const finalPromptToSend = (attachmentLines ? attachmentLines + "\n" : "") + skillPrefix + (cleanPrompt || "Attached context provided above.");
 
     const optimisticUserMsg = {
       id: `optimistic-${Date.now()}`,
@@ -449,8 +529,9 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
       timestamp: new Date().toISOString(),
     };
 
-    // Reset composer skills
+    // Reset composer skills and attachments
     setActivePromptSkills([]);
+    setAttachedFiles([]);
 
     setAgyState((prev) =>
       prev
@@ -467,7 +548,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
         projectId: agyState?.projectId || "",
         projectName: agyState?.projectName || "workspace",
         conversationId: activeId,
-        prompt: cleanPrompt,
+        prompt: finalPromptToSend,
         model: selectedModelId,
         effort: selectedEffort.toLowerCase(),
       });
@@ -501,14 +582,13 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
     if (mode === "agent") {
       refreshAgentSessions();
       if (selectedProvider === "antigravity" && workspacePath) {
-        const isFirstConnectForScope = connectedScopeRef !== workspacePath;
         connectAntigravityScope(workspacePath, {
-          createNewSession: isFirstConnectForScope,
-          showBanner: isFirstConnectForScope,
+          createNewSession: false,
+          showBanner: false,
         });
       }
     }
-  }, [mode, workspacePath, selectedProvider, connectedScopeRef, refreshAgentSessions, connectAntigravityScope]);
+  }, [mode, workspacePath, selectedProvider, refreshAgentSessions, connectAntigravityScope]);
 
   // Subscribe to live streaming telemetry-event from Main Process
   useEffect(() => {
@@ -1592,45 +1672,32 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
               )}
             </div>
 
-            {/* 2. Sub-Toolbar: PanelLeft, Search, / Session Title, Plus, More, Columns */}
-            <div className="px-3 py-1.5 flex items-center gap-2 border-b border-[#241c38] bg-[#141021] text-slate-400">
-              <button
-                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
-                title="Sidebar layout"
-              >
-                <PanelLeft className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={() => setIsSessionMenuOpen(!isSessionMenuOpen)}
-                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
-                title="Search or switch session"
-              >
-                <Search className="w-3.5 h-3.5" />
-              </button>
-
+            {/* 2. Sub-Toolbar: Clean & Non-Redundant (Breadcrumb Session & Options) */}
+            <div className="px-3 py-1.5 flex items-center justify-between gap-1.5 border-b border-[#241c38] bg-[#141021] text-slate-400 relative">
               {/* Breadcrumb / Session Pill */}
               <div className="relative flex-1 min-w-0">
                 <button
                   onClick={() => setIsSessionMenuOpen(!isSessionMenuOpen)}
-                  className="w-full text-left truncate text-[11px] text-slate-300 hover:text-white flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-[#201933] cursor-pointer"
+                  className="w-full text-left truncate text-[11px] text-slate-300 hover:text-white flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-[#201933] cursor-pointer border border-transparent hover:border-[#372b54] transition-colors"
                   title={
                     agyState?.sessions?.find((s) => s.id === agyState.activeSessionId)?.title ||
                     "Current Session"
                   }
                 >
                   <span className="text-slate-500 font-mono">/</span>
-                  <span className="truncate">
+                  <span className="truncate font-medium">
                     {agyState?.sessions?.find((s) => s.id === agyState.activeSessionId)?.title ||
                       (agyState?.projectName ? `${agyState.projectName} // Live Session` : "Session")}
                   </span>
+                  <ChevronDown
+                    className={`w-3 h-3 text-slate-500 shrink-0 ml-auto transition-transform ${
+                      isSessionMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
 
                 {isSessionMenuOpen && (
-                  <div
-                    onClick={() => setIsSessionMenuOpen(false)}
-                    className="absolute left-0 top-full mt-1 w-64 max-h-72 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans"
-                  >
+                  <div className="absolute left-0 right-0 top-full mt-1 max-h-72 overflow-y-auto bg-[#1b152d] border border-[#372b54] shadow-2xl rounded-lg py-1 z-50 text-[11px] font-sans">
                     <div className="px-3 py-1.5 text-[9.5px] font-bold text-slate-500 border-b border-[#291f42] flex items-center justify-between">
                       <span>PROJECT SESSIONS ({agyState?.sessions?.length || 0})</span>
                       <button
@@ -1641,9 +1708,10 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                             showBanner: true,
                           });
                         }}
-                        className="text-[#ff007f] hover:underline cursor-pointer"
+                        className="text-[#ff007f] hover:underline cursor-pointer flex items-center gap-1"
                       >
-                        + New
+                        <Plus className="w-3 h-3" />
+                        <span>New</span>
                       </button>
                     </div>
 
@@ -1653,19 +1721,17 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       agyState.sessions.map((s) => (
                         <div
                           key={s.id}
+                          onClick={() => {
+                            setIsSessionMenuOpen(false);
+                            handleSelectAgySession(s.id);
+                          }}
                           className={`group w-full text-left px-3 py-1.5 hover:bg-[#291f42] flex items-center justify-between cursor-pointer border-b border-[#231a38]/40 ${
                             agyState.activeSessionId === s.id
                               ? "bg-[#251b3d] text-[#00e5ff]"
                               : "text-slate-300"
                           }`}
                         >
-                          <div
-                            className="flex flex-col truncate flex-1 pr-2"
-                            onClick={() => {
-                              setIsSessionMenuOpen(false);
-                              handleSelectAgySession(s.id);
-                            }}
-                          >
+                          <div className="flex flex-col truncate flex-1 pr-2">
                             <span className="truncate font-medium">{s.title}</span>
                             <span className="text-[9.5px] text-slate-500">
                               {s.stepCount} steps •{" "}
@@ -1689,32 +1755,13 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                 )}
               </div>
 
-              <button
-                onClick={() =>
-                  connectAntigravityScope(workspacePath, {
-                    createNewSession: true,
-                    showBanner: true,
-                  })
-                }
-                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
-                title="New Session"
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
-
+              {/* Single Session options button */}
               <button
                 onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
-                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
+                className="hover:text-slate-200 cursor-pointer p-1 rounded hover:bg-[#201933] shrink-0"
                 title="Session options"
               >
-                <MoreVertical className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                className="hover:text-slate-200 cursor-pointer p-0.5 rounded hover:bg-[#201933]"
-                title="Layout toggle"
-              >
-                <Columns className="w-3.5 h-3.5" />
+                <MoreVertical className="w-4 h-4" />
               </button>
             </div>
 
@@ -2093,6 +2140,29 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
             {/* 4. Bottom Capsule Composer (Matching Antigravity Floating Pill) */}
             <div className="m-2.5 p-3 rounded-2xl bg-[#1b152d] border border-[#2f254b] shadow-2xl space-y-2 shrink-0 relative">
+              {/* Hidden file picker input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  files.forEach((f) => {
+                    const filePath = (f as any).path || "";
+                    setAttachedFiles((prev) => [
+                      ...prev,
+                      {
+                        name: f.name,
+                        path: filePath,
+                        type: f.type.startsWith("image/") ? "image" : "file",
+                      },
+                    ]);
+                  });
+                  e.target.value = "";
+                }}
+              />
+
               {/* Active Skill Badges in Composer */}
               {activePromptSkills.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pb-1 border-b border-[#291f42]">
@@ -2106,6 +2176,33 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       <button
                         onClick={() =>
                           setActivePromptSkills((prev) => prev.filter((s) => s !== skName))
+                        }
+                        className="text-slate-400 hover:text-white cursor-pointer ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Attached Files & Pasted Images Chips */}
+              {attachedFiles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pb-1 border-b border-[#291f42]">
+                  {attachedFiles.map((af, afIdx) => (
+                    <span
+                      key={`${af.name}-${afIdx}`}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#251b3d] border border-[#00e5ff]/40 text-[#00e5ff] text-[10.5px] font-sans font-medium select-none"
+                    >
+                      {af.type === "image" ? (
+                        <ImageIcon className="w-3 h-3 text-[#ff007f]" />
+                      ) : (
+                        <Paperclip className="w-3 h-3 text-[#00e5ff]" />
+                      )}
+                      <span className="truncate max-w-[120px]">{af.name}</span>
+                      <button
+                        onClick={() =>
+                          setAttachedFiles((prev) => prev.filter((_, idx) => idx !== afIdx))
                         }
                         className="text-slate-400 hover:text-white cursor-pointer ml-0.5"
                       >
@@ -2165,6 +2262,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                     if (isSkillPickerOpen) setIsSkillPickerOpen(false);
                   }
                 }}
+                onPaste={handlePaste}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -2175,7 +2273,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                     handleSendAgyPrompt();
                   }
                 }}
-                placeholder="Ask anything, @ to mention, / for actions"
+                placeholder="Ask anything, @ to mention, / for actions (Ctrl+V to paste images)"
                 rows={2}
                 disabled={isAgySending}
                 className="w-full bg-transparent border-none outline-none text-xs text-slate-100 placeholder:text-slate-500 resize-none font-sans min-h-[42px] leading-relaxed select-text"
@@ -2193,7 +2291,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                       <Plus className="w-3.5 h-3.5" />
                     </button>
 
-                    {/* Add Context Menu (Image 2) */}
+                    {/* Add Context Menu */}
                     {isAddContextOpen && (
                       <div
                         onClick={() => setIsAddContextOpen(false)}
@@ -2205,11 +2303,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
                         <button
                           onClick={() => {
-                            if (selectedFile) {
-                              setAgyPromptInput((prev) =>
-                                prev ? `${prev} @${selectedFile}` : `@${selectedFile}`
-                              );
-                            }
+                            handleSelectFilesFromDisk(false);
                           }}
                           className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
                         >
@@ -2219,9 +2313,7 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
 
                         <button
                           onClick={() => {
-                            setAgyPromptInput((prev) =>
-                              prev ? `${prev} @${workspacePath}` : `@${workspacePath}`
-                            );
+                            handleSelectFilesFromDisk(true);
                           }}
                           className="w-full text-left px-3 py-1.5 hover:bg-[#291f42] text-slate-200 flex items-center gap-2.5 cursor-pointer"
                         >
@@ -2474,23 +2566,29 @@ export const DracodeSidebar: React.FC<DracodeSidebarProps> = ({
                   </div>
                 </div>
 
-                {/* Circular Send Arrow Button */}
-                <button
-                  onClick={handleSendAgyPrompt}
-                  disabled={isAgySending || (!agyPromptInput.trim() && activePromptSkills.length === 0)}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                    (agyPromptInput.trim() || activePromptSkills.length > 0) && !isAgySending
-                      ? "bg-[#3e2f5e] hover:bg-[#584185] text-white shadow-md cursor-pointer hover:scale-105"
-                      : "bg-[#221a34] text-slate-600 cursor-not-allowed"
-                  }`}
-                  title="Send prompt to Antigravity (Enter)"
-                >
-                  {isAgySending ? (
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-300" />
-                  ) : (
+                {/* Circular Send Arrow / Stop Execution Button */}
+                {isAgySending ? (
+                  <button
+                    onClick={handleStopAgyPrompt}
+                    className="w-7 h-7 rounded-full bg-[#ff1744] hover:bg-[#d50000] text-white flex items-center justify-center cursor-pointer shadow-lg transition-transform hover:scale-105"
+                    title="Stop execution and restore prompt"
+                  >
+                    <Square className="w-3 h-3 fill-current" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSendAgyPrompt}
+                    disabled={!agyPromptInput.trim() && activePromptSkills.length === 0 && attachedFiles.length === 0}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                      agyPromptInput.trim() || activePromptSkills.length > 0 || attachedFiles.length > 0
+                        ? "bg-[#3e2f5e] hover:bg-[#584185] text-white shadow-md cursor-pointer hover:scale-105"
+                        : "bg-[#221a34] text-slate-600 cursor-not-allowed"
+                    }`}
+                    title="Send prompt to Antigravity (Enter)"
+                  >
                     <ArrowRight className="w-3.5 h-3.5" />
-                  )}
-                </button>
+                  </button>
+                )}
               </div>
             </div>
           </div>

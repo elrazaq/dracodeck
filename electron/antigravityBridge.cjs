@@ -14,6 +14,7 @@ const { spawn, execFile } = require('child_process');
 // In-memory registry of newly initialized scope projects/sessions before first CLI turn flushes to SQLite
 const pendingScopeProjects = new Map();
 const pendingSessions = new Map();
+const activeProcesses = new Map();
 
 function getAgyBinaryPath() {
   const home = os.homedir();
@@ -334,23 +335,14 @@ async function connectScope(workspacePath, options = {}) {
       isNewProject: autoCreatedProject || projectSessions.length === 0,
       createdAt: new Date().toISOString(),
       status: 'READY',
-      messages: [
-        {
-          id: `welcome-${newConvId}`,
-          role: 'assistant',
-          content: autoCreatedProject
-            ? `Antigravity Project **${folderName}** created for \`${cleanWorkspace}\`. Live session initialized and ready.`
-            : `New Antigravity session initialized in project **${folderName}** (\`${cleanWorkspace}\`). Send a prompt below to begin.`,
-          timestamp: new Date().toISOString(),
-        },
-      ],
+      messages: [],
     };
 
     pendingSessions.set(newConvId, newSessObj);
     autoCreatedSession = {
       id: newConvId,
       title: sessionTitle,
-      stepCount: 1,
+      stepCount: 0,
       status: 'READY',
       lastModified: newSessObj.createdAt,
       projectId: matchedProjectId,
@@ -433,8 +425,14 @@ function sendPrompt(payload = {}) {
       : '';
     const existsOnDisk = existingBrainDir && fs.existsSync(existingBrainDir);
 
-    // Build official agy.exe CLI arguments
-    const args = ['--output-format', 'text', '--add-dir', workspacePath];
+    // Build official agy.exe CLI arguments with headless permission auto-approval
+    const args = [
+      '--dangerously-skip-permissions',
+      '--output-format',
+      'text',
+      '--add-dir',
+      workspacePath,
+    ];
     const sessInfo = pendingSessions.get(conversationId);
 
     if (payload.model) {
@@ -461,6 +459,10 @@ function sendPrompt(payload = {}) {
       windowsHide: true,
     });
 
+    if (conversationId) {
+      activeProcesses.set(conversationId, child);
+    }
+
     let stdout = '';
     let stderr = '';
 
@@ -480,6 +482,7 @@ function sendPrompt(payload = {}) {
 
     child.on('error', (err) => {
       clearTimeout(timeout);
+      if (conversationId) activeProcesses.delete(conversationId);
       const errReply = `Failed to invoke official Antigravity CLI (${agyBin}): ${err.message}`;
       if (conversationId && pendingSessions.has(conversationId)) {
         pendingSessions.get(conversationId).messages.push({
@@ -498,6 +501,7 @@ function sendPrompt(payload = {}) {
 
     child.on('close', (code) => {
       clearTimeout(timeout);
+      if (conversationId) activeProcesses.delete(conversationId);
       const replyText =
         stdout.trim() ||
         stderr.trim() ||
@@ -616,7 +620,69 @@ function getAvailableSkills(workspacePath) {
   // 5. Antigravity application builtin skills
   scanDir(path.join(getAntigravityRoot(), 'builtin', 'skills'));
 
+  // 6. Built-in Antigravity Core Slash Commands
+  const coreSlashCommands = [
+    { name: 'learn', command: '/learn', description: 'Persist learnings & preferences for future tasks' },
+    { name: 'btw', command: '/btw', description: 'Ask a quick side question without altering plan or context' },
+    { name: 'goal', command: '/goal', description: 'Run thorough autonomous task until goal is fully achieved' },
+    { name: 'plan', command: '/plan', description: 'Step-by-step architectural breakdown & task planning' },
+    { name: 'compact', command: '/compact', description: 'Compact and summarize context history to free tokens' },
+    { name: 'schedule', command: '/schedule', description: 'Run an instruction on a recurring cron or timer' },
+    { name: 'browser', command: '/browser', description: 'Automate web browsing, search, and interactions' },
+    { name: 'grill-me', command: '/grill-me', description: 'Interactive interview to align on design decisions' },
+    { name: 'teamwork', command: '/teamwork', description: 'Coordinate multiple agents for large projects' },
+    { name: 'boost', command: '/boost', description: 'Deep thinking, strategic planning, and verification' },
+  ];
+
+  for (const cmd of coreSlashCommands) {
+    if (!checkedNames.has(cmd.name)) {
+      checkedNames.add(cmd.name);
+      skills.push(cmd);
+    }
+  }
+
   return { ok: true, skills };
+}
+
+function stopPrompt(conversationId) {
+  if (!conversationId) {
+    for (const [id, child] of activeProcesses.entries()) {
+      try { child.kill('SIGINT'); } catch {}
+      activeProcesses.delete(id);
+    }
+    return { ok: true, stoppedAll: true };
+  }
+  const child = activeProcesses.get(conversationId);
+  if (child) {
+    try {
+      child.kill('SIGINT');
+      setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+      }, 500);
+    } catch {}
+    activeProcesses.delete(conversationId);
+    return { ok: true, stopped: true };
+  }
+  return { ok: false, message: 'No active process' };
+}
+
+function saveAttachment(base64Data, fileName, conversationId) {
+  try {
+    const safeConvId = conversationId || 'temp';
+    const uploadDir = path.join(getBrainDir(), safeConvId, '.user_uploaded');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    const cleanExt = path.extname(fileName || 'pasted.png') || '.png';
+    const cleanBase = path.basename(fileName || 'pasted', cleanExt).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const diskName = `media_${Date.now()}_${cleanBase}${cleanExt}`;
+    const targetPath = path.join(uploadDir, diskName);
+    const dataPart = String(base64Data || '').replace(/^data:[^;]+;base64,/, '');
+    fs.writeFileSync(targetPath, Buffer.from(dataPart, 'base64'));
+    return { ok: true, filePath: targetPath, fileName: diskName };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 function deleteSession(conversationId, workspacePath) {
@@ -708,6 +774,8 @@ module.exports = {
   getAgyBinaryPath,
   connectScope,
   sendPrompt,
+  stopPrompt,
+  saveAttachment,
   getSessionMessages,
   getAvailableModels,
   getAvailableSkills,

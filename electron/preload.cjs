@@ -75,6 +75,9 @@ contextBridge.exposeInMainWorld('dracoAPI', {
   antigravityGetSkills: (workspacePath) => ipcRenderer.invoke('antigravity-get-skills', workspacePath),
   antigravityGetUsage: () => ipcRenderer.invoke('antigravity-get-usage'),
   antigravityDeleteSession: (conversationId, workspacePath) => ipcRenderer.invoke('antigravity-delete-session', conversationId, workspacePath),
+  antigravityStopPrompt: (conversationId) => ipcRenderer.invoke('antigravity-stop-prompt', conversationId),
+  antigravitySaveAttachment: (payload) => ipcRenderer.invoke('antigravity-save-attachment', payload),
+  selectFiles: (options) => ipcRenderer.invoke('select-files', options),
   send: (channel, data) => {
     const validChannels = ['toMain', 'terminal-input'];
     if (validChannels.includes(channel)) {

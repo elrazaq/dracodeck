@@ -950,6 +950,37 @@ ipcMain.handle('antigravity-delete-session', async (event, conversationId, works
   }
 });
 
+ipcMain.handle('antigravity-stop-prompt', async (event, conversationId) => {
+  try {
+    return antigravityBridge.stopPrompt(conversationId);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('antigravity-save-attachment', async (event, payload) => {
+  try {
+    return antigravityBridge.saveAttachment(payload?.base64Data, payload?.fileName, payload?.conversationId);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('select-files', async (event, options = {}) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: options.title || 'Select Files',
+      properties: options.properties || ['openFile', 'multiSelections'],
+    });
+    if (!result.canceled && result.filePaths.length > 0) {
+      return { ok: true, paths: result.filePaths };
+    }
+    return { ok: false, paths: [] };
+  } catch (err) {
+    return { ok: false, error: err.message, paths: [] };
+  }
+});
+
 ipcMain.handle('wsl-check', async () => {
   return new Promise((resolve) => {
     if (process.platform !== 'win32') {

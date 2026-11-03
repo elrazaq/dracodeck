@@ -60,6 +60,16 @@ function dracoAntigravityDevPlugin() {
             res.end(JSON.stringify(result));
             return;
           }
+          if (req.url.startsWith("/__draco_antigravity/stop-prompt")) {
+            const result = bridge.stopPrompt(body.conversationId);
+            res.end(JSON.stringify(result));
+            return;
+          }
+          if (req.url.startsWith("/__draco_antigravity/save-attachment")) {
+            const result = bridge.saveAttachment(body.base64Data, body.fileName, body.conversationId);
+            res.end(JSON.stringify(result));
+            return;
+          }
           res.statusCode = 404;
           res.end(JSON.stringify({ ok: false, error: "Not found" }));
         } catch (err: any) {

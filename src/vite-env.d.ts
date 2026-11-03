@@ -356,6 +356,9 @@ declare global {
       antigravityGetSkills?: (workspacePath?: string) => Promise<any>;
       antigravityGetUsage?: () => Promise<any>;
       antigravityDeleteSession?: (conversationId: string, workspacePath?: string) => Promise<any>;
+      antigravityStopPrompt?: (conversationId?: string) => Promise<any>;
+      antigravitySaveAttachment?: (payload: { base64Data: string; fileName: string; conversationId?: string }) => Promise<any>;
+      selectFiles?: (options?: { title?: string; properties?: string[] }) => Promise<{ ok: boolean; paths: string[] }>;
       send: (channel: string, data: any) => void;
       receive: (channel: string, func: (...args: any[]) => void) => (() => void) | void;
       off: (channel: string, func: (...args: any[]) => void) => void;
